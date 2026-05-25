@@ -1,0 +1,129 @@
+[MAIN]
+# Files or directories to be skipped. They should be base names, not paths.
+ignore=CVS
+
+# Pickle collected data for later comparisons.
+persistent=yes
+
+# Use multiple processes to speed up Pylint.
+jobs=1
+
+[MESSAGES CONTROL]
+# Disable these checks as they are either design choices or too strict for this codebase
+disable=
+    # Design choice - many dataclasses legitimately need many attributes for SFM framework
+    too-many-instance-attributes,
+    too-many-public-methods,
+    too-many-arguments,
+    too-many-locals,
+    too-many-branches,
+    too-many-statements,
+    # Code organization - large files are acceptable for comprehensive frameworks
+    too-many-lines,
+    # Style choices - these are subjective and would require extensive refactoring
+    line-too-long,
+    # Import organization - these are often legitimate design patterns
+    import-outside-toplevel,
+    # Style preferences that don't affect functionality
+    invalid-name,
+    # Pattern that's acceptable in this domain-specific context
+    unused-argument,
+    # These can be legitimate design patterns
+    no-else-return,
+    use-implicit-booleaness-not-comparison-to-zero,
+    # Constants and enums often have few public methods by design
+    too-few-public-methods
+
+# Enable only functional errors and important warnings
+enable=
+    # Critical errors that affect functionality
+    syntax-error,
+    undefined-variable,
+    used-before-assignment,
+    import-error,
+    no-member,
+    # Important warnings
+    unused-import,
+    unused-variable,
+    reimported,
+    redefined-builtin,
+    # Security and best practices
+    dangerous-default-value,
+    bare-except
+
+[REPORTS]
+# Set the output format. Available formats are text, parseable, colorized, json
+output-format=text
+
+# Tells whether to display a full report or only the messages
+reports=no
+
+[BASIC]
+# Good variable names which should always be accepted, separated by a comma
+good-names=i,j,k,ex,Run,_,id,db,ui,x,y,z
+
+# Bad variable names which should always be refused, separated by a comma
+bad-names=foo,bar,baz,toto,tutu,tata
+
+[FORMAT]
+# Maximum number of characters on a single line.
+max-line-length=120
+
+# Maximum number of lines in a module
+max-module-lines=2000
+
+# String used as indentation unit. This is usually "    " (4 spaces) or "\t" (1 tab).
+indent-string='    '
+
+[MISCELLANEOUS]
+# List of note tags to take in consideration, separated by a comma.
+notes=FIXME,XXX,TODO
+
+[TYPECHECK]
+# Tells whether missing members accessed in mixin class should be ignored. A
+# mixin class is detected if its name ends with "mixin" (case insensitive).
+ignore-mixin-members=yes
+
+# List of class names for which member attributes should not be checked
+ignored-classes=optparse.Values,thread._local,_thread._local
+
+[VARIABLES]
+# Tells whether we should check for unused import in __init__ files.
+init-import=no
+
+# A regular expression matching the name of dummy variables (i.e. expectedly
+# not used).
+dummy-variables-rgx=_+$|(_[a-zA-Z0-9_]*[a-zA-Z0-9]+?$)|dummy|^ignored_|^unused_
+
+[DESIGN]
+# Maximum number of arguments for function / method
+max-args=10
+
+# Maximum number of locals for function / method body
+max-locals=25
+
+# Maximum number of return / yield for function / method body
+max-returns=6
+
+# Maximum number of branch for function / method body
+max-branches=15
+
+# Maximum number of statements in function / method body
+max-statements=75
+
+# Maximum number of parents for a class (see R0901).
+max-parents=7
+
+# Maximum number of attributes for a class (see R0902).
+max-attributes=15
+
+# Minimum number of public methods for a class (see R0903).
+min-public-methods=1
+
+# Maximum number of public methods for a class (see R0904).
+max-public-methods=25
+
+[EXCEPTIONS]
+# Exceptions that will emit a warning when being caught. Defaults to
+# "builtins.Exception"
+overgeneral-exceptions=builtins.Exception

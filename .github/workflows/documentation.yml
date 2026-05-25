@@ -1,0 +1,265 @@
+name: Documentation Validation
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  docstring-validation:
+    name: Docstring Validation
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pydocstyle interrogate || echo "Warning: Some docstring tools failed to install"
+          pip install -r requirements.txt
+
+      - name: Check docstring style with pydocstyle
+        run: |
+          if command -v pydocstyle &> /dev/null; then
+            pydocstyle models/ api/ graph/ data/ infrastructure/ utils/ core/ db/ --convention=google --count > pydocstyle-report.txt 2>&1 || true
+          else
+            echo "pydocstyle not available, skipping docstring style check" > pydocstyle-report.txt
+          fi
+          echo "Pydocstyle results:" && cat pydocstyle-report.txt
+
+      - name: Check docstring coverage with interrogate
+        run: |
+          if command -v interrogate &> /dev/null; then
+            interrogate models/ api/ graph/ data/ infrastructure/ utils/ core/ db/ --verbose --ignore-init-method \
+                       --ignore-magic --ignore-module --ignore-private \
+                       > interrogate-report.txt 2>&1 || true
+          else
+            echo "interrogate not available, skipping docstring coverage check" > interrogate-report.txt
+          fi
+          echo "Interrogate results:" && cat interrogate-report.txt
+
+      - name: Generate docstring summary
+        run: |
+          echo "Docstring Validation Summary" > docstring-summary.txt
+          echo "===========================" >> docstring-summary.txt
+          echo "Date: $(date)" >> docstring-summary.txt
+          echo "" >> docstring-summary.txt
+          echo "Validation performed:" >> docstring-summary.txt
+          echo "- Docstring style consistency (pydocstyle)" >> docstring-summary.txt
+          echo "- Docstring coverage analysis (interrogate)" >> docstring-summary.txt
+          echo "" >> docstring-summary.txt
+
+      - name: Upload docstring reports
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: docstring-reports
+          path: |
+            pydocstyle-report.txt
+            interrogate-report.txt
+            docstring-summary.txt
+
+  markdown-validation:
+    name: Markdown Documentation Validation
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+
+      - name: Install markdown tools
+        run: |
+          npm install -g markdownlint-cli markdown-link-check || echo "Warning: Markdown tools failed to install"
+
+      - name: Validate markdown files
+        run: |
+          # Check markdown syntax and style
+          echo "Checking markdown files..." > markdown-lint-report.txt
+          if command -v markdownlint &> /dev/null; then
+            markdownlint docs/ README.md --output-file markdown-lint-report.txt 2>&1 || true
+          else
+            echo "markdownlint not available, skipping markdown syntax check" >> markdown-lint-report.txt
+          fi
+          echo "Markdownlint results:" && cat markdown-lint-report.txt
+          
+          # Check for broken links
+          echo "Checking for broken links..." > markdown-links-report.txt
+          if command -v markdown-link-check &> /dev/null; then
+            find docs/ -name "*.md" -exec markdown-link-check {} \; >> markdown-links-report.txt 2>&1 || true
+            markdown-link-check README.md >> markdown-links-report.txt 2>&1 || true
+          else
+            echo "markdown-link-check not available, skipping link checking" >> markdown-links-report.txt
+          fi
+          echo "Link check results:" && cat markdown-links-report.txt
+
+      - name: Upload markdown reports
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: markdown-reports
+          path: |
+            markdown-lint-report.txt
+            markdown-links-report.txt
+
+  documentation-consistency:
+    name: Documentation Consistency Check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+     
+
+      - name: Check enum documentation consistency
+        run: |
+          cat > check_enum_docs.py << 'EOF'
+          import ast
+          import os
+          
+          def check_enum_documentation():
+              """Check if enums have consistent documentation."""
+              enum_file = "models/sfm_enums.py"
+              issues = []
+              
+              if not os.path.exists(enum_file):
+                  return ["Enum file not found"]
+              
+              with open(enum_file, 'r') as f:
+                  content = f.read()
+              
+              # Simple check for class documentation
+              enum_classes = []
+              lines = content.split('\n')
+              for i, line in enumerate(lines):
+                  if 'class ' in line and 'Enum' in line:
+                      class_name = line.split('class ')[1].split('(')[0].strip()
+                      enum_classes.append(class_name)
+                      
+                      # Check if next lines contain docstring
+                      found_docstring = False
+                      for j in range(i+1, min(i+10, len(lines))):
+                          if '"""' in lines[j] or "'''" in lines[j]:
+                              found_docstring = True
+                              break
+                          if lines[j].strip() and not lines[j].strip().startswith('#'):
+                              break
+                      
+                      if not found_docstring:
+                          issues.append(f"Enum class {class_name} missing docstring")
+              
+              return issues, enum_classes
+          
+          issues, enum_classes = check_enum_documentation()
+          with open("enum-docs-report.txt", "w") as f:
+              f.write("Enum Documentation Consistency Check\n")
+              f.write("===================================\n\n")
+              f.write(f"Total enum classes found: {len(enum_classes)}\n\n")
+              if issues:
+                  f.write("Issues found:\n")
+                  for issue in issues:
+                      f.write(f"- {issue}\n")
+              else:
+                  f.write("No issues found - all enum classes have documentation\n")
+          EOF
+          
+          python check_enum_docs.py
+
+      - name: Check README consistency
+        run: |
+          echo "README Consistency Check" > readme-consistency-report.txt
+          echo "=======================" >> readme-consistency-report.txt
+          echo "" >> readme-consistency-report.txt
+          
+          # Check if README mentions all main modules
+          echo "Checking if README mentions core modules..." >> readme-consistency-report.txt
+          OLD_MODULES=("sfm_models" "sfm_enums" "sfm_service" "sfm_dao" "sfm_query")
+          NEW_MODULES=("models" "api" "graph" "data" "infrastructure" "utils")
+          
+          echo "Checking old module references (backward compatibility)..." >> readme-consistency-report.txt
+          for module in "${OLD_MODULES[@]}"; do
+              if grep -q "$module" README.md; then
+                  echo "✓ $module mentioned in README" >> readme-consistency-report.txt
+              else
+                  echo "✗ $module NOT mentioned in README" >> readme-consistency-report.txt
+              fi
+          done
+          
+          echo "" >> readme-consistency-report.txt
+          echo "Checking new module structure references..." >> readme-consistency-report.txt
+          for module in "${NEW_MODULES[@]}"; do
+              if grep -q "$module" README.md; then
+                  echo "✓ $module directory mentioned in README" >> readme-consistency-report.txt
+              else
+                  echo "✗ $module directory NOT mentioned in README" >> readme-consistency-report.txt
+              fi
+          done
+          
+          echo "" >> readme-consistency-report.txt
+          echo "Checking for outdated information..." >> readme-consistency-report.txt
+          
+          # Check Python version consistency
+          README_PYTHON=$(grep -o "Python [0-9]\+\.[0-9]\+" README.md | head -1)
+          SETUP_PYTHON=$(grep -o "python_requires.*[0-9]\+\.[0-9]\+" setup.py | head -1)
+          echo "Python version in README: $README_PYTHON" >> readme-consistency-report.txt
+          echo "Python version in setup.py: $SETUP_PYTHON" >> readme-consistency-report.txt
+
+      - name: Upload consistency reports
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: consistency-reports
+          path: |
+            enum-docs-report.txt
+            readme-consistency-report.txt
+
+  documentation-build:
+    name: Documentation Build Test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install documentation tools
+        run: |
+          python -m pip install --upgrade pip
+          pip install sphinx sphinx-rtd-theme || echo "Warning: Sphinx tools failed to install"
+          pip install -r requirements.txt
+
+
+      - name: Upload documentation build
+        uses: actions/upload-artifact@v4
+        with:
+          name: documentation-build
+          path: |
+            docs/build/
+            docs-build-report.txt

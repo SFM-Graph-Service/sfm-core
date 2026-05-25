@@ -1,0 +1,1 @@
+Please fix or add comments to ignore all of the strict Pylance and pylint errors throughout this repository. The goal is to ensure the codebase is clean and compliant with these static analysis tools.
