@@ -10,20 +10,44 @@ from __future__ import annotations
 
 # Import all specialized classes from focused modules
 from models.matrix_components import MatrixCell, SFMCriteria, SFMMatrix
-from models.system_analysis import SystemProperty, SystemLevelAnalysis, InstitutionalHolarchy
-from models.policy_framework import PolicyInstrument, ValueJudgment, ProblemSolvingSequence
+from models.system_analysis import (
+    SystemProperty,
+    SystemLevelAnalysis,
+    InstitutionalHolarchy,
+)
+from models.policy_framework import (
+    PolicyInstrument,
+    ValueJudgment,
+    ProblemSolvingSequence,
+)
 from models.institutional_analysis import InstitutionalStructure, PathDependencyAnalysis
-from models.economic_analysis import TransactionCost, CoordinationMechanism, CommonsGovernance
+from models.economic_analysis import (
+    TransactionCost,
+    CoordinationMechanism,
+    CommonsGovernance,
+)
 from models.cultural_analysis import (
     CeremonialInstrumentalClassification,
     ValueSystem,
     SocialBelief,
     CulturalAttitude,
 )
-from models.social_assessment import SocialValueAssessment, SocialFabricIndicator, SocialCost
+from models.social_assessment import (
+    SocialValueAssessment,
+    SocialFabricIndicator,
+    SocialCost,
+)
 from models.technology_integration import ToolSkillTechnologyComplex, EcologicalSystem
-from models.network_analysis import CrossImpactAnalysis, DeliveryRelationship, MatrixDeliveryNetwork
-from models.complex_analysis import DigraphAnalysis, CircularCausationProcess, ConflictDetection
+from models.network_analysis import (
+    CrossImpactAnalysis,
+    DeliveryRelationship,
+    MatrixDeliveryNetwork,
+)
+from models.complex_analysis import (
+    DigraphAnalysis,
+    CircularCausationProcess,
+    ConflictDetection,
+)
 from models.methodological_framework import (
     InstrumentalistInquiryFramework,
     NormativeSystemsAnalysis,
@@ -45,7 +69,6 @@ from models.meta_entities import (
     UncertaintyType,
 )
 
-
 # All specialized node classes have been moved to focused modules:
 # - Matrix components: matrix_components.py
 # - System analysis: system_analysis.py
@@ -65,59 +88,59 @@ from models.meta_entities import (
 
 __all__ = [
     # Matrix components
-    'MatrixCell',
-    'SFMCriteria', 
-    'SFMMatrix',
+    "MatrixCell",
+    "SFMCriteria",
+    "SFMMatrix",
     # System analysis
-    'SystemProperty',
-    'SystemLevelAnalysis',
-    'InstitutionalHolarchy',
+    "SystemProperty",
+    "SystemLevelAnalysis",
+    "InstitutionalHolarchy",
     # Policy framework
-    'PolicyInstrument',
-    'ValueJudgment',
-    'ProblemSolvingSequence',
+    "PolicyInstrument",
+    "ValueJudgment",
+    "ProblemSolvingSequence",
     # Institutional analysis
-    'InstitutionalStructure',
-    'PathDependencyAnalysis',
+    "InstitutionalStructure",
+    "PathDependencyAnalysis",
     # Economic analysis
-    'TransactionCost',
-    'CoordinationMechanism',
-    'CommonsGovernance',
+    "TransactionCost",
+    "CoordinationMechanism",
+    "CommonsGovernance",
     # Cultural analysis
-    'CeremonialInstrumentalClassification',
-    'ValueSystem',
-    'SocialBelief',
-    'CulturalAttitude',
+    "CeremonialInstrumentalClassification",
+    "ValueSystem",
+    "SocialBelief",
+    "CulturalAttitude",
     # Social assessment
-    'SocialValueAssessment',
-    'SocialFabricIndicator',
-    'SocialCost',
+    "SocialValueAssessment",
+    "SocialFabricIndicator",
+    "SocialCost",
     # Technology integration
-    'ToolSkillTechnologyComplex',
-    'EcologicalSystem',
+    "ToolSkillTechnologyComplex",
+    "EcologicalSystem",
     # Network analysis
-    'CrossImpactAnalysis',
-    'DeliveryRelationship',
-    'MatrixDeliveryNetwork',
+    "CrossImpactAnalysis",
+    "DeliveryRelationship",
+    "MatrixDeliveryNetwork",
     # Complex analysis
-    'DigraphAnalysis',
-    'CircularCausationProcess',
-    'ConflictDetection',
+    "DigraphAnalysis",
+    "CircularCausationProcess",
+    "ConflictDetection",
     # Methodological framework
-    'InstrumentalistInquiryFramework',
-    'NormativeSystemsAnalysis',
-    'PolicyRelevanceIntegration',
-    'DatabaseIntegrationCapability',
+    "InstrumentalistInquiryFramework",
+    "NormativeSystemsAnalysis",
+    "PolicyRelevanceIntegration",
+    "DatabaseIntegrationCapability",
     # Specialized components
-    'SocialIndicatorSystem',
-    'EvolutionaryPathway',
-    'SocialProvisioningMatrix',
+    "SocialIndicatorSystem",
+    "EvolutionaryPathway",
+    "SocialProvisioningMatrix",
     # Meta entities
-    'TimeSlice',
-    'SpatialUnit',
-    'Scenario',
-    'ScenarioSet',
-    'ScenarioPath',
-    'ScenarioType',
-    'UncertaintyType',
+    "TimeSlice",
+    "SpatialUnit",
+    "Scenario",
+    "ScenarioSet",
+    "ScenarioPath",
+    "ScenarioType",
+    "UncertaintyType",
 ]

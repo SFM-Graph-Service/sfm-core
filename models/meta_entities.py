@@ -15,23 +15,26 @@ from enum import Enum, auto
 
 from models.base_nodes import Node
 
+
 class ScenarioType(Enum):
     """Types of scenarios in SFM analysis."""
 
-    BASELINE = auto()           # Current trends baseline
-    POLICY_ALTERNATIVE = auto() # Policy intervention scenarios
-    COUNTERFACTUAL = auto()     # What-if counterfactual scenarios
-    EXPLORATORY = auto()        # Exploratory future scenarios
-    NORMATIVE = auto()          # Desired future scenarios
-    STRESS_TEST = auto()        # Stress testing scenarios
+    BASELINE = auto()  # Current trends baseline
+    POLICY_ALTERNATIVE = auto()  # Policy intervention scenarios
+    COUNTERFACTUAL = auto()  # What-if counterfactual scenarios
+    EXPLORATORY = auto()  # Exploratory future scenarios
+    NORMATIVE = auto()  # Desired future scenarios
+    STRESS_TEST = auto()  # Stress testing scenarios
+
 
 class UncertaintyType(Enum):
     """Types of uncertainty in scenario modeling."""
 
-    ALEATORY = auto()           # Natural variability/randomness
-    EPISTEMIC = auto()          # Knowledge/data uncertainty
-    AMBIGUITY = auto()          # Multiple interpretations
-    VOLATILITY = auto()         # High variability over time
+    ALEATORY = auto()  # Natural variability/randomness
+    EPISTEMIC = auto()  # Knowledge/data uncertainty
+    AMBIGUITY = auto()  # Multiple interpretations
+    VOLATILITY = auto()  # High variability over time
+
 
 @dataclass(frozen=True)
 class TimeSlice:
@@ -45,7 +48,8 @@ class TimeSlice:
 
     def __post_init__(self):
         if self.start_date and self.end_date and not self.duration:
-            object.__setattr__(self, 'duration', self.end_date - self.start_date)
+            object.__setattr__(self, "duration", self.end_date - self.start_date)
+
 
 @dataclass(frozen=True)
 class SpatialUnit:
@@ -58,6 +62,7 @@ class SpatialUnit:
     geographic_bounds: Optional[Dict[str, float]] = None  # Lat/lon bounds
     population: Optional[int] = None
     area: Optional[float] = None  # Area in square kilometers
+
 
 @dataclass
 class Scenario(Node):
@@ -81,7 +86,7 @@ class Scenario(Node):
     # Scenario variables
     variable_ranges: Dict[str, Tuple[float, float]] = field(default_factory=dict)
     probabilistic_variables: Dict[str, Dict[str, float]] = field(default_factory=dict)
-    scenario_pathways: List[Dict[str, Any]] = field(default_factory=dict)
+    scenario_pathways: List[Dict[str, Any]] = field(default_factory=list)
 
     # Cross-scenario relationships
     reference_scenarios: List[uuid.UUID] = field(default_factory=list)
@@ -109,6 +114,7 @@ class Scenario(Node):
     delivery_system_implications: List[uuid.UUID] = field(default_factory=list)
     institutional_scenario_requirements: List[uuid.UUID] = field(default_factory=list)
 
+
 @dataclass
 class ScenarioSet(Node):
     """Collection of related scenarios for comprehensive analysis."""
@@ -124,7 +130,9 @@ class ScenarioSet(Node):
 
     # Set relationships
     baseline_scenario: Optional[uuid.UUID] = None
-    comparison_matrix: Dict[Tuple[uuid.UUID, uuid.UUID], float] = field(default_factory=dict)
+    comparison_matrix: Dict[Tuple[uuid.UUID, uuid.UUID], float] = field(
+        default_factory=dict
+    )
     scenario_clusters: List[List[uuid.UUID]] = field(default_factory=list)
 
     # Set analysis
@@ -141,6 +149,7 @@ class ScenarioSet(Node):
     matrix_set_analysis: Optional[float] = None
     delivery_system_robustness: Optional[float] = None
     institutional_adaptability_assessment: Optional[float] = None
+
 
 @dataclass
 class ScenarioPath(Node):

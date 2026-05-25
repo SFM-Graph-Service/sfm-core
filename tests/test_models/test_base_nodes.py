@@ -1,6 +1,7 @@
 """
 Unit tests for base_nodes module.
 """
+
 import pytest
 import uuid
 from datetime import datetime
@@ -123,3 +124,92 @@ class TestNode:
         assert node.certainty == 0.85
         assert node.data_quality == "verified"
         assert node.previous_version_id == prev_id
+
+
+class TestNodeComposition:
+    """Test Node composition and combination scenarios."""
+
+    def test_multiple_nodes_different_labels(self):
+        """Test creating multiple nodes with different labels."""
+        nodes = [Node(label=f"Node {i}") for i in range(5)]
+        assert len(nodes) == 5
+        assert all(isinstance(n.id, uuid.UUID) for n in nodes)
+
+    def test_node_metadata_update(self):
+        """Test updating node metadata."""
+        node = Node(label="Test")
+        node.meta["new_key"] = "new_value"
+        assert node.meta["new_key"] == "new_value"
+
+    def test_node_certainty_decimal(self):
+        """Test certainty with decimal values."""
+        node = Node(label="Test", certainty=0.123456)
+        assert node.certainty == 0.123456
+
+    def test_node_version_increment(self):
+        """Test version incrementing scenario."""
+        node_v1 = Node(label="Test")
+        node_v2 = Node(
+            label="Test",
+            version=node_v1.version + 1,
+            previous_version_id=node_v1.id,
+        )
+        assert node_v2.version == 2
+        assert node_v2.previous_version_id == node_v1.id
+
+    def test_node_dict_conversion(self):
+        """Test converting Node to dict via iteration."""
+        node = Node(label="Test", description="Desc")
+        node_dict = {k: v for k, v in node}
+        assert "label" in node_dict
+        assert "description" in node_dict
+        assert node_dict["label"] == "Test"
+
+    def test_node_with_none_values(self):
+        """Test Node with explicitly None values."""
+        node = Node(
+            label="Test",
+            description=None,
+            modified_at=None,
+            data_quality=None,
+        )
+        assert node.description is None
+        assert node.modified_at is None
+        assert node.data_quality is None
+
+    def test_node_timestamp_ordering(self):
+        """Test timestamp ordering."""
+        node1 = Node(label="First")
+        node2 = Node(label="Second")
+        assert node2.created_at >= node1.created_at
+
+
+class TestNodeNegativeTests:
+    """Negative test cases for Node class."""
+
+    def test_node_empty_label(self):
+        """Test Node with empty label (should still work)."""
+        node = Node(label="")
+        assert node.label == ""
+
+    def test_node_with_special_characters(self):
+        """Test Node label with special characters."""
+        node = Node(label="Test @#$% Node")
+        assert node.label == "Test @#$% Node"
+
+    def test_node_large_metadata(self):
+        """Test Node with large metadata dict."""
+        large_meta = {f"key{i}": f"value{i}" for i in range(100)}
+        node = Node(label="Test", meta=large_meta)
+        assert len(node.meta) == 100
+
+    def test_node_unicode_label(self):
+        """Test Node with Unicode characters."""
+        node = Node(label="测试节点")
+        assert node.label == "测试节点"
+
+    def test_node_long_description(self):
+        """Test Node with very long description."""
+        long_desc = "A" * 10000
+        node = Node(label="Test", description=long_desc)
+        assert len(node.description) == 10000

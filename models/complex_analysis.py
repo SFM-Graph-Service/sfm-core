@@ -22,40 +22,61 @@ class DigraphAnalysis(Node):
 
     analyzed_institutions: List[uuid.UUID] = field(default_factory=lambda: [])
     dependency_matrix: Dict[str, Dict[str, float]] = field(default_factory=lambda: {})
-    cycle_detection: List[List[uuid.UUID]] = field(default_factory=lambda: [])  # Circular dependencies
+    cycle_detection: List[List[uuid.UUID]] = field(
+        default_factory=lambda: []
+    )  # Circular dependencies
     path_analysis: Dict[str, List[uuid.UUID]] = field(default_factory=lambda: {})
-    critical_institutions: List[uuid.UUID] = field(default_factory=lambda: [])  # High dependency nodes
-    leverage_points: List[uuid.UUID] = field(default_factory=lambda: [])  # High influence nodes
+    critical_institutions: List[uuid.UUID] = field(
+        default_factory=lambda: []
+    )  # High dependency nodes
+    leverage_points: List[uuid.UUID] = field(
+        default_factory=lambda: []
+    )  # High influence nodes
     stability_score: Optional[float] = None  # System stability measure (0-1)
     complexity_measure: Optional[float] = None  # System complexity (0-1)
     analysis_timestamp: datetime = field(default_factory=datetime.now)
     methodology_notes: Optional[str] = None
 
     # Enhanced sequence analysis capabilities
-    propagation_sequences: Dict[str, List[Dict[str, Any]]] = field(default_factory=lambda: {})  # Change propagation paths
-    temporal_dependencies: Dict[str, Dict[str, float]] = field(default_factory=lambda: {})  # Time-lagged dependencies
-    sequence_patterns: List[Dict[str, Any]] = field(default_factory=lambda: [])  # Recurring sequence patterns
-    cascade_potential: Dict[str, float] = field(default_factory=lambda: {})  # Institution -> cascade risk
+    propagation_sequences: Dict[str, List[Dict[str, Any]]] = field(
+        default_factory=lambda: {}
+    )  # Change propagation paths
+    temporal_dependencies: Dict[str, Dict[str, float]] = field(
+        default_factory=lambda: {}
+    )  # Time-lagged dependencies
+    sequence_patterns: List[Dict[str, Any]] = field(
+        default_factory=lambda: []
+    )  # Recurring sequence patterns
+    cascade_potential: Dict[str, float] = field(
+        default_factory=lambda: {}
+    )  # Institution -> cascade risk
 
     # Dynamic sequence properties
-    sequence_stability: Optional[float] = None  # Stability of propagation sequences (0-1)
-    adaptation_pathways: List[List[uuid.UUID]] = field(default_factory=lambda: [])  # Paths for system adaptation
-    bottleneck_sequences: List[List[uuid.UUID]] = field(default_factory=lambda: [])  # Sequence bottlenecks
+    sequence_stability: Optional[float] = (
+        None  # Stability of propagation sequences (0-1)
+    )
+    adaptation_pathways: List[List[uuid.UUID]] = field(
+        default_factory=lambda: []
+    )  # Paths for system adaptation
+    bottleneck_sequences: List[List[uuid.UUID]] = field(
+        default_factory=lambda: []
+    )  # Sequence bottlenecks
 
     def analyze_propagation_sequences(
-        self,
-        initial_change: uuid.UUID,
-        time_steps: int = 5) -> List[Dict[str, Any]]:
+        self, initial_change: uuid.UUID, time_steps: int = 5
+    ) -> List[Dict[str, Any]]:
         """Analyze how changes propagate through the institutional network over time."""
         sequences: List[Dict[str, Any]] = []
 
         # Start with initial change
-        current_affected: Dict[str, float] = {str(initial_change): 1.0}  # Institution ID -> impact strength
+        current_affected: Dict[str, float] = {
+            str(initial_change): 1.0
+        }  # Institution ID -> impact strength
         sequence_step: Dict[str, Any] = {
             "step": 0,
             "affected_institutions": current_affected.copy(),
             "new_impacts": current_affected.copy(),
-            "cumulative_impact": sum(current_affected.values())
+            "cumulative_impact": sum(current_affected.values()),
         }
         sequences.append(sequence_step)
 
@@ -66,10 +87,14 @@ class DigraphAnalysis(Node):
             # For each currently affected institution, find its dependencies
             for institution_id, impact_strength in current_affected.items():
                 if institution_id in self.dependency_matrix:
-                    for dependent_id, dependency_strength in self.dependency_matrix[institution_id].items():
+                    for dependent_id, dependency_strength in self.dependency_matrix[
+                        institution_id
+                    ].items():
                         # Calculate propagated impact (with decay)
-                        decay_factor = 0.8 ** step  # Impact decays over time
-                        propagated_impact = impact_strength * dependency_strength * decay_factor
+                        decay_factor = 0.8**step  # Impact decays over time
+                        propagated_impact = (
+                            impact_strength * dependency_strength * decay_factor
+                        )
 
                         if propagated_impact > 0.1:  # Threshold for significant impact
                             if dependent_id not in new_impacts:
@@ -86,7 +111,7 @@ class DigraphAnalysis(Node):
                 "step": step,
                 "affected_institutions": current_affected.copy(),
                 "new_impacts": new_impacts,
-                "cumulative_impact": sum(current_affected.values())
+                "cumulative_impact": sum(current_affected.values()),
             }
             sequences.append(sequence_step)
 
@@ -106,18 +131,28 @@ class DigraphAnalysis(Node):
 
             # Calculate sequence criticality
             max_impact = max(seq["cumulative_impact"] for seq in sequences)
-            affected_count = len(sequences[-1]["affected_institutions"]) if sequences else 0
+            affected_count = (
+                len(sequences[-1]["affected_institutions"]) if sequences else 0
+            )
 
-            if max_impact > 2.0 or affected_count > len(self.analyzed_institutions) * 0.5:
-                critical_sequences.append({
-                    "starting_institution": institution_id,
-                    "max_impact": max_impact,
-                    "institutions_affected": affected_count,
-                    "sequence_length": len(sequences),
-                    "criticality_score": max_impact * (affected_count / len(self.analyzed_institutions))
-                })
+            if (
+                max_impact > 2.0
+                or affected_count > len(self.analyzed_institutions) * 0.5
+            ):
+                critical_sequences.append(
+                    {
+                        "starting_institution": institution_id,
+                        "max_impact": max_impact,
+                        "institutions_affected": affected_count,
+                        "sequence_length": len(sequences),
+                        "criticality_score": max_impact
+                        * (affected_count / len(self.analyzed_institutions)),
+                    }
+                )
 
-        return sorted(critical_sequences, key=lambda x: x["criticality_score"], reverse=True)
+        return sorted(
+            critical_sequences, key=lambda x: x["criticality_score"], reverse=True
+        )
 
     def detect_sequence_patterns(self) -> List[Dict[str, Any]]:
         """Detect recurring patterns in propagation sequences."""
@@ -150,12 +185,14 @@ class DigraphAnalysis(Node):
         total_sequences = len(all_sequences)
         for path_pattern, frequency in path_frequency.items():
             if frequency / total_sequences > 0.3:  # Appears in >30% of sequences
-                patterns.append({
-                    "pattern": path_pattern,
-                    "frequency": frequency,
-                    "prevalence": frequency / total_sequences,
-                    "description": f"Pattern where {path_pattern} institutions are affected"
-                })
+                patterns.append(
+                    {
+                        "pattern": path_pattern,
+                        "frequency": frequency,
+                        "prevalence": frequency / total_sequences,
+                        "description": f"Pattern where {path_pattern} institutions are affected",
+                    }
+                )
 
         return sorted(patterns, key=lambda x: x["prevalence"], reverse=True)
 
@@ -165,7 +202,7 @@ class DigraphAnalysis(Node):
             "overall_stability": "unknown",
             "vulnerable_sequences": [],
             "stable_sequences": [],
-            "stability_factors": []
+            "stability_factors": [],
         }
 
         # Analyze critical sequences for stability
@@ -176,16 +213,20 @@ class DigraphAnalysis(Node):
 
             # Check if starting institution is in leverage points (more vulnerable)
             if institution_id in self.leverage_points:
-                stability_assessment["vulnerable_sequences"].append({
-                    "institution": institution_id,
-                    "reason": "High leverage point - changes here affect many others",
-                    "impact_potential": seq["criticality_score"]
-                })
+                stability_assessment["vulnerable_sequences"].append(
+                    {
+                        "institution": institution_id,
+                        "reason": "High leverage point - changes here affect many others",
+                        "impact_potential": seq["criticality_score"],
+                    }
+                )
             else:
-                stability_assessment["stable_sequences"].append({
-                    "institution": institution_id,
-                    "stability_factor": seq["criticality_score"]
-                })
+                stability_assessment["stable_sequences"].append(
+                    {
+                        "institution": institution_id,
+                        "stability_factor": seq["criticality_score"],
+                    }
+                )
 
         # Overall stability assessment
         vulnerable_count = len(stability_assessment["vulnerable_sequences"])
@@ -212,31 +253,40 @@ class DigraphAnalysis(Node):
         for vulnerable_seq in stability_assessment["vulnerable_sequences"]:
             institution_id = vulnerable_seq["institution"]
 
-            recommendations.append({
-                "type": "risk_mitigation",
-                "target_institution": institution_id,
-                "intervention": "Create redundant pathways to reduce dependency",
-                "priority": "high" if vulnerable_seq["impact_potential"] > 3.0 else "medium",
-                "rationale": "Institution is high-leverage point affecting many others"
-            })
+            recommendations.append(
+                {
+                    "type": "risk_mitigation",
+                    "target_institution": institution_id,
+                    "intervention": "Create redundant pathways to reduce dependency",
+                    "priority": (
+                        "high" if vulnerable_seq["impact_potential"] > 3.0 else "medium"
+                    ),
+                    "rationale": "Institution is high-leverage point affecting many others",
+                }
+            )
 
         # Recommendations for bottlenecks
         for bottleneck_sequence in self.bottleneck_sequences:
             if bottleneck_sequence:  # Check if sequence is not empty
-                bottleneck_institution = bottleneck_sequence[len(bottleneck_sequence) // 2]  # Middle of sequence
+                bottleneck_institution = bottleneck_sequence[
+                    len(bottleneck_sequence) // 2
+                ]  # Middle of sequence
 
-                recommendations.append({
-                    "type": "bottleneck_resolution",
-                    "target_institution": bottleneck_institution,
-                    "intervention": "Strengthen capacity or create alternative pathways",
-                    "priority": "medium",
-                    "rationale": "Institution is a bottleneck in critical sequences"
-                })
+                recommendations.append(
+                    {
+                        "type": "bottleneck_resolution",
+                        "target_institution": bottleneck_institution,
+                        "intervention": "Strengthen capacity or create alternative pathways",
+                        "priority": "medium",
+                        "rationale": "Institution is a bottleneck in critical sequences",
+                    }
+                )
 
         return sorted(
             recommendations,
             key=lambda x: {"high": 3, "medium": 2, "low": 1}[x["priority"]],
-            reverse=True)
+            reverse=True,
+        )
 
 
 @dataclass
@@ -249,26 +299,48 @@ class CircularCausationProcess(Node):
     time_scale: Optional[str] = None  # "short-term", "medium-term", "long-term"
 
     # Process components
-    causal_elements: List[uuid.UUID] = field(default_factory=lambda: [])  # Elements in causal chain
-    feedback_loops: List[Dict[str, Any]] = field(default_factory=lambda: [])  # Feedback mechanisms
-    reinforcement_mechanisms: List[str] = field(default_factory=lambda: [])  # What reinforces the process
-    disruption_factors: List[str] = field(default_factory=lambda: [])  # What can disrupt the process
+    causal_elements: List[uuid.UUID] = field(
+        default_factory=lambda: []
+    )  # Elements in causal chain
+    feedback_loops: List[Dict[str, Any]] = field(
+        default_factory=lambda: []
+    )  # Feedback mechanisms
+    reinforcement_mechanisms: List[str] = field(
+        default_factory=lambda: []
+    )  # What reinforces the process
+    disruption_factors: List[str] = field(
+        default_factory=lambda: []
+    )  # What can disrupt the process
 
     # Process dynamics
     momentum_level: Optional[float] = None  # Process momentum (0-1)
     stability_tendency: Optional[float] = None  # Tendency toward stability (0-1)
     change_acceleration: Optional[float] = None  # Rate of change acceleration
-    threshold_effects: List[Dict[str, Any]] = field(default_factory=lambda: [])  # Critical thresholds
+    threshold_effects: List[Dict[str, Any]] = field(
+        default_factory=lambda: []
+    )  # Critical thresholds
 
     # Matrix integration
-    institutional_embedment: List[uuid.UUID] = field(default_factory=lambda: [])  # Institutions embedding process
-    technological_enablers: List[uuid.UUID] = field(default_factory=lambda: [])  # Technologies enabling process
-    cultural_reinforcement: Dict[str, float] = field(default_factory=lambda: {})  # Cultural reinforcement factors
-    ecological_limits: List[str] = field(default_factory=lambda: [])  # Environmental constraints
+    institutional_embedment: List[uuid.UUID] = field(
+        default_factory=lambda: []
+    )  # Institutions embedding process
+    technological_enablers: List[uuid.UUID] = field(
+        default_factory=lambda: []
+    )  # Technologies enabling process
+    cultural_reinforcement: Dict[str, float] = field(
+        default_factory=lambda: {}
+    )  # Cultural reinforcement factors
+    ecological_limits: List[str] = field(
+        default_factory=lambda: []
+    )  # Environmental constraints
 
     # Intervention points
-    intervention_opportunities: List[Dict[str, Any]] = field(default_factory=lambda: [])  # Where to intervene
-    policy_leverage_points: List[Dict[str, Any]] = field(default_factory=lambda: [])  # Policy intervention points
+    intervention_opportunities: List[Dict[str, Any]] = field(
+        default_factory=lambda: []
+    )  # Where to intervene
+    policy_leverage_points: List[Dict[str, Any]] = field(
+        default_factory=lambda: []
+    )  # Policy intervention points
 
     def analyze_causation_dynamics(self) -> Dict[str, Any]:
         """Analyze the dynamics of the circular causation process."""
@@ -277,7 +349,7 @@ class CircularCausationProcess(Node):
             "process_direction": "unknown",
             "stability_assessment": "unknown",
             "intervention_potential": 0.0,
-            "system_impact": "unknown"
+            "system_impact": "unknown",
         }
 
         # Determine process direction
@@ -298,8 +370,12 @@ class CircularCausationProcess(Node):
                 dynamics_analysis["stability_assessment"] = "unstable"
 
         # Calculate intervention potential
-        intervention_factors = len(self.intervention_opportunities) + len(self.policy_leverage_points)
-        dynamics_analysis["intervention_potential"] = min(1.0, intervention_factors / 10.0)
+        intervention_factors = len(self.intervention_opportunities) + len(
+            self.policy_leverage_points
+        )
+        dynamics_analysis["intervention_potential"] = min(
+            1.0, intervention_factors / 10.0
+        )
 
         # Assess system impact
         if self.momentum_level is not None and self.causation_strength is not None:
@@ -322,58 +398,114 @@ class ConflictDetection(Node):
     conflict_type: ConflictType = ConflictType.VALUE_CONFLICT
 
     # Detected conflicts
-    direct_conflicts: List[Dict[str, Any]] = field(default_factory=lambda: [])  # Direct contradictions
-    indirect_conflicts: List[Dict[str, Any]] = field(default_factory=lambda: [])  # Indirect conflicts
-    potential_conflicts: List[Dict[str, Any]] = field(default_factory=lambda: [])  # Potential future conflicts
+    direct_conflicts: List[Dict[str, Any]] = field(
+        default_factory=lambda: []
+    )  # Direct contradictions
+    indirect_conflicts: List[Dict[str, Any]] = field(
+        default_factory=lambda: []
+    )  # Indirect conflicts
+    potential_conflicts: List[Dict[str, Any]] = field(
+        default_factory=lambda: []
+    )  # Potential future conflicts
 
     # Conflict characteristics
-    conflict_intensity: Dict[str, float] = field(default_factory=lambda: {})  # Conflict ID -> intensity (0-1)
-    affected_stakeholders: Dict[str, List[uuid.UUID]] = field(default_factory=lambda: {})  # Conflict -> stakeholders
-    resolution_difficulty: Dict[str, float] = field(default_factory=lambda: {})  # Conflict -> difficulty (0-1)
+    conflict_intensity: Dict[str, float] = field(
+        default_factory=lambda: {}
+    )  # Conflict ID -> intensity (0-1)
+    affected_stakeholders: Dict[str, List[uuid.UUID]] = field(
+        default_factory=lambda: {}
+    )  # Conflict -> stakeholders
+    resolution_difficulty: Dict[str, float] = field(
+        default_factory=lambda: {}
+    )  # Conflict -> difficulty (0-1)
 
     # Enhanced SFM integration
-    conflicting_matrix_cells: List[Tuple[uuid.UUID, uuid.UUID]] = field(default_factory=lambda: [])  # Conflicting cell pairs
-    institutional_contradictions: List[uuid.UUID] = field(default_factory=lambda: [])  # Contradictory institutions
-    value_system_conflicts: List[Tuple[uuid.UUID, uuid.UUID]] = field(default_factory=lambda: [])  # Conflicting value systems
+    conflicting_matrix_cells: List[Tuple[uuid.UUID, uuid.UUID]] = field(
+        default_factory=lambda: []
+    )  # Conflicting cell pairs
+    institutional_contradictions: List[uuid.UUID] = field(
+        default_factory=lambda: []
+    )  # Contradictory institutions
+    value_system_conflicts: List[Tuple[uuid.UUID, uuid.UUID]] = field(
+        default_factory=lambda: []
+    )  # Conflicting value systems
 
     # Delivery system conflicts - Hayden's emphasis on deliveries
-    delivery_contradictions: Dict[str, List[Dict[str, Any]]] = field(default_factory=lambda: {})  # Conflicting deliveries
-    delivery_failures: List[Dict[str, Any]] = field(default_factory=lambda: [])  # Failed delivery relationships
+    delivery_contradictions: Dict[str, List[Dict[str, Any]]] = field(
+        default_factory=lambda: {}
+    )  # Conflicting deliveries
+    delivery_failures: List[Dict[str, Any]] = field(
+        default_factory=lambda: []
+    )  # Failed delivery relationships
 
     # Belief/Value/Attitude conflicts - Hayden's cultural analysis
-    belief_value_contradictions: List[Dict[str, Any]] = field(default_factory=lambda: [])  # Belief-value conflicts
-    attitude_belief_misalignments: List[Dict[str, Any]] = field(default_factory=lambda: [])  # Attitude-belief conflicts
-    cultural_institutional_conflicts: List[Dict[str, Any]] = field(default_factory=lambda: [])  # Culture-institution conflicts
+    belief_value_contradictions: List[Dict[str, Any]] = field(
+        default_factory=lambda: []
+    )  # Belief-value conflicts
+    attitude_belief_misalignments: List[Dict[str, Any]] = field(
+        default_factory=lambda: []
+    )  # Attitude-belief conflicts
+    cultural_institutional_conflicts: List[Dict[str, Any]] = field(
+        default_factory=lambda: []
+    )  # Culture-institution conflicts
 
     # Ceremonial vs Instrumental conflicts - Core to Hayden's framework
-    ceremonial_instrumental_tensions: List[Dict[str, Any]] = field(default_factory=lambda: [])
-    ceremonial_dominance_conflicts: List[Dict[str, Any]] = field(default_factory=lambda: [])  # When ceremonial blocks instrumental
-    instrumental_disruption_conflicts: List[Dict[str, Any]] = field(default_factory=lambda: [])  # When instrumental disrupts ceremonial
+    ceremonial_instrumental_tensions: List[Dict[str, Any]] = field(
+        default_factory=lambda: []
+    )
+    ceremonial_dominance_conflicts: List[Dict[str, Any]] = field(
+        default_factory=lambda: []
+    )  # When ceremonial blocks instrumental
+    instrumental_disruption_conflicts: List[Dict[str, Any]] = field(
+        default_factory=lambda: []
+    )  # When instrumental disrupts ceremonial
 
     # Technology-Institution conflicts
-    technology_institution_mismatches: List[Dict[str, Any]] = field(default_factory=lambda: [])
-    technological_ceremonial_conflicts: List[Dict[str, Any]] = field(default_factory=lambda: [])
+    technology_institution_mismatches: List[Dict[str, Any]] = field(
+        default_factory=lambda: []
+    )
+    technological_ceremonial_conflicts: List[Dict[str, Any]] = field(
+        default_factory=lambda: []
+    )
 
     # Ecological system conflicts - Hayden includes ecological systems
-    ecological_institutional_conflicts: List[Dict[str, Any]] = field(default_factory=lambda: [])
-    ecological_technology_conflicts: List[Dict[str, Any]] = field(default_factory=lambda: [])
+    ecological_institutional_conflicts: List[Dict[str, Any]] = field(
+        default_factory=lambda: []
+    )
+    ecological_technology_conflicts: List[Dict[str, Any]] = field(
+        default_factory=lambda: []
+    )
 
     # Resolution approaches
-    mediation_mechanisms: Dict[str, List[str]] = field(default_factory=lambda: {})  # Conflict -> mechanisms
-    structural_solutions: Dict[str, List[str]] = field(default_factory=lambda: {})  # Conflict -> structural changes
-    compromise_possibilities: Dict[str, List[str]] = field(default_factory=lambda: {})  # Conflict -> compromises
+    mediation_mechanisms: Dict[str, List[str]] = field(
+        default_factory=lambda: {}
+    )  # Conflict -> mechanisms
+    structural_solutions: Dict[str, List[str]] = field(
+        default_factory=lambda: {}
+    )  # Conflict -> structural changes
+    compromise_possibilities: Dict[str, List[str]] = field(
+        default_factory=lambda: {}
+    )  # Conflict -> compromises
 
     # Temporal aspects
-    conflict_trajectory: Dict[str, str] = field(default_factory=lambda: {})  # Conflict -> "escalating"/"stable"/"declining"
-    historical_precedents: Dict[str, List[str]] = field(default_factory=lambda: {})  # Similar past conflicts
-    urgency_levels: Dict[str, float] = field(default_factory=lambda: {})  # Conflict -> urgency (0-1)
+    conflict_trajectory: Dict[str, str] = field(
+        default_factory=lambda: {}
+    )  # Conflict -> "escalating"/"stable"/"declining"
+    historical_precedents: Dict[str, List[str]] = field(
+        default_factory=lambda: {}
+    )  # Similar past conflicts
+    urgency_levels: Dict[str, float] = field(
+        default_factory=lambda: {}
+    )  # Conflict -> urgency (0-1)
 
     def __post_init__(self) -> None:
         """Validate that system is provided."""
         if self.analyzed_system_id is None:
             raise ValueError("analyzed_system_id is required for ConflictDetection")
 
-    def detect_matrix_contradictions(self, matrix_cells: List[uuid.UUID]) -> List[Dict[str, Any]]:
+    def detect_matrix_contradictions(
+        self, matrix_cells: List[uuid.UUID]
+    ) -> List[Dict[str, Any]]:
         """Detect contradictions between matrix cell correlations."""
         contradictions: List[Dict[str, Any]] = []
 
@@ -381,7 +513,7 @@ class ConflictDetection(Node):
         # For now, return structure for potential contradictions
 
         for i, cell1 in enumerate(matrix_cells):
-            for cell2 in matrix_cells[i+1:]:
+            for cell2 in matrix_cells[i + 1 :]:
                 # Check for logical contradictions
                 # Example: Institution A enhances Criterion X (+3)
                 # but Institution A conflicts with Institution B (-2)
@@ -393,7 +525,7 @@ class ConflictDetection(Node):
                     "contradiction_type": "logical_inconsistency",
                     "severity": "moderate",
                     "description": "Potential logical inconsistency detected",
-                    "investigation_needed": True
+                    "investigation_needed": True,
                 }
                 contradictions.append(contradiction)
 
@@ -426,11 +558,17 @@ class ConflictDetection(Node):
             difficulty = self.resolution_difficulty.get(conflict_id, 0.5)
             priority_score += (1.0 - difficulty) * 0.1
 
-            prioritized.append({
-                "conflict": conflict,
-                "priority_score": priority_score,
-                "recommended_action": "immediate" if priority_score > 0.7 else "planned" if priority_score > 0.4 else "monitor"
-            })
+            prioritized.append(
+                {
+                    "conflict": conflict,
+                    "priority_score": priority_score,
+                    "recommended_action": (
+                        "immediate"
+                        if priority_score > 0.7
+                        else "planned" if priority_score > 0.4 else "monitor"
+                    ),
+                }
+            )
 
         return sorted(prioritized, key=lambda x: x["priority_score"], reverse=True)
 
@@ -438,22 +576,23 @@ class ConflictDetection(Node):
         """Generate comprehensive conflict analysis report."""
         report: Dict[str, Any] = {
             "conflict_summary": {
-                "total_conflicts": len(self.direct_conflicts) + len(self.indirect_conflicts),
+                "total_conflicts": len(self.direct_conflicts)
+                + len(self.indirect_conflicts),
                 "direct_conflicts": len(self.direct_conflicts),
                 "indirect_conflicts": len(self.indirect_conflicts),
-                "high_priority_conflicts": 0
+                "high_priority_conflicts": 0,
             },
             "conflict_types": {},
             "affected_areas": [],
             "resolution_recommendations": [],
-            "monitoring_requirements": []
+            "monitoring_requirements": [],
         }
 
         # Count high priority conflicts
         priority_analysis = self.assess_conflict_priority()
-        report["conflict_summary"]["high_priority_conflicts"] = len([
-            c for c in priority_analysis if c["priority_score"] > 0.7
-        ])
+        report["conflict_summary"]["high_priority_conflicts"] = len(
+            [c for c in priority_analysis if c["priority_score"] > 0.7]
+        )
 
         # Analyze conflict types
         all_conflicts = self.direct_conflicts + self.indirect_conflicts
@@ -474,6 +613,8 @@ class ConflictDetection(Node):
         # Generate recommendations
         for conflict_id, mechanisms in self.mediation_mechanisms.items():
             if mechanisms:
-                report["resolution_recommendations"].append(f"Conflict {conflict_id}: {mechanisms[0]}")
+                report["resolution_recommendations"].append(
+                    f"Conflict {conflict_id}: {mechanisms[0]}"
+                )
 
         return report

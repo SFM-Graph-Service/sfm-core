@@ -46,12 +46,18 @@ class ValueJudgment(Node):
 
     judgment_type: ValueJudgmentType = ValueJudgmentType.EFFICIENCY
     value_categories_affected: List[ValueCategory] = field(default_factory=lambda: [])
-    trade_offs: Dict[str, float] = field(default_factory=lambda: {})  # What's traded for what
-    stakeholder_impacts: Dict[str, float] = field(default_factory=lambda: {})  # Impact on different groups
+    trade_offs: Dict[str, float] = field(
+        default_factory=lambda: {}
+    )  # What's traded for what
+    stakeholder_impacts: Dict[str, float] = field(
+        default_factory=lambda: {}
+    )  # Impact on different groups
     ethical_framework: Optional[str] = None  # Underlying ethical approach
     justification: Optional[str] = None  # Rationale for the judgment
     controversy_level: Optional[float] = None  # How contested this judgment is (0-1)
-    alternative_judgments: List[str] = field(default_factory=lambda: [])  # Other possible judgments
+    alternative_judgments: List[str] = field(
+        default_factory=lambda: []
+    )  # Other possible judgments
     evidence_basis: List[str] = field(default_factory=lambda: [])
     decision_context: Optional[str] = None
 
@@ -64,17 +70,23 @@ class ProblemSolvingSequence(Node):
     current_stage: ProblemSolvingStage = ProblemSolvingStage.IDENTIFICATION
     status_quo_analysis: Optional[str] = None
     alternative_solutions: List[uuid.UUID] = field(default_factory=lambda: [])
-    evaluation_criteria: List[uuid.UUID] = field(default_factory=lambda: [])  # Links to SFMCriteria
+    evaluation_criteria: List[uuid.UUID] = field(
+        default_factory=lambda: []
+    )  # Links to SFMCriteria
     stakeholder_analysis: Dict[str, Any] = field(default_factory=lambda: {})
     implementation_barriers: List[str] = field(default_factory=lambda: [])
     selected_solution: Optional[uuid.UUID] = None
     implementation_plan: Optional[str] = None
     evaluation_results: Dict[str, Any] = field(default_factory=lambda: {})
     problem_urgency: Optional[float] = None  # How urgent is the problem (0-1)
-    resource_requirements: Dict[str, float] = field(default_factory=lambda: {})  # Required resources
+    resource_requirements: Dict[str, float] = field(
+        default_factory=lambda: {}
+    )  # Required resources
     timeline: Optional[str] = None  # Expected timeline for solution
 
     def __post_init__(self) -> None:
         """Validate that problem definition is provided."""
         if not self.problem_definition.strip():
-            raise ValueError("problem_definition is required for ProblemSolvingSequence")
+            raise ValueError(
+                "problem_definition is required for ProblemSolvingSequence"
+            )

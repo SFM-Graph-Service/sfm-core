@@ -20,9 +20,15 @@ class ToolSkillTechnologyComplex(Node):
     """Hayden's integrated tool-skill-technology system."""
 
     technology_type: ToolSkillTechnologyType = ToolSkillTechnologyType.PHYSICAL_TOOL
-    physical_tools: List[uuid.UUID] = field(default_factory=lambda: [])  # Links to TechnologySystem
-    required_skills: List[uuid.UUID] = field(default_factory=lambda: [])  # Links to skill nodes
-    knowledge_base: List[uuid.UUID] = field(default_factory=lambda: [])  # Links to information resources
+    physical_tools: List[uuid.UUID] = field(
+        default_factory=lambda: []
+    )  # Links to TechnologySystem
+    required_skills: List[uuid.UUID] = field(
+        default_factory=lambda: []
+    )  # Links to skill nodes
+    knowledge_base: List[uuid.UUID] = field(
+        default_factory=lambda: []
+    )  # Links to information resources
     integration_level: Optional[float] = None  # How well integrated (0-1)
     problem_solving_capacity: Optional[float] = None  # Effectiveness (0-1)
     institutional_support_required: List[uuid.UUID] = field(default_factory=lambda: [])
@@ -38,23 +44,43 @@ class EcologicalSystem(Node):
     environmental_health: Optional[float] = None  # Overall health score (0-1)
     biodiversity_index: Optional[float] = None  # Biodiversity measure (0-1)
     carrying_capacity: Optional[float] = None  # Ecosystem carrying capacity
-    resource_stocks: Dict[str, float] = field(default_factory=lambda: {})  # Resource type -> quantity
+    resource_stocks: Dict[str, float] = field(
+        default_factory=lambda: {}
+    )  # Resource type -> quantity
 
     # Institutional relationships
-    governing_institutions: List[uuid.UUID] = field(default_factory=lambda: [])  # Institutions that govern this ecosystem
-    impacting_technologies: List[uuid.UUID] = field(default_factory=lambda: [])  # Technologies affecting ecosystem
-    dependent_communities: List[uuid.UUID] = field(default_factory=lambda: [])  # Communities dependent on ecosystem
+    governing_institutions: List[uuid.UUID] = field(
+        default_factory=lambda: []
+    )  # Institutions that govern this ecosystem
+    impacting_technologies: List[uuid.UUID] = field(
+        default_factory=lambda: []
+    )  # Technologies affecting ecosystem
+    dependent_communities: List[uuid.UUID] = field(
+        default_factory=lambda: []
+    )  # Communities dependent on ecosystem
 
     # Environmental indicators
-    pollution_levels: Dict[str, float] = field(default_factory=lambda: {})  # Pollutant type -> level
+    pollution_levels: Dict[str, float] = field(
+        default_factory=lambda: {}
+    )  # Pollutant type -> level
     regeneration_capacity: Optional[float] = None  # Ability to regenerate (0-1)
-    resilience_factors: List[str] = field(default_factory=lambda: [])  # Factors supporting resilience
-    vulnerability_factors: List[str] = field(default_factory=lambda: [])  # Factors creating vulnerability
+    resilience_factors: List[str] = field(
+        default_factory=lambda: []
+    )  # Factors supporting resilience
+    vulnerability_factors: List[str] = field(
+        default_factory=lambda: []
+    )  # Factors creating vulnerability
 
     # Matrix integration
-    matrix_deliveries: List[Dict[str, Any]] = field(default_factory=lambda: [])  # Ecosystem services delivered
-    matrix_requirements: List[Dict[str, Any]] = field(default_factory=lambda: [])  # Requirements from other matrix elements
-    ecological_constraints: Dict[str, List[str]] = field(default_factory=lambda: {})  # Constraints on other activities
+    matrix_deliveries: List[Dict[str, Any]] = field(
+        default_factory=lambda: []
+    )  # Ecosystem services delivered
+    matrix_requirements: List[Dict[str, Any]] = field(
+        default_factory=lambda: []
+    )  # Requirements from other matrix elements
+    ecological_constraints: Dict[str, List[str]] = field(
+        default_factory=lambda: {}
+    )  # Constraints on other activities
 
     def calculate_sustainability_score(self) -> float:
         """Calculate overall ecosystem sustainability score."""
@@ -69,7 +95,9 @@ class EcologicalSystem(Node):
 
         # Factor in pollution (inverse relationship)
         if self.pollution_levels:
-            avg_pollution = sum(self.pollution_levels.values()) / len(self.pollution_levels)
+            avg_pollution = sum(self.pollution_levels.values()) / len(
+                self.pollution_levels
+            )
             scores.append((1.0 - min(1.0, avg_pollution)) * 0.2)
 
         return sum(scores) if scores else 0.0

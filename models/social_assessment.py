@@ -23,19 +23,29 @@ from models.sfm_enums import (
 class SocialValueAssessment(Node):
     """Assessment of social value using Hayden's framework."""
 
-    assessed_entity_id: Optional[uuid.UUID] = None  # What is being assessed - made optional for dataclass ordering
-    life_process_impact: Optional[float] = None      # Impact on life processes
-    community_continuity: Optional[float] = None     # Effect on community
-    environmental_integration: Optional[float] = None # Environmental harmony
-    cultural_development: Optional[float] = None     # Cultural advancement
+    assessed_entity_id: Optional[uuid.UUID] = (
+        None  # What is being assessed - made optional for dataclass ordering
+    )
+    life_process_impact: Optional[float] = None  # Impact on life processes
+    community_continuity: Optional[float] = None  # Effect on community
+    environmental_integration: Optional[float] = None  # Environmental harmony
+    cultural_development: Optional[float] = None  # Cultural advancement
     instrumental_efficiency: Optional[float] = None  # Problem-solving effectiveness
 
-    ceremonial_elements: List[str] = field(default_factory=lambda: [])  # Status quo aspects
-    instrumental_elements: List[str] = field(default_factory=lambda: [])  # Problem-solving aspects
-    value_conflicts: List[str] = field(default_factory=lambda: [])     # Conflicting values
+    ceremonial_elements: List[str] = field(
+        default_factory=lambda: []
+    )  # Status quo aspects
+    instrumental_elements: List[str] = field(
+        default_factory=lambda: []
+    )  # Problem-solving aspects
+    value_conflicts: List[str] = field(default_factory=lambda: [])  # Conflicting values
     assessment_methodology: str = "holistic"
-    social_value_dimensions: List[SocialValueDimension] = field(default_factory=lambda: [])
-    stakeholder_perspectives: Dict[str, float] = field(default_factory=lambda: {})  # Different stakeholder views
+    social_value_dimensions: List[SocialValueDimension] = field(
+        default_factory=lambda: []
+    )
+    stakeholder_perspectives: Dict[str, float] = field(
+        default_factory=lambda: {}
+    )  # Different stakeholder views
 
     def __post_init__(self) -> None:
         """Validate that assessed entity is provided."""
@@ -47,26 +57,38 @@ class SocialValueAssessment(Node):
 class SocialFabricIndicator(Node):
     """Specialized indicator for measuring social fabric health per Hayden's framework."""
 
-    indicator_type: SocialFabricIndicatorType = SocialFabricIndicatorType.INSTITUTIONAL_COHERENCE
+    indicator_type: SocialFabricIndicatorType = (
+        SocialFabricIndicatorType.INSTITUTIONAL_COHERENCE
+    )
     current_value: Optional[float] = None  # Current measured value
     baseline_value: Optional[float] = None  # Historical baseline for comparison
     target_threshold: Optional[float] = None  # Desired threshold value
     warning_threshold: Optional[float] = None  # Warning level threshold
 
     # SFM-specific properties
-    affected_institutions: List[uuid.UUID] = field(default_factory=lambda: [])  # Institutions measured
+    affected_institutions: List[uuid.UUID] = field(
+        default_factory=lambda: []
+    )  # Institutions measured
     measurement_methodology: str = "qualitative_assessment"
-    stakeholder_perspectives: Dict[str, float] = field(default_factory=lambda: {})  # Different viewpoints
+    stakeholder_perspectives: Dict[str, float] = field(
+        default_factory=lambda: {}
+    )  # Different viewpoints
 
     # Integration with matrix
-    related_matrix_cells: List[uuid.UUID] = field(default_factory=lambda: [])  # Relevant matrix cells
+    related_matrix_cells: List[uuid.UUID] = field(
+        default_factory=lambda: []
+    )  # Relevant matrix cells
     normative_framework: Optional[str] = None  # Evaluation framework
-    ceremonial_biases: List[str] = field(default_factory=lambda: [])  # Potential ceremonial distortions
+    ceremonial_biases: List[str] = field(
+        default_factory=lambda: []
+    )  # Potential ceremonial distortions
 
     # Trend analysis
     trend_direction: Optional[str] = None  # "improving", "declining", "stable"
     trend_strength: Optional[float] = None  # Strength of trend (0-1)
-    intervention_responsiveness: Optional[float] = None  # How responsive to interventions (0-1)
+    intervention_responsiveness: Optional[float] = (
+        None  # How responsive to interventions (0-1)
+    )
 
     def assess_fabric_health(self) -> Dict[str, Any]:
         """Comprehensive assessment of social fabric health."""
@@ -74,7 +96,7 @@ class SocialFabricIndicator(Node):
             "overall_health": "unknown",
             "trend": self.trend_direction or "unknown",
             "stakeholder_consensus": 0.0,
-            "intervention_urgency": 0.0
+            "intervention_urgency": 0.0,
         }
 
         # Determine overall health
@@ -109,8 +131,12 @@ class SocialCost(Node):
     cost_unit: Optional[str] = None  # Unit of measurement
 
     # Cost characteristics
-    cost_bearers: List[uuid.UUID] = field(default_factory=lambda: [])  # Who bears the cost
-    cost_creators: List[uuid.UUID] = field(default_factory=lambda: [])  # Who creates the cost
+    cost_bearers: List[uuid.UUID] = field(
+        default_factory=lambda: []
+    )  # Who bears the cost
+    cost_creators: List[uuid.UUID] = field(
+        default_factory=lambda: []
+    )  # Who creates the cost
     externalization_mechanism: Optional[str] = None  # How cost is externalized
 
     # Temporal aspects
@@ -119,15 +145,29 @@ class SocialCost(Node):
     irreversibility_risk: Optional[float] = None  # Risk of irreversible damage (0-1)
 
     # SFM integration
-    institutional_causes: List[uuid.UUID] = field(default_factory=lambda: [])  # Institutions causing costs
-    ceremonial_amplifiers: List[str] = field(default_factory=lambda: [])  # Ceremonial factors that amplify costs
-    instrumental_mitigation: List[str] = field(default_factory=lambda: [])  # Instrumental approaches to reduce costs
-    matrix_cell_impacts: List[uuid.UUID] = field(default_factory=lambda: [])  # Matrix cells affected by costs
+    institutional_causes: List[uuid.UUID] = field(
+        default_factory=lambda: []
+    )  # Institutions causing costs
+    ceremonial_amplifiers: List[str] = field(
+        default_factory=lambda: []
+    )  # Ceremonial factors that amplify costs
+    instrumental_mitigation: List[str] = field(
+        default_factory=lambda: []
+    )  # Instrumental approaches to reduce costs
+    matrix_cell_impacts: List[uuid.UUID] = field(
+        default_factory=lambda: []
+    )  # Matrix cells affected by costs
 
     # Policy relevance
-    internalization_strategies: List[str] = field(default_factory=lambda: [])  # Ways to internalize costs
-    regulatory_gaps: List[str] = field(default_factory=lambda: [])  # Regulatory failures
-    collective_action_potential: Optional[float] = None  # Potential for collective action (0-1)
+    internalization_strategies: List[str] = field(
+        default_factory=lambda: []
+    )  # Ways to internalize costs
+    regulatory_gaps: List[str] = field(
+        default_factory=lambda: []
+    )  # Regulatory failures
+    collective_action_potential: Optional[float] = (
+        None  # Potential for collective action (0-1)
+    )
 
     def assess_cost_severity(self) -> Dict[str, Any]:
         """Assess severity and urgency of social cost."""
@@ -135,7 +175,7 @@ class SocialCost(Node):
             "economic_magnitude": "unknown",
             "social_impact": "unknown",
             "urgency_level": "unknown",
-            "intervention_feasibility": "unknown"
+            "intervention_feasibility": "unknown",
         }
 
         # Assess economic magnitude
@@ -172,7 +212,9 @@ class SocialCost(Node):
             severity_assessment["urgency_level"] = "low"
 
         # Assess intervention feasibility
-        mitigation_strategies = len(self.instrumental_mitigation) + len(self.internalization_strategies)
+        mitigation_strategies = len(self.instrumental_mitigation) + len(
+            self.internalization_strategies
+        )
         if mitigation_strategies >= 3:
             severity_assessment["intervention_feasibility"] = "feasible"
         elif mitigation_strategies >= 1:
