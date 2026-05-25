@@ -13,6 +13,7 @@ from datetime import datetime
 from models.base_nodes import Node
 from models.matrix_components import MatrixCell
 from models.system_analysis import SystemProperty
+from models.sfm_enums import SystemPropertyType
 from graph.sfm_graph import SFMGraph, NetworkMetrics, Relationship
 
 
@@ -132,7 +133,9 @@ class TestSFMGraph(unittest.TestCase):
         node = MatrixCell(
             id=uuid.uuid4(),
             label="Test Cell",
-            description="Test matrix cell"
+            description="Test matrix cell",
+            institution_id=uuid.uuid4(),
+            criteria_id=uuid.uuid4()
         )
 
         result = self.graph.add_node(node)
@@ -145,7 +148,12 @@ class TestSFMGraph(unittest.TestCase):
     def test_add_multiple_nodes(self):
         """Test adding multiple nodes."""
         nodes = [
-            MatrixCell(id=uuid.uuid4(), label=f"Cell {i}")
+            MatrixCell(
+                id=uuid.uuid4(),
+                label=f"Cell {i}",
+                institution_id=uuid.uuid4(),
+                criteria_id=uuid.uuid4()
+            )
             for i in range(5)
         ]
 
@@ -158,8 +166,18 @@ class TestSFMGraph(unittest.TestCase):
 
     def test_add_relationship(self):
         """Test adding a relationship to the graph."""
-        source = MatrixCell(id=uuid.uuid4(), label="Source")
-        target = MatrixCell(id=uuid.uuid4(), label="Target")
+        source = MatrixCell(
+            id=uuid.uuid4(),
+            label="Source",
+            institution_id=uuid.uuid4(),
+            criteria_id=uuid.uuid4()
+        )
+        target = MatrixCell(
+            id=uuid.uuid4(),
+            label="Target",
+            institution_id=uuid.uuid4(),
+            criteria_id=uuid.uuid4()
+        )
 
         self.graph.add_node(source)
         self.graph.add_node(target)
@@ -182,7 +200,7 @@ class TestSFMGraph(unittest.TestCase):
         node = SystemProperty(
             id=uuid.uuid4(),
             label="Test Property",
-            property_name="test_prop"
+            property_type=SystemPropertyType.STRUCTURAL
         )
 
         self.graph.add_node(node)
@@ -200,9 +218,24 @@ class TestSFMGraph(unittest.TestCase):
 
     def test_get_node_relationships(self):
         """Test retrieving relationships for a node."""
-        source = MatrixCell(id=uuid.uuid4(), label="Source")
-        target1 = MatrixCell(id=uuid.uuid4(), label="Target 1")
-        target2 = MatrixCell(id=uuid.uuid4(), label="Target 2")
+        source = MatrixCell(
+            id=uuid.uuid4(),
+            label="Source",
+            institution_id=uuid.uuid4(),
+            criteria_id=uuid.uuid4()
+        )
+        target1 = MatrixCell(
+            id=uuid.uuid4(),
+            label="Target 1",
+            institution_id=uuid.uuid4(),
+            criteria_id=uuid.uuid4()
+        )
+        target2 = MatrixCell(
+            id=uuid.uuid4(),
+            label="Target 2",
+            institution_id=uuid.uuid4(),
+            criteria_id=uuid.uuid4()
+        )
 
         self.graph.add_node(source)
         self.graph.add_node(target1)
@@ -225,7 +258,12 @@ class TestSFMGraph(unittest.TestCase):
 
     def test_relationship_caching(self):
         """Test that relationship retrieval uses caching."""
-        node = MatrixCell(id=uuid.uuid4(), label="Test Node")
+        node = MatrixCell(
+            id=uuid.uuid4(),
+            label="Test Node",
+            institution_id=uuid.uuid4(),
+            criteria_id=uuid.uuid4()
+        )
         self.graph.add_node(node)
 
         rel = Relationship(
@@ -246,7 +284,12 @@ class TestSFMGraph(unittest.TestCase):
 
     def test_relationship_cache_invalidation(self):
         """Test that cache is cleared when relationships change."""
-        node = MatrixCell(id=uuid.uuid4(), label="Test Node")
+        node = MatrixCell(
+            id=uuid.uuid4(),
+            label="Test Node",
+            institution_id=uuid.uuid4(),
+            criteria_id=uuid.uuid4()
+        )
         self.graph.add_node(node)
 
         rel1 = Relationship(source_id=node.id, target_id=uuid.uuid4(), kind="R1")
@@ -265,7 +308,12 @@ class TestSFMGraph(unittest.TestCase):
     def test_get_all_node_ids(self):
         """Test retrieving all node IDs."""
         nodes = [
-            MatrixCell(id=uuid.uuid4(), label=f"Node {i}")
+            MatrixCell(
+                id=uuid.uuid4(),
+                label=f"Node {i}",
+                institution_id=uuid.uuid4(),
+                criteria_id=uuid.uuid4()
+            )
             for i in range(3)
         ]
 
@@ -280,7 +328,12 @@ class TestSFMGraph(unittest.TestCase):
 
     def test_remove_node_from_memory(self):
         """Test removing a node from memory."""
-        node = MatrixCell(id=uuid.uuid4(), label="Test Node")
+        node = MatrixCell(
+            id=uuid.uuid4(),
+            label="Test Node",
+            institution_id=uuid.uuid4(),
+            criteria_id=uuid.uuid4()
+        )
         self.graph.add_node(node)
 
         result = self.graph.remove_node_from_memory(node.id)
@@ -298,7 +351,12 @@ class TestSFMGraph(unittest.TestCase):
 
     def test_remove_node_clears_cache(self):
         """Test that removing a node clears its relationship cache."""
-        node = MatrixCell(id=uuid.uuid4(), label="Test Node")
+        node = MatrixCell(
+            id=uuid.uuid4(),
+            label="Test Node",
+            institution_id=uuid.uuid4(),
+            criteria_id=uuid.uuid4()
+        )
         self.graph.add_node(node)
 
         rel = Relationship(source_id=node.id, target_id=uuid.uuid4(), kind="TEST")
@@ -316,7 +374,12 @@ class TestSFMGraph(unittest.TestCase):
     def test_graph_iteration(self):
         """Test iterating over graph nodes."""
         nodes = [
-            MatrixCell(id=uuid.uuid4(), label=f"Node {i}")
+            MatrixCell(
+                id=uuid.uuid4(),
+                label=f"Node {i}",
+                institution_id=uuid.uuid4(),
+                criteria_id=uuid.uuid4()
+            )
             for i in range(5)
         ]
 
@@ -334,14 +397,26 @@ class TestSFMGraph(unittest.TestCase):
         self.assertEqual(len(self.graph), 0)
 
         for i in range(10):
-            node = MatrixCell(id=uuid.uuid4(), label=f"Node {i}")
+            node = MatrixCell(
+                id=uuid.uuid4(),
+                label=f"Node {i}",
+                institution_id=uuid.uuid4(),
+                criteria_id=uuid.uuid4()
+            )
             self.graph.add_node(node)
 
         self.assertEqual(len(self.graph), 10)
 
     def test_clear_graph(self):
         """Test clearing all nodes and relationships."""
-        nodes = [MatrixCell(id=uuid.uuid4(), label=f"Node {i}") for i in range(3)]
+        nodes = [
+            MatrixCell(
+                id=uuid.uuid4(),
+                label=f"Node {i}",
+                institution_id=uuid.uuid4(),
+                criteria_id=uuid.uuid4()
+            ) for i in range(3)
+        ]
         for node in nodes:
             self.graph.add_node(node)
 
@@ -361,7 +436,12 @@ class TestSFMGraph(unittest.TestCase):
 
     def test_node_index_consistency(self):
         """Test that _node_index stays consistent with nodes dict."""
-        node = MatrixCell(id=uuid.uuid4(), label="Test Node")
+        node = MatrixCell(
+            id=uuid.uuid4(),
+            label="Test Node",
+            institution_id=uuid.uuid4(),
+            criteria_id=uuid.uuid4()
+        )
         self.graph.add_node(node)
 
         # Both should contain the node
@@ -377,7 +457,14 @@ class TestSFMGraph(unittest.TestCase):
     def test_relationship_cache_size_limit(self):
         """Test that relationship cache respects size limit."""
         # Create many nodes
-        nodes = [MatrixCell(id=uuid.uuid4(), label=f"Node {i}") for i in range(1100)]
+        nodes = [
+            MatrixCell(
+                id=uuid.uuid4(),
+                label=f"Node {i}",
+                institution_id=uuid.uuid4(),
+                criteria_id=uuid.uuid4()
+            ) for i in range(1100)
+        ]
         for node in nodes:
             self.graph.add_node(node)
 

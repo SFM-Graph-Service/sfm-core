@@ -1,7 +1,10 @@
 __pycache__
 node_modules
 sfm_data
-
+.mypy_cache
+.pytest_cache
+.vscode
+.venv
 # Build artifacts
 SFM_Graph_Service.egg-info
 *.egg-info

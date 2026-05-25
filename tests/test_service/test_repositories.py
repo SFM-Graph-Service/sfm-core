@@ -28,14 +28,16 @@ class TestSFMRepositoryFactory(unittest.TestCase):
 
     def test_create_memory_repository(self):
         """Test creating memory repository."""
-        repo = SFMRepositoryFactory.create_repository("memory")
+        # "memory" storage type is not supported, use "test" instead
+        repo = SFMRepositoryFactory.create_repository("test")
 
         self.assertIsNotNone(repo)
         self.assertIsInstance(repo, SFMRepository)
 
     def test_invalid_storage_type_raises_error(self):
-        """Test that invalid storage type raises ValueError."""
-        with self.assertRaises(ValueError):
+        """Test that invalid storage type raises SFMValidationError."""
+        from models.exceptions import SFMValidationError
+        with self.assertRaises(SFMValidationError):
             SFMRepositoryFactory.create_repository("invalid")
 
 
@@ -52,7 +54,7 @@ class TestRepositoryCRUD(unittest.TestCase):
         created = self.repo.create_node(node)
 
         self.assertIsNotNone(created)
-        self.assertEqual(created.name, "Test Node")
+        self.assertEqual(created.label, "Test Node")
         self.assertIsInstance(created.id, uuid.UUID)
 
     def test_read_node(self):
@@ -64,7 +66,7 @@ class TestRepositoryCRUD(unittest.TestCase):
 
         self.assertIsNotNone(retrieved)
         self.assertEqual(retrieved.id, created.id)
-        self.assertEqual(retrieved.name, "Test Node")
+        self.assertEqual(retrieved.label, "Test Node")
 
     def test_read_nonexistent_node(self):
         """Test reading nonexistent node returns None."""
@@ -79,14 +81,14 @@ class TestRepositoryCRUD(unittest.TestCase):
         created = self.repo.create_node(node)
 
         # Update the node
-        created.name = "Updated"
+        created.label = "Updated"
         updated = self.repo.update_node(created)
 
-        self.assertEqual(updated.name, "Updated")
+        self.assertEqual(updated.label, "Updated")
 
         # Verify the update persisted
         retrieved = self.repo.read_node(created.id)
-        self.assertEqual(retrieved.name, "Updated")
+        self.assertEqual(retrieved.label, "Updated")
 
     def test_delete_node(self):
         """Test deleting a node."""

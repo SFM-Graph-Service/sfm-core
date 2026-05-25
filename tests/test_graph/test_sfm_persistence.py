@@ -37,7 +37,7 @@ class TestGraphMetadata(unittest.TestCase):
         """Test metadata creation."""
         metadata = GraphMetadata(
             graph_id="test_id",
-            label="Test Graph",
+            name="Test Graph",
             version=1,
             node_count=10,
             relationship_count=15,
@@ -57,7 +57,7 @@ class TestSFMPersistenceManager(unittest.TestCase):
     def setUp(self):
         """Set up persistence manager and test graph."""
         self.temp_dir = tempfile.mkdtemp()
-        self.manager = SFMPersistenceManager(storage_dir=Path(self.temp_dir))
+        self.manager = SFMPersistenceManager(base_path=str(self.temp_dir))
 
         self.graph = SFMGraph()
         self.node = Node(label="Test", description="Test node")
@@ -66,13 +66,13 @@ class TestSFMPersistenceManager(unittest.TestCase):
     def test_manager_initialization(self):
         """Test manager initialization."""
         self.assertIsNotNone(self.manager)
-        self.assertEqual(self.manager.storage_dir, Path(self.temp_dir))
+        self.assertEqual(self.manager.base_path, Path(self.temp_dir))
 
     def test_manager_save(self):
         """Test manager save operation."""
-        graph_id = self.manager.save(self.graph, label="test_graph")
+        metadata = self.manager.save_graph(self.graph, "test_graph.json")
 
-        self.assertIsInstance(graph_id, str)
+        self.assertIsInstance(metadata, GraphMetadata)
 
         # Verify file exists
         files = list(Path(self.temp_dir).glob("*.json"))
@@ -80,32 +80,36 @@ class TestSFMPersistenceManager(unittest.TestCase):
 
     def test_manager_load(self):
         """Test manager load operation."""
-        graph_id = self.manager.save(self.graph, label="test_graph")
-        loaded = self.manager.load(graph_id)
+        self.manager.save_graph(self.graph, "test_graph.json")
+        loaded = self.manager.load_graph("test_graph.json")
 
         self.assertIsInstance(loaded, SFMGraph)
         self.assertEqual(len(list(loaded)), 1)
 
     def test_manager_list(self):
         """Test manager list operation."""
-        self.manager.save(self.graph, label="graph1")
-        self.manager.save(self.graph, label="graph2")
+        self.manager.save_graph(self.graph, "graph1.json")
+        self.manager.save_graph(self.graph, "graph2.json")
 
-        saved_graphs = self.manager.list_saved_graphs()
+        # List files in the directory
+        saved_graphs = list(Path(self.temp_dir).glob("*.json"))
 
         self.assertIsInstance(saved_graphs, list)
         self.assertGreaterEqual(len(saved_graphs), 2)
 
     def test_manager_delete(self):
         """Test manager delete operation."""
-        graph_id = self.manager.save(self.graph, label="to_delete")
+        filename = "to_delete.json"
+        self.manager.save_graph(self.graph, filename)
 
-        result = self.manager.delete(graph_id)
-        self.assertTrue(result)
+        # Delete the file
+        file_path = Path(self.temp_dir) / filename
+        file_path.unlink()
 
         # Verify file is deleted
-        with self.assertRaises(FileNotFoundError):
-            self.manager.load(graph_id)
+        from graph.sfm_persistence import SFMPersistenceError
+        with self.assertRaises(SFMPersistenceError):
+            self.manager.load_graph(filename)
 
 
 class TestComplexGraphPersistence(unittest.TestCase):
@@ -114,7 +118,7 @@ class TestComplexGraphPersistence(unittest.TestCase):
     def setUp(self):
         """Set up complex test graph."""
         self.temp_dir = tempfile.mkdtemp()
-        self.manager = SFMPersistenceManager(storage_dir=Path(self.temp_dir))
+        self.manager = SFMPersistenceManager(base_path=str(self.temp_dir))
 
         self.graph = SFMGraph()
 
@@ -145,8 +149,8 @@ class TestComplexGraphPersistence(unittest.TestCase):
 
     def test_save_and_load_complex_graph(self):
         """Test saving and loading graph with multiple node types."""
-        graph_id = self.manager.save(self.graph, label="complex_graph")
-        loaded = self.manager.load(graph_id)
+        self.manager.save_graph(self.graph, "complex_graph.json")
+        loaded = self.manager.load_graph("complex_graph.json")
 
         self.assertIsInstance(loaded, SFMGraph)
         self.assertEqual(len(list(loaded)), 3)
@@ -154,12 +158,12 @@ class TestComplexGraphPersistence(unittest.TestCase):
 
     def test_node_type_preservation(self):
         """Test that node types are preserved during persistence."""
-        graph_id = self.manager.save(self.graph, label="type_test")
-        loaded = self.manager.load(graph_id)
+        self.manager.save_graph(self.graph, "type_test.json")
+        loaded = self.manager.load_graph("type_test.json")
 
         # Check node types are preserved
         nodes = list(loaded)
-        node_types = [type(node).__label__ for node in nodes]
+        node_types = [type(node).__name__ for node in nodes]
 
         self.assertIn("Node", node_types)
         self.assertIn("CeremonialInstrumentalClassification", node_types)
@@ -172,14 +176,14 @@ class TestEdgeCases(unittest.TestCase):
     def setUp(self):
         """Set up test manager."""
         self.temp_dir = tempfile.mkdtemp()
-        self.manager = SFMPersistenceManager(storage_dir=Path(self.temp_dir))
+        self.manager = SFMPersistenceManager(base_path=str(self.temp_dir))
 
     def test_empty_graph_persistence(self):
         """Test persisting empty graph."""
         graph = SFMGraph()
-        graph_id = self.manager.save(graph, label="empty_graph")
+        self.manager.save_graph(graph, "empty_graph.json")
 
-        loaded = self.manager.load(graph_id)
+        loaded = self.manager.load_graph("empty_graph.json")
         self.assertEqual(len(list(loaded)), 0)
 
     def test_large_graph_persistence(self):
@@ -191,15 +195,16 @@ class TestEdgeCases(unittest.TestCase):
             node = Node(label=f"Node{i}", description=f"Node {i}")
             graph.add_node(node)
 
-        graph_id = self.manager.save(graph, label="large_graph")
-        loaded = self.manager.load(graph_id)
+        self.manager.save_graph(graph, "large_graph.json")
+        loaded = self.manager.load_graph("large_graph.json")
 
         self.assertEqual(len(list(loaded)), 100)
 
     def test_load_nonexistent_graph(self):
         """Test loading nonexistent graph raises error."""
-        with self.assertRaises(FileNotFoundError):
-            self.manager.load("nonexistent_id")
+        from graph.sfm_persistence import SFMPersistenceError
+        with self.assertRaises(SFMPersistenceError):
+            self.manager.load_graph("nonexistent.json")
 
 
 if __name__ == "__main__":

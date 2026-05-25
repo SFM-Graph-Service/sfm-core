@@ -111,6 +111,7 @@ class NodeSerializer:
 
     # Map of all 33 Beta node types for serialization
     NODE_TYPE_REGISTRY = {
+        "Node": Node,
         "MatrixCell": MatrixCell,
         "SFMCriteria": SFMCriteria,
         "SFMMatrix": SFMMatrix,
@@ -271,7 +272,7 @@ class SFMGraphSerializer:
                 'id': str(rel.id),
                 'source_id': str(rel.source_id),
                 'target_id': str(rel.target_id),
-                'kind': rel.kind.value if hasattr(rel, 'kind') and rel.kind else None,
+                'kind': rel.kind if hasattr(rel, 'kind') else None,
             })
 
         return {
@@ -321,7 +322,7 @@ class SFMGraphSerializer:
     def _dict_to_graph(data: Dict[str, Any]) -> Any:
         """Convert dictionary representation back to SFMGraph."""
         # Import here to avoid circular dependency
-        from sfm_core.graph import SFMGraph
+        from graph.sfm_graph import SFMGraph
 
         graph = SFMGraph()
 
@@ -335,11 +336,20 @@ class SFMGraphSerializer:
                 except Exception as e:
                     logger.warning("Failed to deserialize node: %s", str(e))
 
-        # Deserialize relationships (placeholder - will be implemented with graph module)
-        # relationships_data = data.get('relationships', [])
-        # for rel_data in relationships_data:
-        #     # Create and add relationship
-        #     pass
+        # Deserialize relationships
+        from graph.sfm_graph import Relationship
+        relationships_data = data.get('relationships', [])
+        for rel_data in relationships_data:
+            try:
+                rel = Relationship(
+                    id=uuid.UUID(rel_data['id']),
+                    source_id=uuid.UUID(rel_data['source_id']),
+                    target_id=uuid.UUID(rel_data['target_id']),
+                    kind=rel_data.get('kind', '')
+                )
+                graph.add_relationship(rel)
+            except Exception as e:
+                logger.warning("Failed to deserialize relationship: %s", str(e))
 
         return graph
 

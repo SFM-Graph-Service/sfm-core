@@ -148,6 +148,17 @@ class TestNetworkXSFMQueryEngine(unittest.TestCase):
         self.assertGreaterEqual(centrality, 0.0)
         self.assertLessEqual(centrality, 1.0)
 
+        # Test other centrality types
+        closeness = self.engine.get_node_centrality(self.node1.id, "closeness")
+        self.assertIsInstance(closeness, float)
+
+        degree = self.engine.get_node_centrality(self.node1.id, "degree")
+        self.assertIsInstance(degree, float)
+
+        # Test default (unknown type falls back to betweenness)
+        default = self.engine.get_node_centrality(self.node1.id, "unknown")
+        self.assertIsInstance(default, float)
+
     def test_get_most_central_nodes(self):
         """Test getting most central nodes."""
         central_nodes = self.engine.get_most_central_nodes(limit=2)
@@ -157,6 +168,17 @@ class TestNetworkXSFMQueryEngine(unittest.TestCase):
         for node_id, score in central_nodes:
             self.assertIsInstance(node_id, uuid.UUID)
             self.assertIsInstance(score, float)
+
+        # Test other centrality types
+        closeness_nodes = self.engine.get_most_central_nodes(centrality_type="closeness", limit=2)
+        self.assertIsInstance(closeness_nodes, list)
+
+        degree_nodes = self.engine.get_most_central_nodes(centrality_type="degree", limit=2)
+        self.assertIsInstance(degree_nodes, list)
+
+        # Test with node type filter
+        filtered_nodes = self.engine.get_most_central_nodes(node_type=Node, limit=2)
+        self.assertIsInstance(filtered_nodes, list)
 
     def test_get_node_neighbors(self):
         """Test getting node neighbors."""
@@ -323,6 +345,7 @@ class TestBetaQueryMethods(unittest.TestCase):
         conflict_node = ConflictDetection(
             label="Test Conflict",
             description="Test conflict detection",
+            analyzed_system_id=uuid.uuid4(),
             direct_conflicts=["Conflict A", "Conflict B"],
             indirect_conflicts=["Indirect C"]
         )

@@ -110,7 +110,7 @@ class TestNodeOperations(unittest.TestCase):
         created = self.service.create_node(node)
 
         self.assertIsNotNone(created)
-        self.assertEqual(created.name, "Test Node")
+        self.assertEqual(created.label, "Test Node")
         self.assertIsInstance(created.id, uuid.UUID)
 
     def test_get_node(self):
@@ -122,7 +122,7 @@ class TestNodeOperations(unittest.TestCase):
 
         self.assertIsNotNone(retrieved)
         self.assertEqual(retrieved.id, created.id)
-        self.assertEqual(retrieved.name, "Test Node")
+        self.assertEqual(retrieved.label, "Test Node")
 
     def test_get_nonexistent_node(self):
         """Test retrieving nonexistent node returns None."""
@@ -137,14 +137,14 @@ class TestNodeOperations(unittest.TestCase):
         created = self.service.create_node(node)
 
         # Update the node
-        created.name = "Updated"
+        created.label = "Updated"
         updated = self.service.update_node(created)
 
-        self.assertEqual(updated.name, "Updated")
+        self.assertEqual(updated.label, "Updated")
 
         # Verify the update persisted
         retrieved = self.service.get_node(created.id)
-        self.assertEqual(retrieved.name, "Updated")
+        self.assertEqual(retrieved.label, "Updated")
 
     def test_delete_node(self):
         """Test deleting a node."""
