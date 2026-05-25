@@ -92,6 +92,13 @@ from models.specialized_components import (
     SocialProvisioningMatrix,
 )
 
+# Meta entities (scenarios, etc.)
+from models.meta_entities import (
+    Scenario,
+    ScenarioPath,
+    ScenarioSet,
+)
+
 # Enums and utilities
 from models.sfm_enums import *
 
@@ -146,6 +153,10 @@ __all__ = [
     "SocialIndicatorSystem",
     "EvolutionaryPathway",
     "SocialProvisioningMatrix",
+    # Meta entities
+    "Scenario",
+    "ScenarioPath",
+    "ScenarioSet",
     # All enums and functions from sfm_enums are available via *
     "ValueCategory",
     "InstitutionLayer",
