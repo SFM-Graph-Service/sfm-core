@@ -5,6 +5,7 @@ sfm_data
 .pytest_cache
 .vscode
 .venv
+.uvlock
 # Build artifacts
 SFM_Graph_Service.egg-info
 *.egg-info

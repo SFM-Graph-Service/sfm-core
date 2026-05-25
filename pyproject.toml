@@ -1,7 +1,7 @@
 [project]
 name = "sfm-core"
 version = "0.1.0"
-description = "Social Fabric Matrix graph service"
+description = "Social Fabric Matrix Graph Service"
 license = {text = "GPL-3.0"}
 requires-python = ">=3.9"
 
@@ -28,7 +28,7 @@ python_functions = [
 ]
 
 [tool.mypy]
-python_version = "3.11"
+python_version = "3.14"
 warn_return_any = true
 warn_unused_configs = true
 ignore_missing_imports = false

@@ -23,6 +23,8 @@ from enum import Enum
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 
+import networkx as nx
+
 # Import all Beta unified model node types
 from models import (
     Node,
@@ -413,6 +415,229 @@ class SFMPersistenceManager:
 
         logger.info("Loaded graph from %s", file_path)
         return graph
+
+    def export_graphml(self, graph: Any, path: str) -> None:
+        """
+        Export graph to GraphML format using networkx.
+
+        Args:
+            graph: SFMGraph instance to export
+            path: File path for the exported GraphML file
+
+        Raises:
+            SFMPersistenceError: If export fails
+        """
+        try:
+            # Convert SFMGraph to networkx DiGraph
+            nx_graph = self._sfm_to_networkx(graph)
+
+            # Write to GraphML format
+            nx.write_graphml(nx_graph, path)
+            logger.info("Exported graph to GraphML: %s", path)
+
+        except Exception as e:
+            raise SFMPersistenceError(f"Failed to export GraphML: {str(e)}") from e
+
+    def export_gexf(self, graph: Any, path: str) -> None:
+        """
+        Export graph to GEXF format using networkx.
+
+        Args:
+            graph: SFMGraph instance to export
+            path: File path for the exported GEXF file
+
+        Raises:
+            SFMPersistenceError: If export fails
+        """
+        try:
+            # Convert SFMGraph to networkx DiGraph
+            nx_graph = self._sfm_to_networkx(graph)
+
+            # Write to GEXF format
+            nx.write_gexf(nx_graph, path)
+            logger.info("Exported graph to GEXF: %s", path)
+
+        except Exception as e:
+            raise SFMPersistenceError(f"Failed to export GEXF: {str(e)}") from e
+
+    def export_json_snapshot(self, graph: Any, path: str) -> None:
+        """
+        Export graph to a custom JSON snapshot format.
+
+        Format: {
+            "metadata": {...},
+            "nodes": [...],
+            "relationships": [...]
+        }
+
+        Args:
+            graph: SFMGraph instance to export
+            path: File path for the exported JSON file
+
+        Raises:
+            SFMPersistenceError: If export fails
+        """
+        try:
+            # Build snapshot structure
+            snapshot = {
+                "metadata": {
+                    "graph_id": str(getattr(graph, 'id', uuid.uuid4())),
+                    "name": getattr(graph, 'name', 'SFM Graph'),
+                    "description": getattr(graph, 'description', ''),
+                    "version": getattr(graph, 'version', 1),
+                    "created_at": getattr(graph, 'created_at', datetime.now()).isoformat(),
+                    "exported_at": datetime.now().isoformat(),
+                    "node_count": len(list(graph)),
+                    "relationship_count": len(graph.relationships),
+                },
+                "nodes": [],
+                "relationships": []
+            }
+
+            # Serialize nodes
+            for node in graph:
+                snapshot["nodes"].append(NodeSerializer.node_to_dict(node))
+
+            # Serialize relationships
+            for rel in graph.relationships.values():
+                snapshot["relationships"].append({
+                    'id': str(rel.id),
+                    'source_id': str(rel.source_id),
+                    'target_id': str(rel.target_id),
+                    'kind': rel.kind if hasattr(rel, 'kind') else None,
+                    'weight': rel.weight if hasattr(rel, 'weight') else None,
+                    'meta': rel.meta if hasattr(rel, 'meta') else {}
+                })
+
+            # Write to file
+            with open(path, 'w', encoding='utf-8') as f:
+                json.dump(snapshot, f, indent=2, default=self._json_serializer)
+
+            logger.info("Exported JSON snapshot: %s", path)
+
+        except Exception as e:
+            raise SFMPersistenceError(f"Failed to export JSON snapshot: {str(e)}") from e
+
+    def import_json_snapshot(self, path: str) -> Any:
+        """
+        Import graph from a custom JSON snapshot format.
+
+        Args:
+            path: File path of the JSON snapshot to import
+
+        Returns:
+            Reconstructed SFMGraph instance
+
+        Raises:
+            SFMPersistenceError: If import fails or file not found
+        """
+        try:
+            # Check file exists
+            if not Path(path).exists():
+                raise SFMPersistenceError(f"File not found: {path}")
+
+            # Load snapshot
+            with open(path, 'r', encoding='utf-8') as f:
+                snapshot = json.load(f)
+
+            # Validate snapshot structure
+            if not all(key in snapshot for key in ['metadata', 'nodes', 'relationships']):
+                raise SFMPersistenceError("Invalid snapshot format: missing required keys")
+
+            # Import here to avoid circular dependency
+            from graph.sfm_graph import SFMGraph, Relationship
+
+            # Create new graph
+            graph = SFMGraph()
+            metadata = snapshot['metadata']
+            graph.id = uuid.UUID(metadata.get('graph_id', str(uuid.uuid4())))
+            graph.name = metadata.get('name', 'SFM Graph')
+            graph.description = metadata.get('description', '')
+            graph.version = metadata.get('version', 1)
+
+            # Deserialize nodes
+            for node_data in snapshot['nodes']:
+                try:
+                    node = NodeSerializer.dict_to_node(node_data)
+                    graph.add_node(node)
+                except Exception as e:
+                    logger.warning("Failed to deserialize node: %s", str(e))
+
+            # Deserialize relationships
+            for rel_data in snapshot['relationships']:
+                try:
+                    rel = Relationship(
+                        id=uuid.UUID(rel_data['id']),
+                        source_id=uuid.UUID(rel_data['source_id']),
+                        target_id=uuid.UUID(rel_data['target_id']),
+                        kind=rel_data.get('kind', ''),
+                        weight=rel_data.get('weight'),
+                        meta=rel_data.get('meta', {})
+                    )
+                    graph.add_relationship(rel)
+                except Exception as e:
+                    logger.warning("Failed to deserialize relationship: %s", str(e))
+
+            logger.info("Imported JSON snapshot from: %s", path)
+            logger.info("Loaded %d nodes and %d relationships",
+                       len(list(graph)), len(graph.relationships))
+
+            return graph
+
+        except SFMPersistenceError:
+            raise
+        except Exception as e:
+            raise SFMPersistenceError(f"Failed to import JSON snapshot: {str(e)}") from e
+
+    def _sfm_to_networkx(self, graph: Any) -> nx.DiGraph:
+        """
+        Convert SFMGraph to networkx DiGraph.
+
+        Args:
+            graph: SFMGraph instance to convert
+
+        Returns:
+            networkx DiGraph with node and edge attributes
+        """
+        nx_graph = nx.DiGraph()
+
+        # Add nodes with attributes
+        for node in graph:
+            node_attrs = {
+                'label': node.label,
+                'description': node.description,
+                'type': type(node).__name__,
+            }
+            # Add additional attributes from node meta
+            if hasattr(node, 'meta') and node.meta:
+                node_attrs['meta'] = json.dumps(node.meta)
+
+            nx_graph.add_node(str(node.id), **node_attrs)
+
+        # Add edges with attributes
+        for rel in graph.relationships.values():
+            edge_attrs = {}
+            if hasattr(rel, 'kind') and rel.kind:
+                edge_attrs['kind'] = rel.kind
+            if hasattr(rel, 'weight') and rel.weight is not None:
+                edge_attrs['weight'] = rel.weight
+            if hasattr(rel, 'meta') and rel.meta:
+                edge_attrs['meta'] = json.dumps(rel.meta)
+
+            nx_graph.add_edge(str(rel.source_id), str(rel.target_id), **edge_attrs)
+
+        return nx_graph
+
+    @staticmethod
+    def _json_serializer(obj: Any) -> Any:
+        """Custom JSON serializer for special types."""
+        if isinstance(obj, datetime):
+            return obj.isoformat()
+        if isinstance(obj, uuid.UUID):
+            return str(obj)
+        if isinstance(obj, Enum):
+            return obj.value
+        raise TypeError(f"Type {type(obj)} not serializable")
 
 
 # Public API

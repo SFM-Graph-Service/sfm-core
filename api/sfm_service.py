@@ -355,6 +355,399 @@ class SFMService:
         logger.info("Detecting system conflicts")
         return []
 
+    # ========================================================================
+    # Phase 3 Evaluation Methods - Analysis & Assessment
+    # ========================================================================
+
+    def evaluate_digraph(
+        self, institutions: List[uuid.UUID], analyze_sequences: bool = True
+    ) -> Dict[str, Any]:
+        """
+        Perform digraph analysis on institutional dependencies.
+
+        Args:
+            institutions: List of institution IDs to analyze
+            analyze_sequences: Whether to analyze propagation sequences
+
+        Returns:
+            Dictionary containing:
+                - dependency_matrix: Institution dependency relationships
+                - cycles: Detected circular dependencies
+                - critical_institutions: High-dependency nodes
+                - leverage_points: High-influence nodes
+                - stability_score: System stability measure
+                - propagation_analysis: Optional sequence analysis results
+
+        Raises:
+            SFMValidationError: If institutions list is invalid
+        """
+        from models.complex_analysis import DigraphAnalysis
+
+        if not institutions:
+            raise SFMValidationError(
+                "At least one institution required for digraph analysis",
+                field="institutions",
+                value=institutions,
+            )
+
+        analysis = DigraphAnalysis(
+            label="Digraph Analysis",
+            analyzed_institutions=institutions,
+        )
+
+        result = {
+            "dependency_matrix": analysis.dependency_matrix,
+            "cycles": analysis.cycle_detection,
+            "critical_institutions": analysis.critical_institutions,
+            "leverage_points": analysis.leverage_points,
+            "stability_score": analysis.stability_score,
+            "complexity_measure": analysis.complexity_measure,
+        }
+
+        if analyze_sequences:
+            critical_seqs = analysis.identify_critical_sequences()
+            patterns = analysis.detect_sequence_patterns()
+            stability = analysis.assess_sequence_stability()
+
+            result["propagation_analysis"] = {
+                "critical_sequences": critical_seqs,
+                "sequence_patterns": patterns,
+                "sequence_stability": stability,
+            }
+
+        logger.info("Completed digraph analysis for %d institutions", len(institutions))
+        return result
+
+    def evaluate_circular_causation(
+        self, process_id: uuid.UUID
+    ) -> Dict[str, Any]:
+        """
+        Analyze circular causation process dynamics.
+
+        Args:
+            process_id: ID of CircularCausationProcess to evaluate
+
+        Returns:
+            Dictionary containing process dynamics analysis
+
+        Raises:
+            SFMNotFoundError: If process doesn't exist
+        """
+        from models.complex_analysis import CircularCausationProcess
+
+        process = self.get_node(process_id)
+        if not isinstance(process, CircularCausationProcess):
+            raise SFMNotFoundError(
+                entity_type="CircularCausationProcess", entity_id=process_id
+            )
+
+        dynamics = process.analyze_causation_dynamics()
+        logger.info("Evaluated circular causation for process %s", process_id)
+        return dynamics
+
+    def evaluate_conflict_detection(
+        self, system_id: uuid.UUID
+    ) -> Dict[str, Any]:
+        """
+        Detect and analyze system conflicts.
+
+        Args:
+            system_id: ID of system to analyze for conflicts
+
+        Returns:
+            Dictionary containing comprehensive conflict report
+
+        Raises:
+            SFMNotFoundError: If system doesn't exist
+        """
+        from models.complex_analysis import ConflictDetection
+
+        system = self.get_node(system_id)
+        if not isinstance(system, ConflictDetection):
+            raise SFMNotFoundError(
+                entity_type="ConflictDetection", entity_id=system_id
+            )
+
+        # Generate comprehensive conflict report
+        report = system.generate_conflict_report()
+        priority_analysis = system.assess_conflict_priority()
+
+        result = {
+            "conflict_report": report,
+            "priority_analysis": priority_analysis,
+            "total_conflicts": len(system.direct_conflicts) + len(system.indirect_conflicts),
+        }
+
+        logger.info("Evaluated conflicts in system %s", system_id)
+        return result
+
+    def evaluate_cross_impact(
+        self, cell_id: uuid.UUID
+    ) -> Dict[str, Any]:
+        """
+        Analyze cross-impact effects of a matrix cell change.
+
+        Args:
+            cell_id: ID of matrix cell to analyze
+
+        Returns:
+            Dictionary containing cross-impact analysis results
+
+        Raises:
+            SFMNotFoundError: If cell doesn't exist
+        """
+        from models.network_analysis import CrossImpactAnalysis
+
+        cell = self.get_node(cell_id)
+        if not isinstance(cell, CrossImpactAnalysis):
+            raise SFMNotFoundError(
+                entity_type="CrossImpactAnalysis", entity_id=cell_id
+            )
+
+        result = {
+            "primary_cell_id": str(cell.primary_cell_id),
+            "impacted_cells": cell.impacted_cells,
+            "impact_type": str(cell.impact_type),
+            "impact_mechanism": cell.impact_mechanism,
+            "time_delay": cell.time_delay,
+            "confidence_level": cell.confidence_level,
+            "mitigation_strategies": cell.mitigation_strategies,
+            "amplification_strategies": cell.amplification_strategies,
+        }
+
+        logger.info("Evaluated cross-impact for cell %s", cell_id)
+        return result
+
+    def evaluate_delivery_performance(
+        self, relationship_id: uuid.UUID
+    ) -> Dict[str, Any]:
+        """
+        Assess delivery relationship performance.
+
+        Args:
+            relationship_id: ID of DeliveryRelationship to evaluate
+
+        Returns:
+            Dictionary containing performance assessment
+
+        Raises:
+            SFMNotFoundError: If relationship doesn't exist
+        """
+        from models.network_analysis import DeliveryRelationship
+
+        relationship = self.get_node(relationship_id)
+        if not isinstance(relationship, DeliveryRelationship):
+            raise SFMNotFoundError(
+                entity_type="DeliveryRelationship", entity_id=relationship_id
+            )
+
+        performance = relationship.assess_delivery_performance()
+        logger.info("Evaluated delivery performance for relationship %s", relationship_id)
+        return performance
+
+    def evaluate_network_performance(
+        self, network_id: uuid.UUID
+    ) -> Dict[str, Any]:
+        """
+        Analyze delivery network performance and health.
+
+        Args:
+            network_id: ID of MatrixDeliveryNetwork to evaluate
+
+        Returns:
+            Dictionary containing network analysis
+
+        Raises:
+            SFMNotFoundError: If network doesn't exist
+        """
+        from models.network_analysis import MatrixDeliveryNetwork
+
+        network = self.get_node(network_id)
+        if not isinstance(network, MatrixDeliveryNetwork):
+            raise SFMNotFoundError(
+                entity_type="MatrixDeliveryNetwork", entity_id=network_id
+            )
+
+        analysis = network.analyze_network_performance()
+        logger.info("Evaluated network performance for %s", network_id)
+        return analysis
+
+    def evaluate_path_dependency(
+        self, institution_id: uuid.UUID
+    ) -> Dict[str, Any]:
+        """
+        Analyze path-dependent institutional development.
+
+        Args:
+            institution_id: ID of institution to analyze
+
+        Returns:
+            Dictionary containing path dependency analysis
+
+        Raises:
+            SFMNotFoundError: If institution doesn't exist
+        """
+        from models.institutional_analysis import PathDependencyAnalysis
+
+        analysis_node = self.get_node(institution_id)
+        if not isinstance(analysis_node, PathDependencyAnalysis):
+            raise SFMNotFoundError(
+                entity_type="PathDependencyAnalysis", entity_id=institution_id
+            )
+
+        result = {
+            "analyzed_institution_id": str(analysis_node.analyzed_institution_id),
+            "dependency_strength": str(analysis_node.dependency_strength),
+            "critical_junctures": analysis_node.critical_junctures,
+            "lock_in_mechanisms": analysis_node.lock_in_mechanisms,
+            "switching_costs": analysis_node.switching_costs,
+            "alternative_paths": analysis_node.alternative_paths,
+            "intervention_points": analysis_node.intervention_points,
+            "path_efficiency": analysis_node.path_efficiency,
+            "exit_barriers": analysis_node.exit_barriers,
+            "network_effects": analysis_node.network_effects,
+        }
+
+        logger.info("Evaluated path dependency for institution %s", institution_id)
+        return result
+
+    def evaluate_value_system(
+        self, value_system_id: uuid.UUID
+    ) -> Dict[str, Any]:
+        """
+        Analyze cultural value system coherence and alignment.
+
+        Args:
+            value_system_id: ID of ValueSystem to evaluate
+
+        Returns:
+            Dictionary containing value system analysis
+
+        Raises:
+            SFMNotFoundError: If value system doesn't exist
+        """
+        from models.cultural_analysis import ValueSystem
+
+        value_system = self.get_node(value_system_id)
+        if not isinstance(value_system, ValueSystem):
+            raise SFMNotFoundError(
+                entity_type="ValueSystem", entity_id=value_system_id
+            )
+
+        coherence = value_system.calculate_coherence_score()
+        alignment = value_system.assess_institutional_alignment()
+
+        result = {
+            "value_system_id": str(value_system_id),
+            "system_type": str(value_system.system_type),
+            "coherence_score": coherence,
+            "institutional_alignment": alignment,
+            "core_values": value_system.core_values,
+            "value_hierarchy": value_system.value_hierarchy,
+            "ceremonial_elements": value_system.ceremonial_elements,
+            "instrumental_elements": value_system.instrumental_elements,
+            "change_resistance": value_system.change_resistance,
+            "adaptive_capacity": value_system.adaptive_capacity,
+        }
+
+        logger.info("Evaluated value system %s", value_system_id)
+        return result
+
+    def evaluate_belief_stability(
+        self, belief_id: uuid.UUID
+    ) -> Dict[str, Any]:
+        """
+        Assess social belief stability and change potential.
+
+        Args:
+            belief_id: ID of SocialBelief to evaluate
+
+        Returns:
+            Dictionary containing belief stability assessment
+
+        Raises:
+            SFMNotFoundError: If belief doesn't exist
+        """
+        from models.cultural_analysis import SocialBelief
+
+        belief = self.get_node(belief_id)
+        if not isinstance(belief, SocialBelief):
+            raise SFMNotFoundError(
+                entity_type="SocialBelief", entity_id=belief_id
+            )
+
+        stability = belief.assess_belief_stability()
+        logger.info("Evaluated belief stability for %s", belief_id)
+        return stability
+
+    def evaluate_attitude_mediation(
+        self, attitude_id: uuid.UUID
+    ) -> Dict[str, Any]:
+        """
+        Analyze attitude's capacity to mediate between beliefs and institutions.
+
+        Args:
+            attitude_id: ID of CulturalAttitude to evaluate
+
+        Returns:
+            Dictionary containing mediation analysis
+
+        Raises:
+            SFMNotFoundError: If attitude doesn't exist
+        """
+        from models.cultural_analysis import CulturalAttitude
+
+        attitude = self.get_node(attitude_id)
+        if not isinstance(attitude, CulturalAttitude):
+            raise SFMNotFoundError(
+                entity_type="CulturalAttitude", entity_id=attitude_id
+            )
+
+        mediation = attitude.analyze_mediation_capacity()
+        logger.info("Evaluated attitude mediation for %s", attitude_id)
+        return mediation
+
+    def evaluate_system_holarchy(
+        self, holarchy_id: uuid.UUID
+    ) -> Dict[str, Any]:
+        """
+        Analyze institutional holarchy coherence and leverage points.
+
+        Args:
+            holarchy_id: ID of InstitutionalHolarchy to evaluate
+
+        Returns:
+            Dictionary containing holarchy analysis
+
+        Raises:
+            SFMNotFoundError: If holarchy doesn't exist
+        """
+        from models.system_analysis import InstitutionalHolarchy
+
+        holarchy = self.get_node(holarchy_id)
+        if not isinstance(holarchy, InstitutionalHolarchy):
+            raise SFMNotFoundError(
+                entity_type="InstitutionalHolarchy", entity_id=holarchy_id
+            )
+
+        coherence = holarchy.calculate_system_coherence()
+        leverage = holarchy.identify_leverage_points()
+
+        result = {
+            "holarchy_id": str(holarchy_id),
+            "system_coherence": coherence,
+            "leverage_points": [str(lp) for lp in leverage],
+            "hierarchical_coherence": holarchy.hierarchical_coherence,
+            "institutional_levels": {
+                str(k): [str(v) for v in vals]
+                for k, vals in holarchy.institutional_levels.items()
+            },
+            "bottleneck_levels": [str(bl) for bl in holarchy.bottleneck_levels],
+        }
+
+        logger.info("Evaluated holarchy %s", holarchy_id)
+        return result
+
 
 # Public API
 __all__ = [
