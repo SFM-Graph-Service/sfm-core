@@ -90,6 +90,47 @@ class NodeTypesResponse(BaseModel):
     by_domain: Optional[Dict[str, List[str]]] = None
 
 
+# Relationship CRUD Schemas
+
+class RelationshipCreate(BaseModel):
+    """Schema for creating a new relationship."""
+    source_id: uuid.UUID = Field(..., description="Source node ID")
+    target_id: uuid.UUID = Field(..., description="Target node ID")
+    kind: str = Field(default="", description="Relationship kind/type")
+    weight: Optional[float] = Field(None, description="Optional relationship weight")
+    meta: Dict[str, Any] = Field(default_factory=dict, description="Metadata key-value pairs")
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "source_id": "123e4567-e89b-12d3-a456-426614174000",
+                "target_id": "123e4567-e89b-12d3-a456-426614174001",
+                "kind": "influences",
+                "weight": 0.8,
+                "meta": {"strength": "high"}
+            }
+        }
+    )
+
+
+class RelationshipResponse(BaseModel):
+    """Schema for relationship response."""
+    id: uuid.UUID
+    source_id: uuid.UUID
+    target_id: uuid.UUID
+    kind: str
+    weight: Optional[float]
+    meta: Dict[str, Any]
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class RelationshipListResponse(BaseModel):
+    """Schema for list of relationships response."""
+    relationships: List[RelationshipResponse]
+    total: int
+
+
 # Query Analysis Schemas
 
 class CeremonialAnalysisRequest(BaseModel):

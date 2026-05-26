@@ -27,6 +27,7 @@ from data.repositories import (
     SFMRepository,
     SFMRepositoryFactory,
 )
+from graph.sfm_graph import Relationship
 
 # Setup logging
 logger = logging.getLogger(__name__)
@@ -195,6 +196,113 @@ class SFMService:
             List of nodes
         """
         return self._repository.list_nodes(node_type)
+
+    # Relationship CRUD operations
+
+    def create_relationship(self, relationship: Relationship) -> Relationship:
+        """
+        Create a new relationship in the graph.
+
+        Args:
+            relationship: Relationship object to create
+
+        Returns:
+            Created relationship with ID
+
+        Raises:
+            SFMNotFoundError: If source or target node doesn't exist
+            SFMValidationError: If relationship validation fails
+        """
+        from graph.sfm_graph import Relationship
+        created = self._repository.create_relationship(relationship)
+        logger.info("Created relationship: %s -> %s (%s)", relationship.source_id, relationship.target_id, relationship.kind)
+        return created
+
+    def get_relationship(self, relationship_id: uuid.UUID) -> Optional[Relationship]:
+        """
+        Retrieve a relationship by ID.
+
+        Args:
+            relationship_id: UUID of the relationship
+
+        Returns:
+            Relationship object or None if not found
+        """
+        return self._repository.read_relationship(relationship_id)
+
+    def update_relationship(self, relationship: Relationship) -> Relationship:
+        """
+        Update an existing relationship.
+
+        Args:
+            relationship: Relationship object with updated data
+
+        Returns:
+            Updated relationship
+
+        Raises:
+            SFMNotFoundError: If relationship doesn't exist
+        """
+        updated = self._repository.update_relationship(relationship)
+        logger.info("Updated relationship: %s", relationship.id)
+        return updated
+
+    def delete_relationship(self, relationship_id: uuid.UUID) -> bool:
+        """
+        Delete a relationship by ID.
+
+        Args:
+            relationship_id: UUID of relationship to delete
+
+        Returns:
+            True if deleted, False if not found
+        """
+        success = self._repository.delete_relationship(relationship_id)
+        if success:
+            logger.info("Deleted relationship: %s", relationship_id)
+        return success
+
+    def list_relationships(self, kind: Optional[str] = None) -> List[Relationship]:
+        """
+        List all relationships, optionally filtered by kind.
+
+        Args:
+            kind: Optional relationship kind string to filter by
+
+        Returns:
+            List of relationships
+        """
+        # Get all relationships and filter by string kind if specified
+        all_relationships = self._repository.list_relationships()
+        if kind:
+            return [r for r in all_relationships if r.kind == kind]
+        return all_relationships
+
+    def find_relationships(
+        self,
+        source_id: Optional[uuid.UUID] = None,
+        target_id: Optional[uuid.UUID] = None,
+        kind: Optional[str] = None
+    ) -> List[Relationship]:
+        """
+        Find relationships matching the specified criteria.
+
+        Args:
+            source_id: Filter by source node ID
+            target_id: Filter by target node ID
+            kind: Filter by relationship kind string
+
+        Returns:
+            List of matching relationships
+        """
+        # Get relationships filtered by node IDs
+        relationships = self._repository.find_relationships(source_id, target_id, None)
+
+        # Further filter by string kind if specified
+        if kind:
+            relationships = [r for r in relationships if r.kind == kind]
+
+        return relationships
 
     def get_statistics(self) -> GraphStatistics:
         """
@@ -804,8 +912,18 @@ class SFMService:
 
             nodes_data.append(node_dict)
 
-        # TODO: Add relationships export when relationships are fully implemented
+        # Export relationships
         relationships_data: List[Any] = []
+        for rel in self.list_relationships():
+            rel_dict = {
+                "id": str(rel.id),
+                "source_id": str(rel.source_id),
+                "target_id": str(rel.target_id),
+                "kind": rel.kind,
+                "weight": rel.weight,
+                "meta": rel.meta,
+            }
+            relationships_data.append(rel_dict)
 
         export_data = {
             "nodes": nodes_data,
@@ -883,9 +1001,28 @@ class SFMService:
                 logger.warning("Failed to import node %s: %s", node_data.get('id'), e)
                 continue
 
-        # TODO: Import relationships when relationships are fully implemented
+        # Import relationships if present
+        relationships_imported = 0
+        if "relationships" in import_data:
+            from graph.sfm_graph import Relationship
 
-        logger.info("Imported %d nodes from JSON", nodes_imported)
+            for rel_data in import_data["relationships"]:
+                try:
+                    relationship = Relationship(
+                        id=uuid.UUID(rel_data["id"]),
+                        source_id=uuid.UUID(rel_data["source_id"]),
+                        target_id=uuid.UUID(rel_data["target_id"]),
+                        kind=rel_data.get("kind", ""),
+                        weight=rel_data.get("weight"),
+                        meta=rel_data.get("meta", {})
+                    )
+                    self.create_relationship(relationship)
+                    relationships_imported += 1
+                except Exception as e:
+                    logger.warning("Failed to import relationship %s: %s", rel_data.get('id'), e)
+                    continue
+
+        logger.info("Imported %d nodes and %d relationships from JSON", nodes_imported, relationships_imported)
 
 
 # Public API

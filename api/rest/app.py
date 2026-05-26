@@ -13,7 +13,7 @@ from api.rest.exceptions import (
 from models.exceptions import SFMError
 
 # Import routers
-from api.rest.routers import health, nodes, query, evaluate
+from api.rest.routers import health, nodes, relationships, query, evaluate
 
 
 def create_app() -> FastAPI:
@@ -58,6 +58,11 @@ def create_app() -> FastAPI:
         nodes.router,
         prefix=f"{settings.API_V1_PREFIX}/nodes",
         tags=["Nodes"]
+    )
+    app.include_router(
+        relationships.router,
+        prefix=f"{settings.API_V1_PREFIX}/relationships",
+        tags=["Relationships"]
     )
     app.include_router(
         query.router,
