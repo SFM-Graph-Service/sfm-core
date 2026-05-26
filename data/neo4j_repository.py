@@ -767,3 +767,37 @@ class Neo4jSFMRepository(SFMRepository):
         DETACH DELETE n
         """
         tx.run(query)
+
+    def execute_query(self, query: str, parameters: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
+        """
+        Execute a raw Cypher query and return results.
+
+        This method allows direct Cypher queries for advanced Neo4j operations
+        that aren't covered by the standard repository interface.
+
+        Args:
+            query: Cypher query string
+            parameters: Optional dictionary of query parameters
+
+        Returns:
+            List of result records as dictionaries
+
+        Example:
+            >>> results = repo.execute_query(
+            ...     "MATCH (n:PolicyInstrument) RETURN n.label as label, n.instrument_type as type"
+            ... )
+            >>> for record in results:
+            ...     print(f"{record['label']}: {record['type']}")
+        """
+        with self._driver.session() as session:
+            return session.execute_read(
+                self._execute_query_tx, query, parameters or {}
+            )
+
+    @staticmethod
+    def _execute_query_tx(
+        tx: ManagedTransaction, query: str, parameters: Dict[str, Any]
+    ) -> List[Dict[str, Any]]:
+        """ManagedTransaction function to execute a query."""
+        result = tx.run(query, parameters)
+        return [dict(record) for record in result]

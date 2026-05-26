@@ -127,6 +127,104 @@ extension_service = DeliveryRelationship(
 )
 ```
 
+## REST API
+
+SFM Core provides a production-ready REST API built with FastAPI, exposing all framework capabilities via HTTP endpoints.
+
+### Quick Start with REST API
+
+```bash
+# Start the development server
+uvicorn api.rest.app:app --reload
+
+# Access interactive documentation
+open http://localhost:8000/api/v1/docs
+```
+
+### API Endpoints
+
+**Health & Diagnostics**:
+- `GET /api/v1/health` - Service health and graph statistics
+- `GET /api/v1/statistics` - Detailed graph statistics
+
+**Node CRUD**:
+- `POST /api/v1/nodes/` - Create node
+- `GET /api/v1/nodes/{id}` - Get node by ID
+- `PUT /api/v1/nodes/{id}` - Update node
+- `DELETE /api/v1/nodes/{id}` - Delete node
+- `GET /api/v1/nodes/` - List all nodes (with optional type filter)
+- `GET /api/v1/nodes/types` - List all available node types
+- `DELETE /api/v1/nodes/clear` - Clear all data
+
+**Query Analysis** (Phase 2):
+- `POST /api/v1/query/ceremonial` - Ceremonial vs instrumental analysis
+- `GET /api/v1/query/circular-causation/{source_id}` - Circular causation detection
+- `GET /api/v1/query/holarchy/{institution_id}` - Institutional holarchy
+- `GET /api/v1/query/conflicts` - Conflict detection
+
+**Evaluation** (Phase 3):
+- `POST /api/v1/evaluate/digraph` - Digraph analysis
+- `GET /api/v1/evaluate/circular-causation/{process_id}` - Process dynamics
+- `GET /api/v1/evaluate/conflict-detection/{system_id}` - System conflicts
+- `GET /api/v1/evaluate/cross-impact/{cell_id}` - Cross-impact effects
+- `GET /api/v1/evaluate/delivery-performance/{relationship_id}` - Delivery performance
+- `GET /api/v1/evaluate/network-performance/{network_id}` - Network health
+- `GET /api/v1/evaluate/path-dependency/{institution_id}` - Path dependency
+- `GET /api/v1/evaluate/value-system/{value_system_id}` - Value coherence
+- `GET /api/v1/evaluate/belief-stability/{belief_id}` - Belief stability
+- `GET /api/v1/evaluate/attitude-mediation/{attitude_id}` - Attitude mediation
+- `GET /api/v1/evaluate/system-holarchy/{holarchy_id}` - Holarchy coherence
+
+### API Example
+
+```python
+import requests
+
+BASE_URL = "http://localhost:8000/api/v1"
+
+# Create a node
+response = requests.post(
+    f"{BASE_URL}/nodes/",
+    json={
+        "label": "Federal Reserve",
+        "description": "Central banking system",
+        "node_type": "Institution",
+        "meta": {"established": "1913"}
+    }
+)
+node = response.json()
+
+# Run ceremonial analysis
+analysis = requests.post(
+    f"{BASE_URL}/query/ceremonial",
+    json={"threshold": 0.5}
+).json()
+
+print(f"Ceremonial ratio: {analysis['ceremonial_ratio']}")
+```
+
+### Docker Deployment
+
+```bash
+# Development (NetworkX backend)
+docker-compose up api-dev
+
+# Production (Neo4j backend)
+docker-compose up api-neo4j neo4j
+
+# Access API at http://localhost:8000
+# Neo4j browser at http://localhost:7474
+```
+
+### API Documentation
+
+- **Interactive Docs**: http://localhost:8000/api/v1/docs
+- **ReDoc**: http://localhost:8000/api/v1/redoc
+- **OpenAPI Spec**: http://localhost:8000/api/v1/openapi.json
+- **Detailed Guide**: See [API_DOCUMENTATION.md](API_DOCUMENTATION.md)
+- **Neo4j Integration**: See [docs/NEO4J_INTEGRATION_GUIDE.md](docs/NEO4J_INTEGRATION_GUIDE.md)
+- **Example Scripts**: [examples/rest_api_demo.py](examples/rest_api_demo.py), [examples/neo4j_integration_demo.py](examples/neo4j_integration_demo.py), [examples/backend_migration_demo.py](examples/backend_migration_demo.py)
+
 ## Module Map
 
 The `sfm-core` library is organized into 12 focused domain modules, each addressing a specific aspect of the Social Fabric Matrix framework:

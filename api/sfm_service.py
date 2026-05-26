@@ -57,9 +57,15 @@ class SFMServiceConfig:
         self,
         storage_type: str = "networkx",
         graph_size_limit: int = 10000,
+        neo4j_uri: Optional[str] = None,
+        neo4j_username: Optional[str] = None,
+        neo4j_password: Optional[str] = None,
     ):
         self.storage_type = storage_type
         self.graph_size_limit = graph_size_limit
+        self.neo4j_uri = neo4j_uri
+        self.neo4j_username = neo4j_username
+        self.neo4j_password = neo4j_password
 
 
 class SFMService:
@@ -77,9 +83,12 @@ class SFMService:
         """
         self.config = config or SFMServiceConfig()
 
-        # Initialize repository
+        # Initialize repository with Neo4j parameters if provided
         self._repository: SFMRepository = SFMRepositoryFactory.create_repository(
-            self.config.storage_type
+            storage_type=self.config.storage_type,
+            neo4j_uri=self.config.neo4j_uri,
+            neo4j_username=self.config.neo4j_username,
+            neo4j_password=self.config.neo4j_password,
         )
 
         # Query engine will be initialized in Phase 2 Step 2
@@ -746,6 +755,137 @@ class SFMService:
 
         logger.info("Evaluated holarchy %s", holarchy_id)
         return result
+
+    def export_to_json(self) -> Dict[str, Any]:
+        """
+        Export the entire graph to JSON format.
+
+        Returns:
+            Dictionary with "nodes" and "relationships" lists, plus metadata
+
+        Example:
+            >>> export_data = service.export_to_json()
+            >>> import json
+            >>> with open('backup.json', 'w') as f:
+            ...     json.dump(export_data, f)
+        """
+        from datetime import datetime
+
+        nodes_data = []
+        for node in self.list_nodes():
+            # Serialize node to dict
+            node_dict = {
+                "id": str(node.id),
+                "label": node.label,
+                "description": node.description,
+                "meta": node.meta,
+                "version": node.version,
+                "created_at": node.created_at.isoformat() if node.created_at else None,
+                "modified_at": node.modified_at.isoformat() if node.modified_at else None,
+                "node_type": type(node).__name__,
+            }
+
+            # Add type-specific fields
+            for attr_name in dir(node):
+                if attr_name.startswith('_') or attr_name in ('id', 'label', 'description', 'meta', 'version', 'created_at', 'modified_at'):
+                    continue
+                attr_value = getattr(node, attr_name, None)
+                if callable(attr_value):
+                    continue
+                # Serialize enums and complex types
+                if hasattr(attr_value, 'value'):  # Enum
+                    node_dict[attr_name] = attr_value.value
+                elif isinstance(attr_value, (list, dict, str, int, float, bool, type(None))):
+                    node_dict[attr_name] = attr_value
+                elif hasattr(attr_value, 'isoformat'):  # datetime
+                    node_dict[attr_name] = attr_value.isoformat()
+                else:
+                    node_dict[attr_name] = str(attr_value)
+
+            nodes_data.append(node_dict)
+
+        # TODO: Add relationships export when relationships are fully implemented
+        relationships_data: List[Any] = []
+
+        export_data = {
+            "nodes": nodes_data,
+            "relationships": relationships_data,
+            "metadata": {
+                "export_time": datetime.utcnow().isoformat(),
+                "node_count": len(nodes_data),
+                "relationship_count": len(relationships_data),
+                "sfm_version": "0.2.0",
+            }
+        }
+
+        logger.info("Exported %d nodes to JSON", len(nodes_data))
+        return export_data
+
+    def import_from_json(self, import_data: Dict[str, Any]) -> None:
+        """
+        Import graph data from JSON format.
+
+        Args:
+            import_data: Dictionary with "nodes" and "relationships" lists
+
+        Raises:
+            SFMValidationError: If import data is invalid
+
+        Example:
+            >>> import json
+            >>> with open('backup.json', 'r') as f:
+            ...     import_data = json.load(f)
+            >>> service.import_from_json(import_data)
+        """
+        import importlib
+        from datetime import datetime
+
+        if "nodes" not in import_data:
+            raise SFMValidationError(
+                "Import data missing 'nodes' field",
+                "import_data",
+                str(import_data.keys())
+            )
+
+        nodes_imported = 0
+        for node_data in import_data["nodes"]:
+            node_type = node_data.get("node_type", "Node")
+
+            # Dynamically import the node class
+            try:
+                # Try importing from models package
+                models_module = importlib.import_module("models")
+                node_class = getattr(models_module, node_type, Node)
+            except (ImportError, AttributeError):
+                node_class = Node
+
+            # Prepare constructor arguments
+            constructor_args: Dict[str, Any] = {}
+            for key, value in node_data.items():
+                if key in ("node_type", "created_at", "modified_at"):
+                    continue
+                if key == "id":
+                    constructor_args[key] = uuid.UUID(value)
+                elif isinstance(value, str) and key.endswith('_at'):
+                    try:
+                        constructor_args[key] = datetime.fromisoformat(value)
+                    except ValueError:
+                        constructor_args[key] = value
+                else:
+                    constructor_args[key] = value
+
+            # Create the node
+            try:
+                node = node_class(**constructor_args)
+                self.create_node(node)
+                nodes_imported += 1
+            except Exception as e:
+                logger.warning("Failed to import node %s: %s", node_data.get('id'), e)
+                continue
+
+        # TODO: Import relationships when relationships are fully implemented
+
+        logger.info("Imported %d nodes from JSON", nodes_imported)
 
 
 # Public API

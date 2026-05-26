@@ -453,22 +453,50 @@ class SFMRepositoryFactory:
     """Factory for creating SFM repositories with different storage backends."""
 
     @staticmethod
-    def create_repository(storage_type: str = "networkx") -> SFMRepository:
+    def create_repository(
+        storage_type: str = "networkx",
+        neo4j_uri: Optional[str] = None,
+        neo4j_username: Optional[str] = None,
+        neo4j_password: Optional[str] = None,
+    ) -> SFMRepository:
         """
         Create a new SFM repository.
 
         Args:
             storage_type: The type of storage backend to use.
-                          Currently supported: "networkx" (in-memory), "test" (for testing)
+                          Supported: "networkx" (in-memory), "neo4j" (persistent), "test" (for testing)
+            neo4j_uri: Neo4j connection URI (required if storage_type="neo4j")
+            neo4j_username: Neo4j username (required if storage_type="neo4j")
+            neo4j_password: Neo4j password (required if storage_type="neo4j")
 
         Returns:
             An SFM repository implementation
 
         Raises:
             ValueError: If the storage type is not supported
+            SFMValidationError: If Neo4j parameters are missing when storage_type="neo4j"
         """
-        if storage_type.lower() in ("networkx", "test"):
+        storage_lower = storage_type.lower()
+
+        if storage_lower in ("networkx", "test"):
             return NetworkXSFMRepository()
+        elif storage_lower == "neo4j":
+            # Import Neo4j repository only when needed
+            from data.neo4j_repository import Neo4jSFMRepository
+
+            # Validate Neo4j parameters
+            if not neo4j_uri or not neo4j_username or not neo4j_password:
+                raise SFMValidationError(
+                    "Neo4j connection parameters are required when storage_type='neo4j'",
+                    "neo4j_config",
+                    f"uri={neo4j_uri}, username={neo4j_username}, password=***"
+                )
+
+            return Neo4jSFMRepository(
+                uri=neo4j_uri,
+                username=neo4j_username,
+                password=neo4j_password,
+            )
         else:
             raise SFMValidationError(
                 f"Unsupported storage type: {storage_type}",
