@@ -328,6 +328,33 @@ pip install -e .
 python -m unittest discover tests -v
 ```
 
+### Historical Scenario Analysis
+
+The `scenarios/` directory contains templates and frameworks for building SFM models of real-world historical policies. These scenarios serve to:
+
+- **Validate** the framework's applicability to actual policy analysis
+- **Discover gaps** in node types, relationships, and analytical methods  
+- **Demonstrate** best practices for applying Hayden's SFM methodology
+- **Provide** reference models for future work
+
+**Quick Start**:
+
+```bash
+# Review the detailed Clean Air Act prompt
+cat prompts/clean_air_act_scenario.md
+
+# Run the starter script (needs research to complete)
+python scenarios/clean_air_act_starter.py
+```
+
+**Key Features**:
+- Multi-source fact verification requirements (2+ sources per claim)
+- Evidence-based relationship weight justification
+- Comprehensive gap analysis framework
+- Structured deliverables (model, documentation, findings)
+
+See [`scenarios/README.md`](scenarios/README.md) for complete instructions and guidelines.
+
 ### Development Guidelines
 
 - Follow existing code structure and naming conventions
