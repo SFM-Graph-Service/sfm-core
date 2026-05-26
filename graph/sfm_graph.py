@@ -14,7 +14,6 @@ from typing import Dict, List, Optional, Iterator, Set, Any
 from datetime import datetime
 
 from models.base_nodes import Node
-from models.sfm_enums import EnumValidator
 
 # Set up logger
 logger = logging.getLogger(__name__)
@@ -24,9 +23,9 @@ logger = logging.getLogger(__name__)
 class NetworkMetrics(Node):
     """Captures network analysis metrics for nodes or subgraphs."""
 
-    centrality_measures: Dict[str, float] = field(default_factory=dict)
+    centrality_measures: Dict[str, float] = field(default_factory=lambda: {})
     clustering_coefficient: Optional[float] = None
-    path_lengths: Dict[uuid.UUID, float] = field(default_factory=dict)
+    path_lengths: Dict[uuid.UUID, float] = field(default_factory=lambda: {})
     community_assignment: Optional[str] = None
 
 
@@ -39,7 +38,7 @@ class Relationship:
     target_id: uuid.UUID = field(default=None)  # type: ignore
     kind: str = ""
     weight: Optional[float] = None
-    meta: Dict[str, Any] = field(default_factory=dict)
+    meta: Dict[str, Any] = field(default_factory=lambda: {})
 
 
 @dataclass
@@ -51,9 +50,9 @@ class SFMGraph:
     description: Optional[str] = None
 
     # Core components - use generic node storage
-    nodes: Dict[uuid.UUID, Node] = field(default_factory=dict)
-    relationships: Dict[uuid.UUID, Relationship] = field(default_factory=dict)
-    network_metrics: Dict[uuid.UUID, NetworkMetrics] = field(default_factory=dict)
+    nodes: Dict[uuid.UUID, Node] = field(default_factory=lambda: {})
+    relationships: Dict[uuid.UUID, Relationship] = field(default_factory=lambda: {})
+    network_metrics: Dict[uuid.UUID, NetworkMetrics] = field(default_factory=lambda: {})
 
     # Model metadata
     version: int = 1
@@ -63,9 +62,9 @@ class SFMGraph:
     previous_version_id: Optional[uuid.UUID] = None
 
     # Performance optimization: Central node index for O(1) lookups
-    _node_index: Dict[uuid.UUID, Node] = field(default_factory=dict, init=False)
+    _node_index: Dict[uuid.UUID, Node] = field(default_factory=lambda: {}, init=False)
     _relationship_cache: Dict[uuid.UUID, List[Relationship]] = field(
-        default_factory=dict, init=False
+        default_factory=lambda: {}, init=False
     )
     _relationship_cache_max_size: int = field(default=1000, init=False)
 
@@ -127,7 +126,7 @@ class SFMGraph:
         # Cache result with simple size management
         if len(self._relationship_cache) >= self._relationship_cache_max_size:
             # Simple eviction: remove one random item to make space
-            oldest_key = next(iter(self._relationship_cache))
+            oldest_key: uuid.UUID = next(iter(self._relationship_cache))
             del self._relationship_cache[oldest_key]
 
         self._relationship_cache[node_id] = relationships

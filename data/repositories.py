@@ -7,61 +7,11 @@ Default implementation uses NetworkX for in-memory graph storage.
 from abc import ABC, abstractmethod
 import uuid
 from typing import Optional, Any, List, Type, TypeVar, Generic, cast, Dict
-import networkx as nx
-from datetime import datetime, timedelta
 
-# Import all Beta unified model node types
-from models import (
-    Node,
-    # Matrix components
-    MatrixCell,
-    SFMCriteria,
-    SFMMatrix,
-    # System analysis
-    SystemProperty,
-    SystemLevelAnalysis,
-    InstitutionalHolarchy,
-    # Policy framework
-    PolicyInstrument,
-    ValueJudgment,
-    ProblemSolvingSequence,
-    # Institutional analysis
-    InstitutionalStructure,
-    PathDependencyAnalysis,
-    # Economic analysis
-    TransactionCost,
-    CoordinationMechanism,
-    CommonsGovernance,
-    # Cultural analysis
-    CeremonialInstrumentalClassification,
-    ValueSystem,
-    SocialBelief,
-    CulturalAttitude,
-    # Social assessment
-    SocialValueAssessment,
-    SocialFabricIndicator,
-    SocialCost,
-    # Technology integration
-    ToolSkillTechnologyComplex,
-    EcologicalSystem,
-    # Network analysis
-    CrossImpactAnalysis,
-    DeliveryRelationship,
-    MatrixDeliveryNetwork,
-    # Complex analysis
-    DigraphAnalysis,
-    CircularCausationProcess,
-    ConflictDetection,
-    # Methodological framework
-    InstrumentalistInquiryFramework,
-    NormativeSystemsAnalysis,
-    PolicyRelevanceIntegration,
-    DatabaseIntegrationCapability,
-    # Specialized components
-    SocialIndicatorSystem,
-    EvolutionaryPathway,
-    SocialProvisioningMatrix,
-)
+import networkx as nx
+
+# Import base node type
+from models import Node
 
 from models.sfm_enums import RelationshipKind
 from models.exceptions import (
@@ -71,33 +21,8 @@ from models.exceptions import (
     RelationshipValidationError,
 )
 
-# Placeholder for Relationship - will be defined in graph module
-class Relationship:
-    """Placeholder for Relationship class - defined in graph module"""
-    def __init__(self):
-        self.id: uuid.UUID = uuid.uuid4()
-        self.source_id: uuid.UUID = uuid.uuid4()
-        self.target_id: uuid.UUID = uuid.uuid4()
-        self.kind: Optional[RelationshipKind] = None
-
-# Placeholder for SFMGraph - will be defined in graph module
-class SFMGraph:
-    """Placeholder for SFMGraph class - defined in graph module"""
-    def __init__(self):
-        self.nodes: Dict[uuid.UUID, Node] = {}
-        self.relationships: Dict[uuid.UUID, Relationship] = {}
-
-    def add_node(self, node: Node) -> None:
-        """Add a node to the graph"""
-        self.nodes[node.id] = node
-
-    def add_relationship(self, rel: Relationship) -> None:
-        """Add a relationship to the graph"""
-        self.relationships[rel.id] = rel
-
-    def __iter__(self):
-        """Iterate over all nodes"""
-        return iter(self.nodes.values())
+# Import actual classes from graph module
+from graph.sfm_graph import Relationship, SFMGraph
 
 T = TypeVar("T", bound=Node)
 
@@ -275,11 +200,18 @@ class NetworkXSFMRepository(SFMRepository):
         # Check if relationship already exists
         for _, _, key, _ in self.graph.edges(data=True, keys=True):  # type: ignore[misc]
             if key == rel_id:
+                kind_str: Optional[str] = None
+                if rel.kind:
+                    from enum import Enum
+                    if isinstance(rel.kind, Enum):
+                        kind_str = str(rel.kind.value)
+                    else:
+                        kind_str = str(rel.kind)
                 raise RelationshipValidationError(
                     f"Relationship with ID {rel_id} already exists",
                     source_id=source_id,
                     target_id=target_id,
-                    relationship_kind=str(rel.kind.value) if rel.kind else None
+                    relationship_kind=kind_str
                 )
 
         # Add relationship to graph as an edge with its data
@@ -421,7 +353,7 @@ class TypedSFMRepository(Generic[T]):
             )
 
         result = self.base_repo.create_node(node)
-        return result
+        return cast(T, result)
 
     def read(self, node_id: uuid.UUID) -> Optional[T]:
         """Read a node by its ID."""
@@ -430,7 +362,7 @@ class TypedSFMRepository(Generic[T]):
         if result is None or not isinstance(result, self.node_type):
             return None
 
-        return result
+        return cast(T, result)
 
     def update(self, node: T) -> T:
         """Update an existing node."""
@@ -440,7 +372,7 @@ class TypedSFMRepository(Generic[T]):
             )
 
         result = self.base_repo.update_node(node)
-        return result
+        return cast(T, result)
 
     def delete(self, node_id: uuid.UUID) -> bool:
         """Delete a node by its ID."""

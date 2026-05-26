@@ -12,7 +12,6 @@ from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Any
 
 from models.base_nodes import Node
-from models.sfm_enums import NormativeFramework
 
 
 @dataclass
@@ -236,7 +235,7 @@ class NormativeSystemsAnalysis(Node):
             return 0.0
 
         consensus_scores: List[float] = []
-        for value_type in self.value_hierarchy.keys():
+        for value_type in self.value_hierarchy:
             stakeholder_scores = [
                 stakeholder_vals.get(value_type, 0.0)
                 for stakeholder_vals in self.stakeholder_values.values()

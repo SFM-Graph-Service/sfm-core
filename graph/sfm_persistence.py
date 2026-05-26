@@ -21,7 +21,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional
 
 import networkx as nx
 
@@ -330,7 +330,7 @@ class SFMGraphSerializer:
 
         # Deserialize nodes by type
         nodes_by_type = data.get('nodes_by_type', {})
-        for node_type, nodes_data in nodes_by_type.items():
+        for _, nodes_data in nodes_by_type.items():
             for node_data in nodes_data:
                 try:
                     node = NodeSerializer.dict_to_node(node_data)
@@ -479,7 +479,7 @@ class SFMPersistenceManager:
         """
         try:
             # Build snapshot structure
-            snapshot = {
+            snapshot: Dict[str, Any] = {
                 "metadata": {
                     "graph_id": str(getattr(graph, 'id', uuid.uuid4())),
                     "name": getattr(graph, 'name', 'SFM Graph'),
@@ -599,7 +599,7 @@ class SFMPersistenceManager:
         Returns:
             networkx DiGraph with node and edge attributes
         """
-        nx_graph = nx.DiGraph()
+        nx_graph: nx.DiGraph = nx.DiGraph()
 
         # Add nodes with attributes
         for node in graph:

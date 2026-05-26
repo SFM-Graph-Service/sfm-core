@@ -13,7 +13,7 @@ Key Features:
 
 import logging
 import uuid
-from typing import Dict, List, Optional, Any, Union, Type, TypeVar
+from typing import Dict, List, Optional, Any, Type, TypeVar
 from dataclasses import dataclass
 
 from models import Node
@@ -26,7 +26,6 @@ from models.exceptions import (
 from data.repositories import (
     SFMRepository,
     SFMRepositoryFactory,
-    TypedSFMRepository,
 )
 
 # Setup logging

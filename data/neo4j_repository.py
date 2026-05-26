@@ -10,20 +10,23 @@ provides efficient graph operations using Cypher queries.
 import uuid
 import json
 from datetime import datetime
-from typing import Optional, List, Type, Any, Dict
+from typing import Optional, List, Type, Any, Dict, TYPE_CHECKING
 from enum import Enum
 
+if TYPE_CHECKING:
+    from neo4j import ManagedTransaction
+
 try:
-    from neo4j import GraphDatabase, Driver, Session, Transaction
+    from neo4j import GraphDatabase, Driver
     from neo4j.exceptions import Neo4jError, ServiceUnavailable
+    _neo4j_available = True
 except ImportError:
     # Allow import without neo4j driver installed for testing
     GraphDatabase = None  # type: ignore
     Driver = None  # type: ignore
-    Session = None  # type: ignore
-    Transaction = None  # type: ignore
     Neo4jError = Exception  # type: ignore
     ServiceUnavailable = Exception  # type: ignore
+    _neo4j_available = False
 
 from models import Node
 from models.sfm_enums import RelationshipKind
@@ -39,12 +42,10 @@ from data.repositories import SFMRepository
 
 class Neo4jSerializationError(Exception):
     """Exception raised for serialization errors in Neo4j operations."""
-    pass
 
 
 class Neo4jConnectionError(Exception):
     """Exception raised for Neo4j connection errors."""
-    pass
 
 
 class Neo4jSFMRepository(SFMRepository):
@@ -80,10 +81,11 @@ class Neo4jSFMRepository(SFMRepository):
             # Test connection
             with self._driver.session() as session:
                 session.run("RETURN 1")
-        except ServiceUnavailable as e:
-            raise Neo4jConnectionError(f"Failed to connect to Neo4j at {uri}: {e}")
         except Exception as e:
-            raise Neo4jConnectionError(f"Neo4j initialization error: {e}")
+            # Handle both Neo4j-specific errors and general exceptions
+            if _neo4j_available and isinstance(e, (ServiceUnavailable, Neo4jError)):
+                raise Neo4jConnectionError(f"Failed to connect to Neo4j at {uri}: {e}") from e
+            raise Neo4jConnectionError(f"Neo4j initialization error: {e}") from e
 
     def close(self) -> None:
         """Close the Neo4j driver connection."""
@@ -194,7 +196,7 @@ class Neo4jSFMRepository(SFMRepository):
         except TypeError as e:
             raise Neo4jSerializationError(
                 f"Failed to deserialize node of type {node_class.__name__}: {e}"
-            )
+            ) from e
 
     def create_node(self, node: Node) -> Node:
         """
@@ -229,12 +231,12 @@ class Neo4jSFMRepository(SFMRepository):
                     f"Failed to create node: {e}",
                     node_type=node_label,
                     node_id=node.id
-                )
+                ) from e
 
     @staticmethod
-    def _create_node_tx(tx: Transaction, label: str, properties: Dict[str, Any],
+    def _create_node_tx(tx: ManagedTransaction, label: str, properties: Dict[str, Any],
                         node_id: uuid.UUID) -> Optional[Dict[str, Any]]:
-        """Transaction function to create a node."""
+        """ManagedTransaction function to create a node."""
         # Check if node already exists
         check_query = f"""
         MATCH (n:{label} {{id: $id}})
@@ -248,9 +250,10 @@ class Neo4jSFMRepository(SFMRepository):
         create_query = f"""
         CREATE (n:{label} $properties)
         RETURN n
-        """
+        """  # noqa: S608
         result = tx.run(create_query, properties=properties)
-        return result.single()[0] if result.single() else None
+        record = result.single()
+        return record[0] if record else None
 
     def read_node(self, node_id: uuid.UUID) -> Optional[Node]:
         """
@@ -267,8 +270,8 @@ class Neo4jSFMRepository(SFMRepository):
             return result
 
     @staticmethod
-    def _read_node_tx(tx: Transaction, node_id: uuid.UUID) -> Optional[Node]:
-        """Transaction function to read a node."""
+    def _read_node_tx(tx: ManagedTransaction, node_id: uuid.UUID) -> Optional[Node]:
+        """ManagedTransaction function to read a node."""
         query = """
         MATCH (n {id: $id})
         RETURN n, labels(n) as labels
@@ -291,15 +294,12 @@ class Neo4jSFMRepository(SFMRepository):
 
         # Import the node class dynamically
         try:
-            from models import Node as BaseNode
             import models
-
-            node_class = getattr(models, python_class, BaseNode)
+            node_class = getattr(models, python_class, Node)
             return Neo4jSFMRepository._properties_to_node(node_data, node_class)
         except AttributeError:
             # Fallback to generic Node
-            from models import Node as BaseNode
-            return Neo4jSFMRepository._properties_to_node(node_data, BaseNode)
+            return Neo4jSFMRepository._properties_to_node(node_data, Node)
 
     def update_node(self, node: Node) -> Node:
         """
@@ -333,19 +333,20 @@ class Neo4jSFMRepository(SFMRepository):
                     f"Failed to update node: {e}",
                     field="node",
                     value=str(node.id)
-                )
+                ) from e
 
     @staticmethod
-    def _update_node_tx(tx: Transaction, label: str, properties: Dict[str, Any],
+    def _update_node_tx(tx: ManagedTransaction, label: str, properties: Dict[str, Any],
                         node_id: uuid.UUID) -> Optional[Dict[str, Any]]:
-        """Transaction function to update a node."""
+        """ManagedTransaction function to update a node."""
         query = f"""
         MATCH (n:{label} {{id: $id}})
         SET n = $properties
         RETURN n
-        """
+        """  # noqa: S608
         result = tx.run(query, id=str(node_id), properties=properties)
-        return result.single()[0] if result.single() else None
+        record = result.single()
+        return record[0] if record else None
 
     def delete_node(self, node_id: uuid.UUID) -> bool:
         """
@@ -361,8 +362,8 @@ class Neo4jSFMRepository(SFMRepository):
             return session.execute_write(self._delete_node_tx, node_id)
 
     @staticmethod
-    def _delete_node_tx(tx: Transaction, node_id: uuid.UUID) -> bool:
-        """Transaction function to delete a node and its relationships."""
+    def _delete_node_tx(tx: ManagedTransaction, node_id: uuid.UUID) -> bool:
+        """ManagedTransaction function to delete a node and its relationships."""
         query = """
         MATCH (n {id: $id})
         DETACH DELETE n
@@ -385,8 +386,8 @@ class Neo4jSFMRepository(SFMRepository):
             return session.execute_read(self._list_nodes_tx, node_type)
 
     @staticmethod
-    def _list_nodes_tx(tx: Transaction, node_type: Optional[Type[Node]] = None) -> List[Node]:
-        """Transaction function to list nodes."""
+    def _list_nodes_tx(tx: ManagedTransaction, node_type: Optional[Type[Node]] = None) -> List[Node]:
+        """ManagedTransaction function to list nodes."""
         if node_type:
             label = node_type.__name__
             query = f"""
@@ -413,10 +414,8 @@ class Neo4jSFMRepository(SFMRepository):
 
             if python_class:
                 try:
-                    from models import Node as BaseNode
                     import models
-
-                    node_class = getattr(models, python_class, BaseNode)
+                    node_class = getattr(models, python_class, Node)
                     node = Neo4jSFMRepository._properties_to_node(node_data, node_class)
                     nodes.append(node)
                 except (AttributeError, Neo4jSerializationError):
@@ -443,7 +442,7 @@ class Neo4jSFMRepository(SFMRepository):
                 result = session.execute_write(self._create_relationship_tx, rel)
                 if result is None:
                     raise RelationshipValidationError(
-                        f"Failed to create relationship: source or target not found",
+                        "Failed to create relationship: source or target not found",
                         source_id=rel.source_id,
                         target_id=rel.target_id,
                         relationship_kind=rel.kind
@@ -455,13 +454,13 @@ class Neo4jSFMRepository(SFMRepository):
                     source_id=rel.source_id,
                     target_id=rel.target_id,
                     relationship_kind=rel.kind
-                )
+                ) from e
 
     @staticmethod
-    def _create_relationship_tx(tx: Transaction, rel: Relationship) -> Optional[Dict[str, Any]]:
-        """Transaction function to create a relationship."""
+    def _create_relationship_tx(tx: ManagedTransaction, rel: Relationship) -> Optional[Dict[str, Any]]:
+        """ManagedTransaction function to create a relationship."""
         # Prepare properties
-        properties = {
+        properties: Dict[str, Any] = {
             'id': str(rel.id),
             'kind': rel.kind,
         }
@@ -476,7 +475,7 @@ class Neo4jSFMRepository(SFMRepository):
         MATCH (source {{id: $source_id}}), (target {{id: $target_id}})
         CREATE (source)-[r:{rel_type} $properties]->(target)
         RETURN r
-        """
+        """  # noqa: S608
 
         result = tx.run(
             query,
@@ -484,7 +483,8 @@ class Neo4jSFMRepository(SFMRepository):
             target_id=str(rel.target_id),
             properties=properties
         )
-        return result.single()[0] if result.single() else None
+        record = result.single()
+        return record[0] if record else None
 
     def read_relationship(self, rel_id: uuid.UUID) -> Optional[Relationship]:
         """
@@ -500,8 +500,8 @@ class Neo4jSFMRepository(SFMRepository):
             return session.execute_read(self._read_relationship_tx, rel_id)
 
     @staticmethod
-    def _read_relationship_tx(tx: Transaction, rel_id: uuid.UUID) -> Optional[Relationship]:
-        """Transaction function to read a relationship."""
+    def _read_relationship_tx(tx: ManagedTransaction, rel_id: uuid.UUID) -> Optional[Relationship]:
+        """ManagedTransaction function to read a relationship."""
         query = """
         MATCH ()-[r {id: $id}]->()
         RETURN r, startNode(r).id as source_id, endNode(r).id as target_id, type(r) as rel_type
@@ -545,9 +545,9 @@ class Neo4jSFMRepository(SFMRepository):
             return rel
 
     @staticmethod
-    def _update_relationship_tx(tx: Transaction, rel: Relationship) -> Optional[Dict[str, Any]]:
-        """Transaction function to update a relationship."""
-        properties = {
+    def _update_relationship_tx(tx: ManagedTransaction, rel: Relationship) -> Optional[Dict[str, Any]]:
+        """ManagedTransaction function to update a relationship."""
+        properties: Dict[str, Any] = {
             'id': str(rel.id),
             'kind': rel.kind,
         }
@@ -562,7 +562,8 @@ class Neo4jSFMRepository(SFMRepository):
         RETURN r
         """
         result = tx.run(query, id=str(rel.id), properties=properties)
-        return result.single()[0] if result.single() else None
+        record = result.single()
+        return record[0] if record else None
 
     def delete_relationship(self, rel_id: uuid.UUID) -> bool:
         """
@@ -578,8 +579,8 @@ class Neo4jSFMRepository(SFMRepository):
             return session.execute_write(self._delete_relationship_tx, rel_id)
 
     @staticmethod
-    def _delete_relationship_tx(tx: Transaction, rel_id: uuid.UUID) -> bool:
-        """Transaction function to delete a relationship."""
+    def _delete_relationship_tx(tx: ManagedTransaction, rel_id: uuid.UUID) -> bool:
+        """ManagedTransaction function to delete a relationship."""
         query = """
         MATCH ()-[r {id: $id}]->()
         DELETE r
@@ -602,8 +603,8 @@ class Neo4jSFMRepository(SFMRepository):
             return session.execute_read(self._list_relationships_tx, kind)
 
     @staticmethod
-    def _list_relationships_tx(tx: Transaction, kind: Optional[RelationshipKind] = None) -> List[Relationship]:
-        """Transaction function to list relationships."""
+    def _list_relationships_tx(tx: ManagedTransaction, kind: Optional[RelationshipKind] = None) -> List[Relationship]:
+        """ManagedTransaction function to list relationships."""
         if kind:
             query = """
             MATCH ()-[r]->()
@@ -656,14 +657,14 @@ class Neo4jSFMRepository(SFMRepository):
 
     @staticmethod
     def _find_relationships_tx(
-        tx: Transaction,
+        tx: ManagedTransaction,
         source_id: Optional[uuid.UUID] = None,
         target_id: Optional[uuid.UUID] = None,
         kind: Optional[RelationshipKind] = None,
     ) -> List[Relationship]:
-        """Transaction function to find relationships."""
+        """ManagedTransaction function to find relationships."""
         conditions = []
-        params = {}
+        params: Dict[str, Any] = {}
 
         if source_id:
             conditions.append("startNode(r).id = $source_id")
@@ -734,22 +735,20 @@ class Neo4jSFMRepository(SFMRepository):
         self.clear()
 
         # Create all nodes in batch
-        with self._driver.session() as session:
-            for node in graph:
-                try:
-                    self.create_node(node)
-                except NodeCreationError:
-                    # Node already exists, update it
-                    self.update_node(node)
+        for node in graph:
+            try:
+                self.create_node(node)
+            except NodeCreationError:
+                # Node already exists, update it
+                self.update_node(node)
 
         # Create all relationships in batch
-        with self._driver.session() as session:
-            for rel in graph.relationships.values():
-                try:
-                    self.create_relationship(rel)
-                except RelationshipValidationError:
-                    # Relationship might already exist, skip
-                    pass
+        for rel in graph.relationships.values():
+            try:
+                self.create_relationship(rel)
+            except RelationshipValidationError:
+                # Relationship might already exist, skip
+                pass
 
     def clear(self) -> None:
         """
@@ -761,8 +760,8 @@ class Neo4jSFMRepository(SFMRepository):
             session.execute_write(self._clear_tx)
 
     @staticmethod
-    def _clear_tx(tx: Transaction) -> None:
-        """Transaction function to clear all data."""
+    def _clear_tx(tx: ManagedTransaction) -> None:
+        """ManagedTransaction function to clear all data."""
         query = """
         MATCH (n)
         DETACH DELETE n

@@ -13,7 +13,7 @@ from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Any
 
 from models.base_nodes import Node
-from models.sfm_enums import EvolutionaryStage, NormativeFramework
+from models.sfm_enums import EvolutionaryStage
 
 
 @dataclass

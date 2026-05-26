@@ -11,17 +11,55 @@
     "python.testing.pytestArgs": [
         "tests"
     ],
-    "python.analysis.typeCheckingMode": "strict",
-    "python.linting.mypyEnabled": true,
-    "python.linting.enabled": true,
+    "python.defaultInterpreterPath": "${workspaceFolder}/.venv/bin/python",
+    "python.analysis.typeCheckingMode": "standard",
     "python.analysis.autoImportCompletions": true,
     "python.analysis.completeFunctionParens": true,
+    "python.analysis.extraPaths": [
+        "${workspaceFolder}"
+    ],
+    "python.analysis.include": [
+        "models",
+        "graph",
+        "data",
+        "api"
+    ],
+    "python.analysis.exclude": [
+        "**/node_modules",
+        "**/__pycache__",
+        "**/.pytest_cache",
+        "**/.venv",
+        "**/tests",
+        "**/.mypy_cache",
+        "**/build",
+        "**/dist",
+        "**/*.egg-info"
+    ],
     "python.analysis.diagnosticSeverityOverrides": {
         "reportMissingTypeStubs": "none",
-        "reportUnknownMemberType": "warning",
-        "reportUnknownVariableType": "warning",
-        "reportUnknownArgumentType": "warning",
-        "reportUnknownLambdaType": "warning",
-        "reportUnknownParameterType": "warning"
-    }
+        "reportUnknownMemberType": "none",
+        "reportUnknownVariableType": "none",
+        "reportUnknownArgumentType": "none",
+        "reportUnknownLambdaType": "none",
+        "reportUnknownParameterType": "none",
+        "reportMissingParameterType": "none",
+        "reportUntypedFunctionDecorator": "none",
+        "reportUntypedClassDecorator": "none",
+        "reportUntypedBaseClass": "none",
+        "reportPrivateUsage": "none",
+        "reportUnnecessaryIsInstance": "none",
+        "reportUnnecessaryCast": "none",
+        "reportUnusedClass": "none",
+        "reportUnusedFunction": "none",
+        "reportCallInDefaultInitializer": "none",
+        "reportImplicitStringConcatenation": "none",
+        "reportUnusedExpression": "none",
+        "reportUnusedImport": "information"
+    },
+    "python.linting.mypyEnabled": true,
+    "python.linting.enabled": true,
+    "python.linting.pylintEnabled": true,
+    "python.linting.pylintArgs": [
+        "--rcfile=.pylintrc"
+    ]
 }

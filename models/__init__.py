@@ -177,6 +177,5 @@ __all__ = [
     "PathDependencyType",
     "InstitutionalChangeType",
     "TechnologyReadinessLevel",
-    "create_policy_indicator",
     "validate_enum_operation",
 ]
