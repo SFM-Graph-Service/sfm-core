@@ -9,6 +9,7 @@ Production-ready REST API for the Social Fabric Matrix (SFM) Core framework, pro
 - [Authentication](#authentication)
 - [Health & Diagnostics](#health--diagnostics)
 - [Node CRUD Operations](#node-crud-operations)
+- [Relationship CRUD Operations](#relationship-crud-operations)
 - [Query Analysis (Phase 2)](#query-analysis-phase-2)
 - [Evaluation (Phase 3)](#evaluation-phase-3)
 - [Error Handling](#error-handling)
@@ -384,6 +385,287 @@ GET /api/v1/nodes/types?include_domains=true
 ```
 
 **Use Case**: Query this endpoint before filtering nodes by type to see all available types.
+
+## Relationship CRUD Operations
+
+Relationships represent directed edges between nodes in the SFM graph, modeling influences, dependencies, and other connections.
+
+### Create Relationship
+
+```http
+POST /api/v1/relationships/
+Content-Type: application/json
+
+{
+  "source_id": "550e8400-e29b-41d4-a716-446655440000",
+  "target_id": "550e8400-e29b-41d4-a716-446655440001",
+  "kind": "influences",
+  "weight": 0.8,
+  "meta": {
+    "strength": "high",
+    "confidence": "0.9"
+  }
+}
+```
+
+**Response** (201 Created):
+```json
+{
+  "id": "660e8400-e29b-41d4-a716-446655440002",
+  "source_id": "550e8400-e29b-41d4-a716-446655440000",
+  "target_id": "550e8400-e29b-41d4-a716-446655440001",
+  "kind": "influences",
+  "weight": 0.8,
+  "meta": {
+    "strength": "high",
+    "confidence": "0.9"
+  }
+}
+```
+
+**Requirements**:
+- Both source and target nodes must exist before creating the relationship
+- `source_id` and `target_id` are required
+- `kind` defaults to empty string if not provided
+- `weight` is optional (can be null)
+- `meta` defaults to empty object if not provided
+
+**Error** (404 Not Found):
+```json
+{
+  "error": "NOT_FOUND_ERROR",
+  "message": "Node with ID 550e8400-e29b-41d4-a716-446655440001 not found",
+  "context": {
+    "entity_type": "Node",
+    "entity_id": "550e8400-e29b-41d4-a716-446655440001"
+  },
+  "timestamp": "2024-01-15T10:30:00Z"
+}
+```
+
+### Get Relationship by ID
+
+```http
+GET /api/v1/relationships/{relationship_id}
+```
+
+**Response** (200 OK):
+```json
+{
+  "id": "660e8400-e29b-41d4-a716-446655440002",
+  "source_id": "550e8400-e29b-41d4-a716-446655440000",
+  "target_id": "550e8400-e29b-41d4-a716-446655440001",
+  "kind": "influences",
+  "weight": 0.8,
+  "meta": {
+    "strength": "high",
+    "confidence": "0.9"
+  }
+}
+```
+
+**Error** (404 Not Found):
+```json
+{
+  "error": "NOT_FOUND_ERROR",
+  "message": "Relationship with ID 660e8400-e29b-41d4-a716-446655440002 not found",
+  "context": {
+    "entity_type": "Relationship",
+    "entity_id": "660e8400-e29b-41d4-a716-446655440002"
+  },
+  "timestamp": "2024-01-15T10:30:00Z"
+}
+```
+
+### Update Relationship
+
+```http
+PUT /api/v1/relationships/{relationship_id}
+Content-Type: application/json
+
+{
+  "source_id": "550e8400-e29b-41d4-a716-446655440000",
+  "target_id": "550e8400-e29b-41d4-a716-446655440001",
+  "kind": "depends_on",
+  "weight": 0.95,
+  "meta": {
+    "strength": "critical",
+    "confidence": "0.95",
+    "updated": "true"
+  }
+}
+```
+
+**Response** (200 OK):
+```json
+{
+  "id": "660e8400-e29b-41d4-a716-446655440002",
+  "source_id": "550e8400-e29b-41d4-a716-446655440000",
+  "target_id": "550e8400-e29b-41d4-a716-446655440001",
+  "kind": "depends_on",
+  "weight": 0.95,
+  "meta": {
+    "strength": "critical",
+    "confidence": "0.95",
+    "updated": "true"
+  }
+}
+```
+
+**Note**: Update replaces the entire relationship. All fields must be provided (use GET first to retrieve current values).
+
+### Delete Relationship
+
+```http
+DELETE /api/v1/relationships/{relationship_id}
+```
+
+**Response** (204 No Content):
+- Empty body indicates successful deletion
+
+**Error** (404 Not Found):
+```json
+{
+  "error": "NOT_FOUND_ERROR",
+  "message": "Relationship with ID 660e8400-e29b-41d4-a716-446655440002 not found",
+  "context": {
+    "entity_type": "Relationship",
+    "entity_id": "660e8400-e29b-41d4-a716-446655440002"
+  },
+  "timestamp": "2024-01-15T10:30:00Z"
+}
+```
+
+### List Relationships
+
+#### List All Relationships
+
+```http
+GET /api/v1/relationships/
+```
+
+**Response** (200 OK):
+```json
+{
+  "relationships": [
+    {
+      "id": "660e8400-e29b-41d4-a716-446655440002",
+      "source_id": "550e8400-e29b-41d4-a716-446655440000",
+      "target_id": "550e8400-e29b-41d4-a716-446655440001",
+      "kind": "influences",
+      "weight": 0.8,
+      "meta": {}
+    },
+    {
+      "id": "660e8400-e29b-41d4-a716-446655440003",
+      "source_id": "550e8400-e29b-41d4-a716-446655440001",
+      "target_id": "550e8400-e29b-41d4-a716-446655440004",
+      "kind": "depends_on",
+      "weight": 0.95,
+      "meta": {}
+    }
+  ],
+  "total": 2
+}
+```
+
+#### Filter by Relationship Kind
+
+```http
+GET /api/v1/relationships/?kind=influences
+```
+
+**Response** (200 OK):
+```json
+{
+  "relationships": [
+    {
+      "id": "660e8400-e29b-41d4-a716-446655440002",
+      "source_id": "550e8400-e29b-41d4-a716-446655440000",
+      "target_id": "550e8400-e29b-41d4-a716-446655440001",
+      "kind": "influences",
+      "weight": 0.8,
+      "meta": {}
+    }
+  ],
+  "total": 1
+}
+```
+
+#### Filter by Source Node
+
+```http
+GET /api/v1/relationships/?source_id=550e8400-e29b-41d4-a716-446655440000
+```
+
+**Response** (200 OK):
+```json
+{
+  "relationships": [
+    {
+      "id": "660e8400-e29b-41d4-a716-446655440002",
+      "source_id": "550e8400-e29b-41d4-a716-446655440000",
+      "target_id": "550e8400-e29b-41d4-a716-446655440001",
+      "kind": "influences",
+      "weight": 0.8,
+      "meta": {}
+    }
+  ],
+  "total": 1
+}
+```
+
+#### Filter by Target Node
+
+```http
+GET /api/v1/relationships/?target_id=550e8400-e29b-41d4-a716-446655440001
+```
+
+**Response** (200 OK):
+```json
+{
+  "relationships": [
+    {
+      "id": "660e8400-e29b-41d4-a716-446655440002",
+      "source_id": "550e8400-e29b-41d4-a716-446655440000",
+      "target_id": "550e8400-e29b-41d4-a716-446655440001",
+      "kind": "influences",
+      "weight": 0.8,
+      "meta": {}
+    }
+  ],
+  "total": 1
+}
+```
+
+#### Combine Multiple Filters
+
+```http
+GET /api/v1/relationships/?source_id=550e8400-e29b-41d4-a716-446655440000&kind=influences
+```
+
+**Response** (200 OK):
+```json
+{
+  "relationships": [
+    {
+      "id": "660e8400-e29b-41d4-a716-446655440002",
+      "source_id": "550e8400-e29b-41d4-a716-446655440000",
+      "target_id": "550e8400-e29b-41d4-a716-446655440001",
+      "kind": "influences",
+      "weight": 0.8,
+      "meta": {}
+    }
+  ],
+  "total": 1
+}
+```
+
+**Use Cases**:
+- List all outgoing relationships from a node: `?source_id={node_id}`
+- List all incoming relationships to a node: `?target_id={node_id}`
+- Find all relationships of a specific type: `?kind=influences`
+- Find specific relationship types between nodes: `?source_id={source}&target_id={target}&kind={kind}`
 
 ## Query Analysis (Phase 2)
 
