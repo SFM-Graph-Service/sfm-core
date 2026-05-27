@@ -1,9 +1,9 @@
 """
 Enhanced Dimensional Meta Entities and Scenario Modeling for SFM analysis.
 
-This module defines foundational dimensional entities and comprehensive scenario
-modeling capabilities for SFM analysis including time, space, scenarios, and
-advanced scenario planning frameworks.
+This module defines foundational dimensional entities and scenario modeling
+capabilities for SFM analysis including time, space, scenarios, and advanced
+scenario planning frameworks.
 """
 
 from __future__ import annotations

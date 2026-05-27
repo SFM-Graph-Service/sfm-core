@@ -1,6 +1,6 @@
 """
 Enhanced Abstract data access layer for Social Fabric Matrix (SFM) graph data.
-Provides comprehensive CRUD operations with support for all Beta unified model node types.
+Provides CRUD operations with support for all Beta unified model node types.
 Default implementation uses NetworkX for in-memory graph storage.
 """
 

@@ -4,7 +4,7 @@ This document describes the GitHub Actions workflows implemented for the SFM Gra
 
 ## Workflow Overview
 
-The project includes 8 comprehensive workflows designed to ensure code quality, security, performance, and documentation consistency:
+The project includes 8 workflows designed to ensure code quality, security, performance, and documentation consistency:
 
 ### 1. Continuous Integration (`ci.yml`)
 **Purpose**: Core build and test validation

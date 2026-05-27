@@ -42,7 +42,7 @@ def get_statistics(service: SFMService = Depends(get_sfm_service)) -> Statistics
     """
     Get detailed graph statistics.
 
-    Returns comprehensive statistics including total nodes, relationships,
+    Returns statistics including total nodes, relationships,
     and breakdown by node type.
     """
     stats = service.get_statistics()

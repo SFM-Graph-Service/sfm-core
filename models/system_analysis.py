@@ -2,7 +2,7 @@
 System analysis components for the Social Fabric Matrix framework.
 
 This module contains classes for analyzing system-level properties, metrics,
-and comprehensive system analysis capabilities.
+and system analysis capabilities.
 """
 
 from __future__ import annotations
@@ -37,7 +37,7 @@ class SystemProperty(Node):  # pylint: disable=too-many-instance-attributes
 
 @dataclass
 class SystemLevelAnalysis(Node):
-    """Comprehensive system-level analysis of SFM."""
+    """System-level analysis of SFM."""
 
     analyzed_system_boundary: str = "undefined"
     institutions_analyzed: List[uuid.UUID] = field(default_factory=lambda: [])

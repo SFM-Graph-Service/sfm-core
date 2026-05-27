@@ -1,7 +1,7 @@
 # pylint: disable=too-many-lines
-# This module contains comprehensive enum definitions for SFM framework values,
-# institutions, resources, flows, and relationships. The large number of lines
-# is necessary to provide complete controlled vocabularies for institutional analysis.
+# This module contains enum definitions for SFM framework values, institutions,
+# resources, flows, and relationships. The large number of lines is necessary
+# to provide complete controlled vocabularies for institutional analysis.
 """
 Enumerations for the Social Fabric Matrix (SFM) framework.
 
@@ -16,7 +16,7 @@ flows, and relationships in socio-economic systems.
 This module implements key concepts from Hayden's Social Fabric Matrix framework:
 - **Value Categories**: Multi-dimensional value systems beyond market pricing
 - **Institution Layers**: Formal rules, organizations, and informal norms
-- **Resource Types**: Comprehensive resource classification for institutional analysis
+- **Resource Types**: Resource classification for institutional analysis
 - **Flow Nature**: Patterns of resource and value movement through systems
 - **Relationship Kinds**: Institutional relationships and dependencies
 
@@ -69,7 +69,7 @@ The enums integrate seamlessly with core SFM model classes:
 - **ValueCategory**: Used in `Indicator` and `ValueSystem` for multi-dimensional
   measurement
 - **InstitutionLayer**: Used in `Institution` for Hayden's three-layer framework
-- **ResourceType**: Used in `Resource` for comprehensive resource classification
+- **ResourceType**: Used in `Resource` for resource classification
 - **FlowNature/FlowType**: Used in `Flow` for movement pattern analysis
 - **RelationshipKind**: Used in `Relationship` for institutional dependency mapping
 
@@ -199,7 +199,7 @@ class ValueCategory(Enum):
       different dimensions of value creation, distribution, and impact within
       socio-economic systems. Hayden's framework extends beyond market-based value
       measurements to include social, environmental, and institutional dimensions
-      essential for comprehensive policy analysis.
+      essential for policy analysis.
 
       ## Theoretical Background
 
@@ -280,7 +280,7 @@ class ValueCategory(Enum):
       - INSTITUTIONAL: Governance quality, rule consistency, organizational capacity
       - TECHNOLOGICAL: Knowledge base, production techniques, innovation systems
 
-      **Extended Categories** (for comprehensive analysis):
+      **Extended Categories** (for detailed analysis):
       Use when core categories are insufficient for capturing specific value dimensions
       relevant to your SFM analysis context.
 
@@ -383,8 +383,8 @@ class InstitutionLayer(Enum):
     represents
         the different layers at which institutions operate within socio-economic systems.
         Hayden's framework distinguishes between formal constitutional rules, organizational
-        structures, and informal cultural norms, providing a comprehensive taxonomy for
-        institutional analysis in SFM applications.
+        structures, and informal cultural norms, providing a taxonomy for institutional
+        analysis in SFM applications.
 
         ## Theoretical Foundation
 
@@ -539,11 +539,9 @@ class ResourceType(Enum):
       Classification of resource types within Social Fabric Matrix analysis.
 
       Categorizes different forms of resources that flow through socio-economic systems,
-      including traditional economic resources and expanded categories relevant
-      to
-      institutional and technological analysis. This comprehensive taxonomy enables
-      detailed tracking of resource flows, dependencies, and transformations in
-      SFM models.
+      including traditional economic resources and expanded categories relevant to
+      institutional and technological analysis. This taxonomy enables detailed tracking
+      of resource flows, dependencies, and transformations in SFM models.
 
       ## Theoretical Background
 
@@ -1662,10 +1660,9 @@ class RelationshipKind(Enum):
         Taxonomy of relationship types in Social Fabric Matrix systems.
 
         Defines the various ways actors, institutions, resources, and processes can be
-        related to each other in Hayden's institutional analysis framework. This
-    comprehensive
-        taxonomy enables detailed mapping of institutional dependencies, resource flows,
-        power relationships, and system dynamics essential for SFM analysis.
+        related to each other in Hayden's institutional analysis framework. This taxonomy
+        enables detailed mapping of institutional dependencies, resource flows, power
+        relationships, and system dynamics essential for SFM analysis.
 
         ## Theoretical Foundation
 

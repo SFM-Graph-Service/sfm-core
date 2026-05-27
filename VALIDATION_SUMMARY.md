@@ -19,7 +19,7 @@ Complete validation of SFM Core setup following documented installation paths.
 ✅ **Automated validation tools created**
 - 10 local setup tests
 - 8 container deployment tests
-- Example runner with comprehensive output
+- Example runner with detailed output
 
 ---
 
@@ -373,7 +373,7 @@ curl http://localhost:8000/api/v1/health
 | Setup success rate | 4/4 paths (100%) |
 | Example success rate | 4/4 examples (100%) |
 | Automated test coverage | 22 tests (all pass) |
-| Documentation completeness | 3 comprehensive guides |
+| Documentation completeness | 3 setup guides |
 | Container build time | ~6 minutes |
 | Example execution time | ~2 seconds each |
 | Total validation time | ~15 minutes (all paths) |

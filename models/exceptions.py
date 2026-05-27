@@ -1,9 +1,9 @@
 """
 SFM Exception Hierarchy - Centralized error handling for Social Fabric Matrix Framework
 
-This module provides a comprehensive exception hierarchy for consistent error handling
-across all SFM modules. It includes domain-specific exception types with rich context
-information for better debugging and error handling.
+This module provides an exception hierarchy for consistent error handling across all
+SFM modules. It includes domain-specific exception types with rich context information
+for better debugging and error handling.
 
 Key Features:
 - Domain-specific exception types for different operations

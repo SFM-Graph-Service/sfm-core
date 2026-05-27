@@ -38,7 +38,7 @@ class ToolSkillTechnologyComplex(Node):
 
 @dataclass
 class EcologicalSystem(Node):
-    """Environmental component integration - part of Hayden's comprehensive SFM approach."""
+    """Environmental component integration - part of Hayden's SFM approach."""
 
     ecosystem_type: Optional[str] = None  # "forest", "watershed", "urban", etc.
     environmental_health: Optional[float] = None  # Overall health score (0-1)
