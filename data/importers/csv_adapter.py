@@ -66,16 +66,26 @@ class CSVImportAdapter(BaseImportAdapter):
     and enum translation.
     """
 
-    def __init__(self, mapping: MappingConfig, config: Optional[ImportConfig] = None):
+    def __init__(
+        self,
+        mapping: MappingConfig,
+        config: Optional[ImportConfig] = None,
+        allowed_base_dir: Optional[Path] = None
+    ):
         """
         Initialize CSV adapter with field mapping.
 
         Args:
             mapping: Field mapping configuration
             config: Import configuration
+            allowed_base_dir: Base directory for path validation.
+                            None (default) = path traversal validation disabled (backward compatible).
+                            Path object = only allow files within this directory tree.
+                            For production file uploads, set to a secure upload directory.
         """
         super().__init__(config)
         self.mapping = mapping
+        self.allowed_base_dir = allowed_base_dir
 
     def detect_format(self, source: Union[str, Path, Dict[str, Any]]) -> bool:
         """
@@ -92,9 +102,9 @@ class CSVImportAdapter(BaseImportAdapter):
 
         path = Path(source) if isinstance(source, str) else source
 
-        # Validate path before accessing filesystem
+        # Validate path before accessing filesystem (if enabled)
         try:
-            safe_path = _validate_safe_path(path)
+            safe_path = _validate_safe_path(path, self.allowed_base_dir) if self.allowed_base_dir else path
         except ValueError:
             return False
 
@@ -119,8 +129,8 @@ class CSVImportAdapter(BaseImportAdapter):
         """
         path = Path(source) if isinstance(source, str) else source
 
-        # Validate path for security
-        safe_path = _validate_safe_path(path)
+        # Validate path for security (if enabled)
+        safe_path = _validate_safe_path(path, self.allowed_base_dir) if self.allowed_base_dir else path
 
         if not safe_path.exists():
             raise FileNotFoundError(f"File not found: {path}")
@@ -144,8 +154,8 @@ class CSVImportAdapter(BaseImportAdapter):
         Yields:
             Mapped node dictionaries
         """
-        # Path should already be validated by caller, but ensure it's safe
-        safe_path = _validate_safe_path(path)
+        # Path should already be validated by caller, but ensure it's safe (if enabled)
+        safe_path = _validate_safe_path(path, self.allowed_base_dir) if self.allowed_base_dir else path
 
         # Auto-detect delimiter
         delimiter = self._detect_delimiter(safe_path)
@@ -187,8 +197,8 @@ class CSVImportAdapter(BaseImportAdapter):
         Yields:
             Mapped node dictionaries
         """
-        # Path should already be validated by caller, but ensure it's safe
-        safe_path = _validate_safe_path(path)
+        # Path should already be validated by caller, but ensure it's safe (if enabled)
+        safe_path = _validate_safe_path(path, self.allowed_base_dir) if self.allowed_base_dir else path
 
         # Read entire Excel file (no chunksize support in pandas.read_excel)
         df = pd.read_excel(safe_path)
@@ -235,8 +245,8 @@ class CSVImportAdapter(BaseImportAdapter):
         Returns:
             Detected delimiter (comma, tab, semicolon, pipe)
         """
-        # Path should already be validated by caller, but double-check
-        safe_path = _validate_safe_path(path)
+        # Path should already be validated by caller, but double-check (if enabled)
+        safe_path = _validate_safe_path(path, self.allowed_base_dir) if self.allowed_base_dir else path
 
         # Read first 1024 bytes to detect delimiter
         with open(safe_path, 'r', encoding='utf-8') as f:
@@ -264,9 +274,9 @@ class CSVImportAdapter(BaseImportAdapter):
         errors = []
         path = Path(source) if isinstance(source, str) else source
 
-        # Validate path for security
+        # Validate path for security (if enabled)
         try:
-            safe_path = _validate_safe_path(path)
+            safe_path = _validate_safe_path(path, self.allowed_base_dir) if self.allowed_base_dir else path
         except ValueError as e:
             errors.append(f"Invalid path: {e}")
             return errors
@@ -308,9 +318,9 @@ class CSVImportAdapter(BaseImportAdapter):
         """
         path = Path(source) if isinstance(source, str) else source
 
-        # Validate path for security
+        # Validate path for security (if enabled)
         try:
-            safe_path = _validate_safe_path(path)
+            safe_path = _validate_safe_path(path, self.allowed_base_dir) if self.allowed_base_dir else path
         except ValueError:
             return None
 
