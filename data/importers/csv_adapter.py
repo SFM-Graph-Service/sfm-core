@@ -139,15 +139,18 @@ class CSVImportAdapter(BaseImportAdapter):
         Stream nodes from CSV file.
 
         Args:
-            path: Path to CSV file
+            path: Validated safe path to CSV file
 
         Yields:
             Mapped node dictionaries
         """
-        # Auto-detect delimiter
-        delimiter = self._detect_delimiter(path)
+        # Path should already be validated by caller, but ensure it's safe
+        safe_path = _validate_safe_path(path)
 
-        with open(path, 'r', newline='', encoding='utf-8') as f:
+        # Auto-detect delimiter
+        delimiter = self._detect_delimiter(safe_path)
+
+        with open(safe_path, 'r', newline='', encoding='utf-8') as f:
             reader = csv.DictReader(f, delimiter=delimiter)
 
             # Validate headers
@@ -179,13 +182,16 @@ class CSVImportAdapter(BaseImportAdapter):
         consider converting to CSV first.
 
         Args:
-            path: Path to Excel file
+            path: Validated safe path to Excel file
 
         Yields:
             Mapped node dictionaries
         """
+        # Path should already be validated by caller, but ensure it's safe
+        safe_path = _validate_safe_path(path)
+
         # Read entire Excel file (no chunksize support in pandas.read_excel)
-        df = pd.read_excel(path)
+        df = pd.read_excel(safe_path)
 
         for row_num, row in df.iterrows():
             try:
