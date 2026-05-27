@@ -5,7 +5,9 @@
 [![Security](https://github.com/SFM-Graph-Service/sfm-core/actions/workflows/security.yml/badge.svg)](https://github.com/SFM-Graph-Service/sfm-core/actions/workflows/security.yml)
 [![Performance](https://github.com/SFM-Graph-Service/sfm-core/actions/workflows/performance.yml/badge.svg)](https://github.com/SFM-Graph-Service/sfm-core/actions/workflows/performance.yml)
 [![Documentation](https://github.com/SFM-Graph-Service/sfm-core/actions/workflows/documentation.yml/badge.svg)](https://github.com/SFM-Graph-Service/sfm-core/actions/workflows/documentation.yml)
-[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.20418500.svg)](https://doi.org/10.5281/zenodo.20418500)
+[![DOI](https://img.shields.io/badge/DOI-10.5281%2Fzenodo.20418500-blue)](https://doi.org/10.5281/zenodo.20418500)
+[![PyPI](https://img.shields.io/pypi/v/sfm-core)](https://pypi.org/project/sfm-core/)
+[![Python](https://img.shields.io/pypi/pyversions/sfm-core)](https://pypi.org/project/sfm-core/)
 
 An experimental Python framework implementing F. Gregory Hayden's Social Fabric Matrix (SFM) methodology for modeling, analyzing, and querying socio-economic systems through graph-based data structures.
 
@@ -715,7 +717,7 @@ If you use SFM Core in your research, please cite both:
 }
 ```
 
-**DOI**: [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.20418500.svg)](https://doi.org/10.5281/zenodo.20418500)
+**DOI**: [![DOI](https://img.shields.io/badge/DOI-10.5281%2Fzenodo.20418500-blue)](https://doi.org/10.5281/zenodo.20418500)
 
 ---
 
