@@ -151,6 +151,52 @@ class NetworkXSFMRepository(SFMRepository):
         self.graph.add_node(node_id, data=node)  # type: ignore[misc]
         return node
 
+    def create_nodes_bulk(self, nodes: List[Node]) -> List[Node]:
+        """
+        Create multiple nodes in bulk, bypassing per-node validation.
+
+        This method is optimized for bulk creation by:
+        1. Validating all nodes upfront
+        2. Skipping the O(n) duplicate check per node
+        3. Adding all nodes in a single pass
+
+        Use this for bulk imports or large scenario building. Assumes nodes
+        have unique IDs.
+
+        Args:
+            nodes: List of nodes to create
+
+        Returns:
+            List of created nodes
+
+        Raises:
+            NodeCreationError: If any node ID is duplicate
+        """
+        if not nodes:
+            return []
+
+        # Build set of existing node IDs for O(1) duplicate detection
+        existing_ids = set(self.graph.nodes)
+
+        # Validate all nodes upfront
+        for node in nodes:
+            # Check for duplicates
+            if node.id in existing_ids:
+                raise NodeCreationError(
+                    f"Node with ID {node.id} already exists",
+                    node_type=type(node).__name__,
+                    node_id=node.id
+                )
+
+            # Mark as seen for intra-batch duplicate detection
+            existing_ids.add(node.id)
+
+        # Add all nodes
+        for node in nodes:
+            self.graph.add_node(node.id, data=node)  # type: ignore[misc]
+
+        return nodes
+
     def read_node(self, node_id: uuid.UUID) -> Optional[Node]:
         """Read a node by its ID."""
         if node_id not in self.graph:

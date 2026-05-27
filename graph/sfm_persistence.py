@@ -160,6 +160,19 @@ class NodeSerializer:
     }
 
     @staticmethod
+    def get_node_class(node_type_name: str) -> Optional[Type[Node]]:
+        """
+        Get node class by type name.
+
+        Args:
+            node_type_name: Name of node type (e.g., "InstitutionalStructure")
+
+        Returns:
+            Node class or None if not found
+        """
+        return NodeSerializer.NODE_TYPE_REGISTRY.get(node_type_name)
+
+    @staticmethod
     def node_to_dict(node: Node) -> Dict[str, Any]:
         """
         Convert a Node to dictionary representation.

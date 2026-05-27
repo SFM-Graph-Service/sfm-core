@@ -13,8 +13,9 @@ Key Features:
 
 import logging
 import uuid
-from typing import Dict, List, Optional, Any, Type, TypeVar
+from typing import Dict, List, Optional, Any, Type, TypeVar, Union
 from dataclasses import dataclass
+from pathlib import Path
 
 from models import Node
 from models.exceptions import (
@@ -1277,6 +1278,128 @@ class SFMService:
                     continue
 
         logger.info("Imported %d nodes and %d relationships from JSON", nodes_imported, relationships_imported)
+
+    def import_bulk(
+        self,
+        source: Union[str, Path, Dict[str, Any]],
+        adapter: Optional[Any] = None,  # BaseImportAdapter type
+        config: Optional[Any] = None     # ImportConfig type
+    ) -> Any:  # ImportResult type
+        """
+        Import data in bulk using appropriate adapter.
+
+        Supports auto-detection of format (CSV, JSON, URL patterns) or
+        explicit adapter specification. Uses bulk node creation for performance.
+
+        Args:
+            source: File path, URL, or data dictionary
+            adapter: Import adapter (auto-detected if not provided)
+            config: Import configuration (uses defaults if not provided)
+
+        Returns:
+            ImportResult with statistics, errors, and warnings
+
+        Example:
+            >>> from data.importers import CSVImportAdapter, MappingTemplates
+            >>> mapping = MappingTemplates.csv_institution()
+            >>> adapter = CSVImportAdapter(mapping)
+            >>> result = service.import_bulk('institutions.csv', adapter=adapter)
+            >>> print(f"Created {result.nodes_created} nodes")
+        """
+        import time
+        from pathlib import Path
+        from data.importers import ImportResult, ImportConfig
+        from graph.sfm_persistence import NodeSerializer
+
+        # Use provided config or defaults
+        if config is None:
+            config = ImportConfig()
+
+        # Auto-detect adapter if not provided
+        if adapter is None:
+            from data.importers.csv_adapter import CSVImportAdapter
+            from data.importers import MappingTemplates
+
+            # Try CSV detection
+            adapter = CSVImportAdapter(MappingTemplates.basic_node(), config)
+            if not adapter.detect_format(source):
+                raise ValueError("Could not auto-detect import format. Please provide an adapter.")
+
+        # Initialize result
+        result = ImportResult()
+        start_time = time.time()
+
+        # Validate format first
+        format_errors = adapter.validate_format(source)
+        if format_errors and not config.continue_on_error:
+            for error in format_errors:
+                result.add_error(None, None, error)
+            result.elapsed_time = time.time() - start_time
+            return result
+
+        # Batch tracking
+        node_batch: List[Node] = []
+        row_num = 0
+
+        try:
+            # Stream nodes from source
+            for row_num, node_dict in enumerate(adapter.extract_nodes(source), start=1):
+                try:
+                    # Get node type
+                    node_type_name = node_dict.pop("_node_type", config.default_node_type)
+
+                    # Instantiate node using NodeSerializer registry
+                    node_class = NodeSerializer.get_node_class(node_type_name)
+                    if node_class is None:
+                        raise ValueError(f"Unknown node type: {node_type_name}")
+
+                    # Create node instance
+                    node = node_class(**node_dict)
+
+                    # Add to batch
+                    node_batch.append(node)
+
+                    # Flush batch when reaching batch size
+                    if len(node_batch) >= config.batch_size:
+                        if not config.dry_run:
+                            self.repository.create_nodes_bulk(node_batch)
+                        result.nodes_created += len(node_batch)
+                        node_batch = []
+
+                        if config.show_progress and row_num % config.progress_interval == 0:
+                            logger.info("Imported %d nodes...", result.nodes_created)
+
+                except Exception as e:
+                    result.nodes_failed += 1
+                    result.add_error(
+                        row=row_num,
+                        field=None,
+                        message=str(e),
+                        suggested_fix=None
+                    )
+
+                    if not config.continue_on_error:
+                        break
+
+            # Flush remaining nodes
+            if node_batch and not config.dry_run:
+                self.repository.create_nodes_bulk(node_batch)
+                result.nodes_created += len(node_batch)
+
+        except Exception as e:
+            result.add_error(None, None, f"Import failed: {e}")
+            logger.error("Bulk import failed: %s", e)
+
+        result.elapsed_time = time.time() - start_time
+
+        logger.info(
+            "Bulk import complete: %d nodes created, %d failed, %.2fs elapsed",
+            result.nodes_created,
+            result.nodes_failed,
+            result.elapsed_time
+        )
+
+        return result
 
 
 # Public API

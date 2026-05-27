@@ -253,6 +253,59 @@ class Neo4jSFMRepository(SFMRepository):
         record = result.single()
         return record[0] if record else None
 
+    def create_nodes_bulk(self, nodes: List[Node]) -> List[Node]:
+        """
+        Create multiple nodes in bulk using UNWIND.
+
+        This method is optimized for bulk creation by using a single
+        UNWIND Cypher query to create all nodes at once.
+
+        Args:
+            nodes: List of nodes to create
+
+        Returns:
+            List of created nodes
+
+        Raises:
+            NodeCreationError: If any node creation fails
+        """
+        if not nodes:
+            return []
+
+        with self._driver.session() as session:
+            try:
+                session.execute_write(self._create_nodes_bulk_tx, nodes)
+                return nodes
+            except Neo4jError as e:
+                raise NodeCreationError(
+                    f"Failed to bulk create nodes: {e}",
+                    node_type="Multiple",
+                    node_id=None
+                ) from e
+
+    @staticmethod
+    def _create_nodes_bulk_tx(tx: ManagedTransaction, nodes: List[Node]) -> None:
+        """ManagedTransaction function to bulk create nodes."""
+        # Group nodes by type for efficient UNWIND queries
+        nodes_by_type: Dict[str, List[Dict[str, Any]]] = {}
+
+        for node in nodes:
+            node_label = type(node).__name__
+            if node_label not in nodes_by_type:
+                nodes_by_type[node_label] = []
+
+            properties = Neo4jSFMRepository._node_to_properties(node)
+            nodes_by_type[node_label].append(properties)
+
+        # Create nodes by type using UNWIND
+        for node_label, node_props_list in nodes_by_type.items():
+            query = f"""
+            UNWIND $nodes AS nodeProps
+            MERGE (n:{node_label} {{id: nodeProps.id}})
+            SET n = nodeProps
+            """  # noqa: S608
+            tx.run(query, nodes=node_props_list)
+
     def read_node(self, node_id: uuid.UUID) -> Optional[Node]:
         """
         Read a node by its ID from Neo4j.
