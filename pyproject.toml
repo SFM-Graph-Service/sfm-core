@@ -1,9 +1,65 @@
+[build-system]
+requires = ["setuptools>=45", "wheel", "setuptools_scm[toml]>=6.2"]
+build-backend = "setuptools.build_meta"
+
 [project]
 name = "sfm-core"
 version = "0.1.0"
 description = "Social Fabric Matrix Graph Service"
+readme = "README.md"
 license = {text = "GPL-3.0"}
 requires-python = ">=3.9"
+authors = [
+    {name = "SFM Graph Service Team", email = "contact@example.com"}
+]
+keywords = ["social-fabric-matrix", "graph-analysis", "policy-analysis", "network-analysis"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: GNU General Public License v3 (GPLv3)",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Information Analysis",
+    "Topic :: Scientific/Engineering :: Visualization",
+]
+dependencies = [
+    "networkx",
+    "neo4j",
+    "matplotlib",
+    "pyvis",
+    "pydantic",
+    "pytest",
+    "pytest-asyncio",
+    "pytest-cov",
+    "httpx",
+    "requests",
+    "pylint",
+    "coverage",
+    "bleach",
+    "cachetools",
+    "redis",
+    "prometheus-client",
+    "PyYAML",
+    "psutil",
+    "types-networkx",
+    "fastapi==0.115.0",
+    "uvicorn[standard]==0.32.0",
+    "python-multipart==0.0.27",
+    "pydantic-settings==2.6.0",
+    "pandas>=2.0.0",
+    "openpyxl>=3.1.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/SFM-Graph-Service/sfm-core"
+Repository = "https://github.com/SFM-Graph-Service/sfm-core"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["api*", "models*", "graph*", "data*", "scenarios*"]
 
 [tool.pytest.ini_options]
 minversion = "6.0"

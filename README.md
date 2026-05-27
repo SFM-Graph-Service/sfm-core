@@ -42,13 +42,15 @@ This software is intended for academic evaluation and institutional economics re
 
 ## Installation
 
+**📖 For detailed setup instructions, see [SETUP_GUIDE.md](SETUP_GUIDE.md)**
+
 ### Requirements
 
 - **Python**: 3.10 or higher
 - **System Dependencies**: graphviz (for visualization)
 - **Optional**: Docker & Docker Compose (for Neo4j backend)
 
-### Basic Installation (NetworkX Backend)
+### Quick Install (Local Development)
 
 For development, testing, and datasets with <10,000 nodes:
 
@@ -69,8 +71,18 @@ pip install -e .
 
 # Verify installation
 python -c "from api.sfm_service import SFMService; print('✓ Installation successful')"
-pytest tests/  # Run test suite (501 tests)
+
+# Run validation script (recommended)
+./test_setup.sh
+
+# Run test suite
+pytest tests/
 ```
+
+**Validation Scripts:**
+- `./test_setup.sh` - Validate local installation
+- `./test_container_deployment.sh` - Validate Docker deployment
+- See [SETUP_GUIDE.md](SETUP_GUIDE.md) for troubleshooting
 
 ### Production Installation (Neo4j Backend)
 

@@ -1,6 +1,20 @@
 version: '3.8'
 
 services:
+  # Dev container service (for VS Code devcontainer)
+  sfm:
+    build: .
+    ports:
+      - "8000:8000"
+      - "7474:7474"
+      - "7687:7687"
+    environment:
+      - STORAGE_TYPE=networkx
+      - DEBUG=true
+    volumes:
+      - .:/app
+    command: sleep infinity
+
   # API with NetworkX backend (development)
   api-dev:
     build: .
