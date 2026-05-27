@@ -71,6 +71,9 @@ from models import (
     Event,
 )
 
+# Import Hayden-compliant delivery matrix types
+from models.delivery_matrix import Delivery, SFMDeliveryCell, SFMDeliveryMatrix
+
 # Setup logging
 logger = logging.getLogger(__name__)
 
@@ -113,7 +116,7 @@ class SFMPersistenceError(Exception):
 class NodeSerializer:
     """Handles serialization of Beta unified model nodes."""
 
-    # Map of all 33 Beta node types for serialization
+    # Map of all Beta node types plus Hayden-compliant delivery matrix types for serialization
     NODE_TYPE_REGISTRY = {
         "Node": Node,
         "InformalNorm": InformalNorm,
@@ -157,6 +160,10 @@ class NodeSerializer:
         "ScenarioPath": ScenarioPath,
         "ScenarioSet": ScenarioSet,
         "Event": Event,
+        # Hayden-compliant delivery matrix types
+        "Delivery": Delivery,
+        "SFMDeliveryCell": SFMDeliveryCell,
+        "SFMDeliveryMatrix": SFMDeliveryMatrix,
     }
 
     @staticmethod

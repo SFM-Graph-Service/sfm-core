@@ -1401,6 +1401,207 @@ class SFMService:
 
         return result
 
+    # Hayden-compliant delivery matrix methods
+
+    def create_delivery_matrix(
+        self,
+        matrix_id: Optional[uuid.UUID] = None,
+        components: Optional[List[uuid.UUID]] = None,
+        description: str = "",
+        label: str = "SFM Delivery Matrix",
+        matrix_scope: Optional[str] = None
+    ) -> Any:  # SFMDeliveryMatrix type
+        """
+        Create new Hayden-compliant delivery matrix.
+
+        Creates a square N×N matrix where components appear on both axes.
+        Non-symmetric: Cell (i,j) ≠ Cell (j,i)
+
+        Args:
+            matrix_id: Optional matrix ID (generated if not provided)
+            components: Initial component UUIDs (can be added later)
+            description: Matrix description
+            label: Matrix label
+            matrix_scope: Scope level (local, regional, national, global)
+
+        Returns:
+            SFMDeliveryMatrix instance
+
+        Example:
+            >>> matrix = service.create_delivery_matrix(
+            ...     label="Nebraska K-12 Education Finance",
+            ...     matrix_scope="state"
+            ... )
+            >>> matrix.add_component(legislature_id)
+            >>> matrix.add_component(school_district_id)
+        """
+        from models.delivery_matrix import SFMDeliveryMatrix
+
+        matrix = SFMDeliveryMatrix(
+            id=matrix_id or uuid.uuid4(),
+            label=label,
+            description=description,
+            components=components or [],
+            matrix_scope=matrix_scope
+        )
+
+        # Store in repository
+        self.repository.create_node(matrix)
+
+        logger.info("Created delivery matrix '%s' with %d components", label, len(matrix.components))
+        return matrix
+
+    def add_delivery_to_matrix(
+        self,
+        matrix: Any,  # SFMDeliveryMatrix type
+        source_id: uuid.UUID,
+        target_id: uuid.UUID,
+        delivery: Any,  # Delivery type
+        cell_description: str
+    ) -> Any:  # SFMDeliveryCell type
+        """
+        Add delivery to matrix cell.
+
+        Creates cell if doesn't exist. Supports multiple deliveries per cell
+        per Hayden 2008 requirement.
+
+        Args:
+            matrix: SFMDeliveryMatrix instance
+            source_id: Source component UUID
+            target_id: Target component UUID
+            delivery: Delivery instance to add
+            cell_description: Required cell description per Hayden methodology
+
+        Returns:
+            SFMDeliveryCell with delivery added
+
+        Raises:
+            ValueError: If components not in matrix or cell_description empty
+
+        Example:
+            >>> from models.delivery_matrix import Delivery
+            >>> delivery = Delivery(
+            ...     delivery_type="money",
+            ...     delivery_content="$800M annual appropriation",
+            ...     quantity=800_000_000,
+            ...     units="USD/year",
+            ...     temporal_rate="annual"
+            ... )
+            >>> cell = service.add_delivery_to_matrix(
+            ...     matrix=matrix,
+            ...     source_id=legislature_id,
+            ...     target_id=school_district_id,
+            ...     delivery=delivery,
+            ...     cell_description="Legislature provides funding to school district"
+            ... )
+        """
+        from models.delivery_matrix import SFMDeliveryCell
+
+        # Validate components are in matrix
+        if source_id not in matrix.components:
+            raise ValueError(f"Source component {source_id} not in matrix")
+        if target_id not in matrix.components:
+            raise ValueError(f"Target component {target_id} not in matrix")
+
+        # Validate cell description
+        if not cell_description:
+            raise ValueError(
+                "cell_description is required per Hayden methodology. "
+                "Cell descriptions are canonical SFM deliverables."
+            )
+
+        # Get or create cell
+        cell = matrix.get_cell(source_id, target_id)
+        if cell is None:
+            # Get component labels for cell label
+            source_node = self.repository.read_node(source_id)
+            target_node = self.repository.read_node(target_id)
+            cell_label = f"{source_node.label if source_node else source_id}→{target_node.label if target_node else target_id}"
+
+            cell = SFMDeliveryCell(
+                label=cell_label,
+                source_component_id=source_id,
+                target_component_id=target_id,
+                cell_description=cell_description
+            )
+            matrix.set_cell(cell)
+            self.repository.create_node(cell)
+
+        # Add delivery to cell
+        cell.add_delivery(delivery)
+
+        # Update cell in repository
+        self.repository.update_node(cell)
+
+        logger.info(
+            "Added %s delivery to cell (%s, %s): %s",
+            delivery.delivery_type,
+            source_id,
+            target_id,
+            delivery.delivery_content[:50]
+        )
+
+        return cell
+
+    def validate_delivery_matrix(self, matrix: Any) -> List[str]:  # SFMDeliveryMatrix type
+        """
+        Validate matrix per Hayden requirements.
+
+        Checks:
+        - Square structure (components on both axes)
+        - Non-empty cells have descriptions
+        - Deliveries are heterogeneously typed
+        - Components exist in graph
+
+        Args:
+            matrix: SFMDeliveryMatrix to validate
+
+        Returns:
+            List of validation error messages (empty if valid)
+
+        Example:
+            >>> errors = service.validate_delivery_matrix(matrix)
+            >>> if errors:
+            ...     print("Validation errors:")
+            ...     for error in errors:
+            ...         print(f"  - {error}")
+            ... else:
+            ...     print("Matrix is valid per Hayden methodology")
+        """
+        errors = []
+
+        # Check square structure
+        if not matrix.is_square():
+            errors.append("Matrix is not square")
+
+        # Check matrix's own validation
+        matrix_errors = matrix.validate_structure()
+        errors.extend(matrix_errors)
+
+        # Check that all components exist in graph
+        for comp_id in matrix.components:
+            try:
+                node = self.repository.read_node(comp_id)
+                if node is None:
+                    errors.append(f"Component {comp_id} not found in graph")
+            except Exception as e:
+                errors.append(f"Error checking component {comp_id}: {e}")
+
+        # Check delivery heterogeneity (optional quality check)
+        for cell in matrix.get_non_empty_cells():
+            delivery_types = set(d.delivery_type for d in cell.deliveries)
+            if len(delivery_types) == 1 and len(cell.deliveries) > 1:
+                logger.warning(
+                    "Cell (%s, %s) has %d deliveries but all same type (%s). "
+                    "Consider heterogeneous delivery types per Hayden 2008.",
+                    cell.source_component_id,
+                    cell.target_component_id,
+                    len(cell.deliveries),
+                    list(delivery_types)[0]
+                )
+
+        return errors
+
 
 # Public API
 __all__ = [
