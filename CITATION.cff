@@ -6,6 +6,7 @@ date-released: "2026-05-27"
 url: "https://github.com/SFM-Graph-Service/sfm-core"
 repository-code: "https://github.com/SFM-Graph-Service/sfm-core"
 license: GPL-3.0
+doi: 10.5281/zenodo.20418500
 type: software
 authors:
   - family-names: "Dabbs"
@@ -61,3 +62,4 @@ preferred-citation:
   version: 0.1.0
   year: 2026
   url: "https://github.com/SFM-Graph-Service/sfm-core"
+  doi: 10.5281/zenodo.20418500

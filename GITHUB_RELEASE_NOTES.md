@@ -117,7 +117,7 @@ If you use SFM Core in your research, please cite both:
   year = {2026},
   url = {https://github.com/SFM-Graph-Service/sfm-core},
   version = {0.1.0},
-  doi = {10.5281/zenodo.XXXXXXX}  # Will be assigned upon release
+  doi = {10.5281/zenodo.20418500}  # Will be assigned upon release
 }
 ```
 

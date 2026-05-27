@@ -5,6 +5,7 @@
 [![Security](https://github.com/SFM-Graph-Service/sfm-core/actions/workflows/security.yml/badge.svg)](https://github.com/SFM-Graph-Service/sfm-core/actions/workflows/security.yml)
 [![Performance](https://github.com/SFM-Graph-Service/sfm-core/actions/workflows/performance.yml/badge.svg)](https://github.com/SFM-Graph-Service/sfm-core/actions/workflows/performance.yml)
 [![Documentation](https://github.com/SFM-Graph-Service/sfm-core/actions/workflows/documentation.yml/badge.svg)](https://github.com/SFM-Graph-Service/sfm-core/actions/workflows/documentation.yml)
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.20418500.svg)](https://doi.org/10.5281/zenodo.20418500)
 
 An experimental Python framework implementing F. Gregory Hayden's Social Fabric Matrix (SFM) methodology for modeling, analyzing, and querying socio-economic systems through graph-based data structures.
 
@@ -689,15 +690,32 @@ GPL-3.0 License - See LICENSE file for details
 
 ## Citation
 
-If you use SFM Core in your research, please cite:
+If you use SFM Core in your research, please cite both:
 
+**This software:**
+```bibtex
+@software{sfm_core_2026,
+  author = {Dabbs, Garrick},
+  title = {SFM Core: Social Fabric Matrix Graph Service},
+  year = {2026},
+  url = {https://github.com/SFM-Graph-Service/sfm-core},
+  version = {0.1.0},
+  doi = {10.5281/zenodo.20418500}
+}
 ```
-F. Gregory Hayden (1988). "Values, Beliefs and Attitudes in a Sociotechnical 
-Setting." Economic Issues, 22(2), 415-432.
 
-SFM Core Framework (2026). Social Fabric Matrix Graph Service. 
-GitHub: https://github.com/SFM-Graph-Service/sfm-core
+**Hayden's foundational work:**
+```bibtex
+@book{hayden2006policymaking,
+  author = {Hayden, F. Gregory},
+  title = {Policymaking for a Good Society: The Social Fabric Matrix Approach to Policy Analysis and Program Evaluation},
+  year = {2006},
+  publisher = {Springer},
+  isbn = {978-0-387-33812-8}
+}
 ```
+
+**DOI**: [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.20418500.svg)](https://doi.org/10.5281/zenodo.20418500)
 
 ---
 

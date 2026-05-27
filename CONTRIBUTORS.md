@@ -122,7 +122,7 @@ If you use SFM Core in your research, please cite both:
    }
    ```
 
-**Zenodo DOI:** (Coming soon - permanent archival citation)
+**Zenodo DOI:** [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.20418500.svg)](https://doi.org/10.5281/zenodo.20418500)
 
 ## License
 
