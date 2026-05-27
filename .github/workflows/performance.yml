@@ -35,12 +35,16 @@ jobs:
       - name: Run SFMGraph performance tests
         run: |
           echo "Running SFMGraph performance tests..."
-          pytest tests/test_sfm_service.py::TestSFMServicePerformance -v --tb=short || true
+          if [ -f tests/test_service/test_sfm_service.py ]; then
+            pytest tests/test_service/test_sfm_service.py -v --tb=short -k performance || true
+          else
+            echo "Note: test_sfm_service.py not found or no performance tests defined"
+          fi
 
       - name: Run memory efficiency tests
         run: |
           echo "Running memory efficiency tests..."
-          python -m pytest tests/test_sfm_service.py::TestSFMServicePerformance::test_large_graph_performance -v --tb=short || true
+          pytest tests/test_lookup_performance.py -v --tb=short || true
 
       - name: Generate performance summary
         run: |
@@ -109,8 +113,8 @@ jobs:
 
       - name: Run concurrent performance tests
         run: |
-          pytest tests/test_sfm_service.py::TestSFMServicePerformance::test_concurrent_operations -v \
-                 --tb=short
+          echo "Running concurrent performance tests..."
+          pytest tests/test_lookup_performance.py -v --tb=short
 
       - name: Generate performance summary
         run: |
