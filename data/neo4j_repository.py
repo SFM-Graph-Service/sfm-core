@@ -13,17 +13,15 @@ from datetime import datetime
 from typing import Optional, List, Type, Any, Dict, TYPE_CHECKING
 from enum import Enum
 
-if TYPE_CHECKING:
-    from neo4j import ManagedTransaction
-
 try:
-    from neo4j import GraphDatabase, Driver
+    from neo4j import GraphDatabase, Driver, ManagedTransaction
     from neo4j.exceptions import Neo4jError, ServiceUnavailable
     _neo4j_available = True
 except ImportError:
     # Allow import without neo4j driver installed for testing
     GraphDatabase = None  # type: ignore
     Driver = None  # type: ignore
+    ManagedTransaction = None  # type: ignore
     Neo4jError = Exception  # type: ignore
     ServiceUnavailable = Exception  # type: ignore
     _neo4j_available = False
