@@ -36,7 +36,7 @@ A production-ready Python framework implementing F. Gregory Hayden's Social Fabr
 
 ### Requirements
 
-- **Python**: 3.9 or higher
+- **Python**: 3.10 or higher
 - **System Dependencies**: graphviz (for visualization)
 - **Optional**: Docker & Docker Compose (for Neo4j backend)
 
