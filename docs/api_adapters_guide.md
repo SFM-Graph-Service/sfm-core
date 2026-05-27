@@ -1,8 +1,10 @@
 # API Adapters Guide - OECD and World Bank
 
+**Note**: This is research software under active development. Claude AI was used to assist with documentation. Verify imported data against original sources.
+
 ## Overview
 
-SFM Core now supports importing institutional economics data directly from public APIs:
+SFM Core supports importing institutional economics data directly from public APIs:
 
 - **OECD.Stat API** - Environmental indicators, national accounts, economic statistics
 - **World Bank API** - Development indicators, GDP, population, emissions

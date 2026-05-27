@@ -1,13 +1,17 @@
 """
-Nebraska K-12 Education Finance - Hayden Case Study
+Nebraska K-12 Education Finance Demonstration
 
-Replicates the Social Fabric Matrix from Hoffman & Hayden (2007):
+Demonstration SFM analysis based on Hoffman & Hayden (2007):
 "Equilibrium and Emergence for Social Fabric Matrix Analysis"
 
-This study examined Nebraska's TEEOSA (Tax Equity and Educational
+Demonstrates Nebraska's TEEOSA (Tax Equity and Educational
 Opportunities Support Act) school funding formula as a delivery system.
 
-Reference:
+SFM Methodology:
+    Hayden, F. G. (2006). Policymaking for a Good Society: The Social Fabric Matrix
+    Approach to Policy Analysis and Program Evaluation. Springer.
+
+Case Study Reference:
     Hoffman, S., & Hayden, F. G. (2007). Equilibrium and emergence
     for social fabric matrix analysis. Journal of Economic Issues,
     41(4), 1105-1126.
@@ -234,8 +238,8 @@ def build_nebraska_k12_matrix():
         school_districts.id,
         students.id,
         districts_to_students,
-        cell_description="School districts provide comprehensive K-12 educational services to students, "
-                        "including classroom instruction, special education programs, extracurricular activities, "
+        cell_description="School districts provide K-12 educational services to students, "
+                        "including classroom instruction, special education, extracurricular activities, "
                         "transportation, food services, and counseling."
     )
 

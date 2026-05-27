@@ -1,13 +1,17 @@
 """
-Hayden-compliant Social Fabric Matrix delivery model.
+Social Fabric Matrix delivery model based on Hayden's published methodology.
 
 Implements square N×N matrix structure where components appear on both axes.
 Supports multiple heterogeneous deliveries per cell with required descriptions.
 
-References:
+This implementation is based on:
+- Hayden, F. G. (2006). Policymaking for a Good Society: The Social Fabric Matrix
+  Approach to Policy Analysis and Program Evaluation. Springer.
 - Hayden (2008): Multiple distinct deliveries per cell requirement
 - Hayden (1987, 1993): Temporal modeling with rates and thresholds
 - Hayden (2013): Cell descriptions as canonical deliverables
+
+Note: This is an experimental implementation for academic research and evaluation.
 """
 
 from dataclasses import dataclass, field
@@ -114,7 +118,7 @@ class SFMDeliveryCell(Node):
         if self.target_component_id is None:
             raise ValueError("target_component_id is required")
 
-        # CRITICAL: Non-empty cells require descriptions per Hayden methodology
+        # Non-empty cells require descriptions per Hayden methodology
         if self.deliveries and not self.cell_description:
             raise ValueError(
                 "Non-empty SFM cells require cell_description per Hayden methodology. "

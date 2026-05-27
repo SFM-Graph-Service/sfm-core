@@ -1,5 +1,7 @@
 # Neo4j Repository Usage Guide
 
+**Note**: This is research software under active development. Claude AI was used to assist with documentation. Verify database configurations and queries.
+
 ## Overview
 
 The `Neo4jSFMRepository` provides persistent graph storage for SFM data using Neo4j graph database. It implements all methods defined in the `SFMRepository` abstract base class.

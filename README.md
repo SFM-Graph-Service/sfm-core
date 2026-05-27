@@ -6,10 +6,18 @@
 [![Performance](https://github.com/SFM-Graph-Service/sfm-core/actions/workflows/performance.yml/badge.svg)](https://github.com/SFM-Graph-Service/sfm-core/actions/workflows/performance.yml)
 [![Documentation](https://github.com/SFM-Graph-Service/sfm-core/actions/workflows/documentation.yml/badge.svg)](https://github.com/SFM-Graph-Service/sfm-core/actions/workflows/documentation.yml)
 
-A production-ready Python framework implementing F. Gregory Hayden's Social Fabric Matrix (SFM) methodology for modeling, analyzing, and querying complex socio-economic systems through graph-based data structures.
+An experimental Python framework implementing F. Gregory Hayden's Social Fabric Matrix (SFM) methodology for modeling, analyzing, and querying socio-economic systems through graph-based data structures.
+
+**Status**: This is research software under active development. The implementation is based on Hayden's published work, particularly:
+
+> Hayden, F. G. (2006). *Policymaking for a Good Society: The Social Fabric Matrix Approach to Policy Analysis and Program Evaluation*. Springer.
+
+This software is intended for academic evaluation and institutional economics research.
+
+**Note**: Claude AI was used to assist with code development and documentation. Errors may exist and users should verify outputs independently.
 
 **Key Features:**
-- **40+ Specialized Node Types** across 12 analytical domains for comprehensive institutional economic modeling
+- **40+ Specialized Node Types** across 12 analytical domains for institutional economic modeling
 - **Dual-Backend Architecture**: NetworkX (in-memory, 700K rels/sec) or Neo4j (persistent, production-scale)
 - **Advanced Analysis**: Ceremonial vs instrumental classification, circular causation detection, institutional holarchy mapping, conflict detection
 - **Temporal & Uncertainty Support**: Track institutional evolution over time with confidence intervals and uncertainty propagation
@@ -592,7 +600,7 @@ sfm-core/
 │       ├── app.py                 # FastAPI setup
 │       ├── schemas.py             # Pydantic request/response models
 │       └── routers/               # 5 router modules (30+ endpoints)
-├── docs/                           # Documentation (3 comprehensive guides)
+├── docs/                           # Documentation (3 guides)
 ├── examples/                       # Demonstration scripts
 ├── tests/                          # Test suite (501 tests)
 ├── docker-compose.yml              # Docker deployment

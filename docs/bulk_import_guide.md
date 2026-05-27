@@ -1,5 +1,7 @@
 # Bulk Import System Guide
 
+**Note**: This is research software under active development. Claude AI was used to assist with documentation. Verify data integrity after imports.
+
 ## Overview
 
 SFM Core's bulk import system enables efficient ingestion of institutional economics data from multiple sources:

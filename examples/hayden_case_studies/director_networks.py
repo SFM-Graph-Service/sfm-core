@@ -1,13 +1,17 @@
 """
-Corporate Director Networks Case Study
+Corporate Director Networks Demonstration
 
-Based on:
+Demonstration SFM analysis based on:
 Hayden, F. G., Wood, S., & Kaya, I. (2002). "Patterns of Delivery and
 Correlation Coefficients in Social Fabric Matrix Analyses of Corporate
 Director Networks." Journal of Economic Issues, 36(2), 345-352.
 
-Models interlocking corporate directorates as power delivery systems.
-Demonstrates network centrality analysis through SFM delivery patterns.
+SFM Methodology:
+    Hayden, F. G. (2006). Policymaking for a Good Society: The Social Fabric Matrix
+    Approach to Policy Analysis and Program Evaluation. Springer.
+
+Demonstrates interlocking corporate directorates as power delivery systems.
+Illustrates network centrality analysis through SFM delivery patterns.
 
 Key concepts:
 - Directors serving on multiple boards deliver authority and strategic guidance

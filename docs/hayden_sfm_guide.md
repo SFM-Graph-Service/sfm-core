@@ -1,15 +1,17 @@
-# Hayden's Social Fabric Matrix: Comprehensive Guide
+# Hayden's Social Fabric Matrix: Implementation Guide
 
 ## Introduction
 
-This guide documents the **Social Fabric Matrix (SFM)** methodology developed by F. Gregory Hayden over 40+ years of institutionalist research. The SFM is a rigorous analytical tool for modeling complex social-ecological-economic systems through component interactions and deliveries.
+This guide documents the **Social Fabric Matrix (SFM)** methodology developed by F. Gregory Hayden over 40+ years of institutionalist research. The SFM is an analytical tool for modeling social-ecological-economic systems through component interactions and deliveries.
 
-**sfm-core** implements Hayden's canonical SFM structure with high fidelity to published research, enabling:
+**sfm-core** is an experimental implementation of Hayden's SFM structure based on published research, enabling:
 - Policy analysis with explicit delivery tracking
 - System dynamics modeling of institutional systems
 - Cultural values integration (ceremonial vs. instrumental)
 - Temporal modeling across multiple time scales
-- Validated case studies from published research
+- Demonstration case studies from published research
+
+**Note**: This is research software under active development. Claude AI was used to assist with code development and documentation. Errors may exist and users should verify outputs independently.
 
 ## Core Concepts
 
@@ -557,7 +559,7 @@ print(summary)
 }
 ```
 
-## Validated Case Studies
+## Demonstration Case Studies
 
 ### 1. Nebraska K-12 Education Finance (Hoffman & Hayden 2007)
 
@@ -608,7 +610,7 @@ print(summary)
 
 **Analysis focus**: Network centrality as indicator of power delivery patterns
 
-**File**: `examples/hayden_case_studies/director_networks.py` (PLANNED)
+**File**: `examples/hayden_case_studies/director_networks.py`
 
 ### 3. Low-Level Radioactive Waste (Hayden & Bolduc 2000)
 
@@ -633,7 +635,7 @@ print(summary)
 - Ceremonial: NIMBY resistance, state sovereignty
 - Instrumental: Risk reduction, scientific siting
 
-**File**: `examples/hayden_case_studies/radioactive_waste.py` (PLANNED)
+**File**: `examples/hayden_case_studies/radioactive_waste.py`
 
 ## Integration with Cultural Framework
 
@@ -881,21 +883,21 @@ This implementation is based on 40+ years of Hayden's published research:
    - Health care policy analysis
    - XLSX matrix export format
 
-## Implementation Fidelity
+## Implementation Assessment
 
-**sfm-core** achieves **9.5/10 fidelity** to Hayden's canonical methodology:
+**sfm-core** aims for high fidelity to Hayden's published methodology:
 
-| Dimension | Score | Implementation |
-|-----------|-------|----------------|
-| Matrix Structure | 9.5/10 | Square N×N, non-symmetric, component×component |
-| Multiple Deliveries | 10/10 | List-based heterogeneous delivery storage |
-| Cell Descriptions | 10/10 | Required for non-empty cells, validated |
-| Temporal Modeling | 8/10 | Rates, clocks, phases, threshold monitoring |
-| Cultural Integration | 9/10 | Ceremonial/instrumental components, values influence |
-| Export Capabilities | 9/10 | XLSX (Hayden 2013), XMILE (System Dynamics) |
-| Graph Duality | 10/10 | Bidirectional matrix ↔ MultiDiGraph conversion |
+| Dimension | Implementation |
+|-----------|----------------|
+| Matrix Structure | Square N×N, non-symmetric, component×component |
+| Multiple Deliveries | List-based heterogeneous delivery storage |
+| Cell Descriptions | Required for non-empty cells, validated |
+| Temporal Modeling | Rates, clocks, phases, threshold monitoring |
+| Cultural Integration | Ceremonial/instrumental components, values influence |
+| Export Capabilities | XLSX, XMILE (System Dynamics) |
+| Graph Duality | Bidirectional matrix ↔ MultiDiGraph conversion |
 
-**Overall: 9.5/10** - High fidelity to 40+ years of published research
+Implementation is based on Hayden's published work spanning 40+ years of research.
 
 ## License and Citation
 
@@ -911,7 +913,7 @@ to Policy Analysis and Program Evaluation. Springer.
 And acknowledge:
 
 ```
-This analysis uses sfm-core, a high-fidelity implementation of Hayden's Social Fabric Matrix 
+This analysis uses sfm-core, an experimental implementation of Hayden's Social Fabric Matrix 
 methodology (https://github.com/yourusername/sfm-core).
 ```
 
@@ -924,5 +926,4 @@ methodology (https://github.com/yourusername/sfm-core).
 
 ---
 
-*Last updated: 2026-05-26*
-*Version: 1.0 (Sprint 4 completion)*
+*Last updated: 2026-05-27*

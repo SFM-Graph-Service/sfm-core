@@ -1,6 +1,8 @@
 # Neo4j Integration Guide
 
-Complete guide to using SFM Core with Neo4j graph database for persistent storage, advanced querying, and production deployments.
+Guide to using SFM Core with Neo4j graph database for persistent storage, advanced querying, and production deployments.
+
+**Note**: This is research software under active development. Claude AI was used to assist with documentation. Verify configurations independently.
 
 ## Table of Contents
 

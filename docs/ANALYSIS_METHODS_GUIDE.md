@@ -1,7 +1,9 @@
 # SFM Core Analysis Methods Guide
 
 **Version**: 1.0  
-**Last Updated**: 2026-05-26
+**Last Updated**: 2026-05-27
+
+**Note**: This is research software under active development. Claude AI was used to assist with documentation. Verify outputs independently.
 
 ---
 
@@ -27,7 +29,7 @@ This guide explains the analytical capabilities of SFM Core for institutional ec
    - [Path Finding](#path-finding)
    - [Community Detection](#community-detection)
 5. [Interpreting Results](#interpreting-results)
-6. [Complete Examples](#complete-examples)
+6. [Examples](#examples)
 
 ---
 
@@ -885,7 +887,7 @@ for comm_id, node_ids in communities.items():
 
 ---
 
-## Complete Examples
+## Examples
 
 ### Example 1: Full Clean Air Act Analysis
 

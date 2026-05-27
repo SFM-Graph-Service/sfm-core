@@ -1,12 +1,16 @@
 """
-Low-Level Radioactive Waste Policy Case Study
+Low-Level Radioactive Waste Policy Demonstration
 
-Based on:
+Demonstration SFM analysis based on:
 Hayden, F. G., & Bolduc, R. (2000). "Instrumental Reasoning and Normative
 Analysis in LLRW Policy Analysis." Journal of Economic Issues, 34(4), 831-849.
 
-Models interstate compact system for low-level radioactive waste (LLRW) disposal.
-Demonstrates conflict between ceremonial (NIMBY, state sovereignty) and
+SFM Methodology:
+    Hayden, F. G. (2006). Policymaking for a Good Society: The Social Fabric Matrix
+    Approach to Policy Analysis and Program Evaluation. Springer.
+
+Demonstrates interstate compact system for low-level radioactive waste (LLRW) disposal.
+Illustrates conflict between ceremonial (NIMBY, state sovereignty) and
 instrumental (risk reduction, scientific siting) values.
 
 Key concepts:

@@ -1,7 +1,9 @@
 # SFM Core Scaling Guide
 
 **Version**: 1.0  
-**Last Updated**: 2026-05-26
+**Last Updated**: 2026-05-27
+
+**Note**: This is research software under active development. Claude AI was used to assist with documentation. Performance metrics are approximate and should be verified for your specific use case.
 
 ---
 
