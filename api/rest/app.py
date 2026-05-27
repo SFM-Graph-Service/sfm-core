@@ -13,7 +13,7 @@ from api.rest.exceptions import (
 from models.exceptions import SFMError
 
 # Import routers
-from api.rest.routers import health, nodes, relationships, query, evaluate
+from api.rest.routers import health, nodes, relationships, query, evaluate, import_export
 
 
 def create_app() -> FastAPI:
@@ -73,6 +73,11 @@ def create_app() -> FastAPI:
         evaluate.router,
         prefix=f"{settings.API_V1_PREFIX}/evaluate",
         tags=["Evaluation"]
+    )
+    app.include_router(
+        import_export.router,
+        prefix=f"{settings.API_V1_PREFIX}/import",
+        tags=["Import/Export"]
     )
 
     return app

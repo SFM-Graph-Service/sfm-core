@@ -170,8 +170,8 @@ class MappingTemplates:
         ))
         config.add_mapping(FieldMapping(
             source_field="type",
-            target_field="institution_type",
-            transform=lambda x: x.upper() if x else None
+            target_field="structure_type",
+            transform=lambda x: x.lower() if x else "formal"  # InstitutionalStructure expects lowercase
         ))
         config.add_mapping(FieldMapping(
             source_field="jurisdiction",

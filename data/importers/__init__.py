@@ -53,6 +53,8 @@ from .validators import (
     suggest_enum_fix
 )
 
+from .csv_adapter import CSVImportAdapter
+
 
 __all__ = [
     # Base classes
@@ -60,6 +62,9 @@ __all__ = [
     "ImportResult",
     "ImportConfig",
     "ImportError",
+
+    # Adapters
+    "CSVImportAdapter",
 
     # Mapping
     "MappingConfig",

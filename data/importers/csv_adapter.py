@@ -124,7 +124,11 @@ class CSVImportAdapter(BaseImportAdapter):
 
     def _extract_from_excel(self, path: Path) -> Iterator[Dict[str, Any]]:
         """
-        Stream nodes from Excel file using chunked reading.
+        Extract nodes from Excel file.
+
+        Note: pandas read_excel does not support chunked reading,
+        so entire file is loaded into memory. For very large Excel files,
+        consider converting to CSV first.
 
         Args:
             path: Path to Excel file
@@ -132,23 +136,22 @@ class CSVImportAdapter(BaseImportAdapter):
         Yields:
             Mapped node dictionaries
         """
-        # Read in chunks to avoid loading entire file
-        chunk_size = self.config.batch_size
+        # Read entire Excel file (no chunksize support in pandas.read_excel)
+        df = pd.read_excel(path)
 
-        for chunk_df in pd.read_excel(path, chunksize=chunk_size):
-            for row_num, row in chunk_df.iterrows():
-                try:
-                    # Convert pandas Series to dictionary
-                    row_dict = row.to_dict()
+        for row_num, row in df.iterrows():
+            try:
+                # Convert pandas Series to dictionary
+                row_dict = row.to_dict()
 
-                    # Apply mapping
-                    mapped = self.mapping.transform_row(row_dict)
-                    yield mapped
-                except (KeyError, ValueError) as e:
-                    if not self.config.continue_on_error:
-                        raise ValueError(f"Row {row_num}: {e}") from e
-                    # Skip invalid rows
-                    continue
+                # Apply mapping
+                mapped = self.mapping.transform_row(row_dict)
+                yield mapped
+            except (KeyError, ValueError) as e:
+                if not self.config.continue_on_error:
+                    raise ValueError(f"Row {row_num}: {e}") from e
+                # Skip invalid rows
+                continue
 
     def extract_relationships(self, source: Union[str, Path, Dict[str, Any]]) -> Iterator[Dict[str, Any]]:
         """
