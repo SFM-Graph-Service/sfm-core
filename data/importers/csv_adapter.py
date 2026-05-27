@@ -19,6 +19,44 @@ from .mapping_config import MappingConfig
 from .validators import validate_csv_headers
 
 
+def _validate_safe_path(path: Path, base_dir: Optional[Path] = None) -> Path:
+    """
+    Validate that path is safe and doesn't escape base directory.
+
+    Prevents path traversal attacks by ensuring resolved path is within
+    the allowed base directory.
+
+    Args:
+        path: Path to validate
+        base_dir: Base directory to restrict access to (default: current working directory)
+
+    Returns:
+        Resolved absolute path
+
+    Raises:
+        ValueError: If path attempts to escape base directory or contains unsafe components
+    """
+    if base_dir is None:
+        base_dir = Path.cwd()
+
+    # Resolve to absolute path to handle symlinks and relative paths
+    try:
+        resolved_path = path.resolve()
+        resolved_base = base_dir.resolve()
+    except (OSError, RuntimeError) as e:
+        raise ValueError(f"Invalid path: {e}") from e
+
+    # Check if resolved path is within base directory
+    try:
+        resolved_path.relative_to(resolved_base)
+    except ValueError as e:
+        raise ValueError(
+            f"Path traversal detected: {path} resolves outside allowed directory {base_dir}"
+        ) from e
+
+    return resolved_path
+
+
 class CSVImportAdapter(BaseImportAdapter):
     """
     Import adapter for CSV and Excel files.
@@ -53,11 +91,18 @@ class CSVImportAdapter(BaseImportAdapter):
             return False
 
         path = Path(source) if isinstance(source, str) else source
-        if not path.exists():
+
+        # Validate path before accessing filesystem
+        try:
+            safe_path = _validate_safe_path(path)
+        except ValueError:
+            return False
+
+        if not safe_path.exists():
             return False
 
         # Check file extension
-        ext = path.suffix.lower()
+        ext = safe_path.suffix.lower()
         return ext in ['.csv', '.tsv', '.txt', '.xlsx', '.xls']
 
     def extract_nodes(self, source: Union[str, Path, Dict[str, Any]]) -> Iterator[Dict[str, Any]]:
@@ -74,15 +119,18 @@ class CSVImportAdapter(BaseImportAdapter):
         """
         path = Path(source) if isinstance(source, str) else source
 
-        if not path.exists():
+        # Validate path for security
+        safe_path = _validate_safe_path(path)
+
+        if not safe_path.exists():
             raise FileNotFoundError(f"File not found: {path}")
 
         # Route to appropriate handler
-        ext = path.suffix.lower()
+        ext = safe_path.suffix.lower()
         if ext in ['.csv', '.tsv', '.txt']:
-            yield from self._extract_from_csv(path)
+            yield from self._extract_from_csv(safe_path)
         elif ext in ['.xlsx', '.xls']:
-            yield from self._extract_from_excel(path)
+            yield from self._extract_from_excel(safe_path)
         else:
             raise ValueError(f"Unsupported file type: {ext}")
 
@@ -176,13 +224,16 @@ class CSVImportAdapter(BaseImportAdapter):
         Auto-detect CSV delimiter.
 
         Args:
-            path: Path to CSV file
+            path: Validated safe path to CSV file
 
         Returns:
             Detected delimiter (comma, tab, semicolon, pipe)
         """
+        # Path should already be validated by caller, but double-check
+        safe_path = _validate_safe_path(path)
+
         # Read first 1024 bytes to detect delimiter
-        with open(path, 'r', encoding='utf-8') as f:
+        with open(safe_path, 'r', encoding='utf-8') as f:
             sample = f.read(1024)
 
         # Use csv.Sniffer to detect
@@ -207,21 +258,28 @@ class CSVImportAdapter(BaseImportAdapter):
         errors = []
         path = Path(source) if isinstance(source, str) else source
 
+        # Validate path for security
+        try:
+            safe_path = _validate_safe_path(path)
+        except ValueError as e:
+            errors.append(f"Invalid path: {e}")
+            return errors
+
         # Check file exists
-        if not path.exists():
+        if not safe_path.exists():
             errors.append(f"File not found: {path}")
             return errors
 
         # Check file extension
-        ext = path.suffix.lower()
+        ext = safe_path.suffix.lower()
         if ext not in ['.csv', '.tsv', '.txt', '.xlsx', '.xls']:
             errors.append(f"Unsupported file type: {ext}")
             return errors
 
         # Validate headers (CSV only, quick check)
         if ext in ['.csv', '.tsv', '.txt']:
-            delimiter = self._detect_delimiter(path)
-            with open(path, 'r', encoding='utf-8') as f:
+            delimiter = self._detect_delimiter(safe_path)
+            with open(safe_path, 'r', encoding='utf-8') as f:
                 reader = csv.DictReader(f, delimiter=delimiter)
                 if reader.fieldnames:
                     required_fields = [
@@ -244,20 +302,26 @@ class CSVImportAdapter(BaseImportAdapter):
         """
         path = Path(source) if isinstance(source, str) else source
 
-        if not path.exists():
+        # Validate path for security
+        try:
+            safe_path = _validate_safe_path(path)
+        except ValueError:
             return None
 
-        ext = path.suffix.lower()
+        if not safe_path.exists():
+            return None
+
+        ext = safe_path.suffix.lower()
 
         if ext in ['.csv', '.tsv', '.txt']:
             # Count lines (subtract 1 for header)
-            with open(path, 'r', encoding='utf-8') as f:
+            with open(safe_path, 'r', encoding='utf-8') as f:
                 return sum(1 for _ in f) - 1
 
         elif ext in ['.xlsx', '.xls']:
             # Use pandas to get row count
             try:
-                df = pd.read_excel(path)
+                df = pd.read_excel(safe_path)
                 return len(df)
             except Exception:
                 return None
