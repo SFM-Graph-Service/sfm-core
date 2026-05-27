@@ -184,32 +184,59 @@ class MappingTemplates:
         """
         OECD statistical indicator mapping.
 
-        Expected JSON fields: LOCATION, Value, TIME_PERIOD, INDICATOR
+        Expected JSON fields from OECD SDMX-JSON API:
+        - dataset_id: "GREEN_GROWTH", "QNA", etc.
+        - LOCATION: Country code (e.g., "USA")
+        - Value: Numeric observation value
+        - TIME_PERIOD: Year or date string
+        - MEASURE, SUBJECT, etc.: Additional dimensions
+
         Maps to SocialFabricIndicator node type.
         """
         config = MappingConfig(node_type="SocialFabricIndicator")
 
+        # Use dataset_id as base label
         config.add_mapping(FieldMapping(
-            source_field="INDICATOR",
+            source_field="dataset_id",
             target_field="label",
             required=True
         ))
+
+        # Country/location
         config.add_mapping(FieldMapping(
             source_field="LOCATION",
             target_field="meta.country",
             transform=lambda x: x.upper() if x else None
         ))
+
+        # Observation value
         config.add_mapping(FieldMapping(
             source_field="Value",
             target_field="current_value",
-            transform=float,
+            transform=lambda x: float(x) if x is not None else None,
             required=True
         ))
+
+        # Time period
         config.add_mapping(FieldMapping(
             source_field="TIME_PERIOD",
             target_field="meta.year",
-            transform=int
+            transform=lambda x: int(x) if x and str(x).isdigit() else None
         ))
+
+        # Data source
+        config.add_mapping(FieldMapping(
+            source_field="data_source",
+            target_field="meta.data_source",
+            default="OECD"
+        ))
+
+        # Optional: Measure type
+        config.add_mapping(FieldMapping(
+            source_field="MEASURE",
+            target_field="meta.measure"
+        ))
+
         return config
 
     @staticmethod
@@ -217,30 +244,52 @@ class MappingTemplates:
         """
         World Bank indicator mapping.
 
-        Expected JSON fields: indicator, country, value, date
+        Expected JSON fields from World Bank API:
+        - indicator: {"id": "...", "value": "Indicator Name"}
+        - country: {"id": "USA", "value": "United States"}
+        - value: numeric or None
+        - date: "2020" or year string
+
         Maps to SocialFabricIndicator node type.
         """
         config = MappingConfig(node_type="SocialFabricIndicator")
 
+        # Extract indicator name from nested structure
         config.add_mapping(FieldMapping(
             source_field="indicator",
             target_field="label",
+            transform=lambda x: x.get("value") if isinstance(x, dict) else str(x),
             required=True
         ))
+
+        # Extract country code
         config.add_mapping(FieldMapping(
             source_field="country",
-            target_field="meta.country"
+            target_field="meta.country",
+            transform=lambda x: x.get("id") if isinstance(x, dict) else str(x)
         ))
+
+        # Extract numeric value
         config.add_mapping(FieldMapping(
             source_field="value",
             target_field="current_value",
-            transform=float
+            transform=lambda x: float(x) if x is not None else None
         ))
+
+        # Extract year
         config.add_mapping(FieldMapping(
             source_field="date",
             target_field="meta.year",
-            transform=int
+            transform=lambda x: int(x) if x else None
         ))
+
+        # Add data source metadata
+        config.add_mapping(FieldMapping(
+            source_field="data_source",
+            target_field="meta.data_source",
+            default="World Bank"
+        ))
+
         return config
 
 

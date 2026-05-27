@@ -54,6 +54,8 @@ from .validators import (
 )
 
 from .csv_adapter import CSVImportAdapter
+from .oecd_adapter import OECDAdapter
+from .worldbank_adapter import WorldBankAdapter
 
 
 __all__ = [
@@ -65,6 +67,8 @@ __all__ = [
 
     # Adapters
     "CSVImportAdapter",
+    "OECDAdapter",
+    "WorldBankAdapter",
 
     # Mapping
     "MappingConfig",

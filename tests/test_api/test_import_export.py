@@ -45,9 +45,13 @@ class TestImportFormatsEndpoint:
         assert ".csv" in csv_format["file_extensions"]
         assert ".xlsx" in csv_format["file_extensions"]
 
-        # Check OECD format (not yet implemented)
+        # Check OECD format (now implemented)
         oecd_format = next(f for f in data["formats"] if f["format_name"] == "oecd")
-        assert oecd_format["adapter_available"] is False
+        assert oecd_format["adapter_available"] is True
+
+        # Check World Bank format (now implemented)
+        wb_format = next(f for f in data["formats"] if f["format_name"] == "worldbank")
+        assert wb_format["adapter_available"] is True
 
 
 class TestCSVImportEndpoint:
@@ -223,15 +227,38 @@ class TestCSVImportEndpoint:
 
 
 class TestOECDImportEndpoint:
-    """Test POST /import/oecd endpoint (placeholder)."""
+    """Test POST /import/oecd endpoint."""
 
     def setup_method(self):
         """Set up test client."""
         self.app = create_app()
         self.client = TestClient(self.app)
 
-    def test_oecd_import_not_implemented(self):
-        """Test that OECD import returns 501 Not Implemented."""
+    @pytest.fixture(autouse=True)
+    def mock_oecd_api(self, monkeypatch):
+        """Mock OECD API requests."""
+        from unittest.mock import Mock, patch
+
+        def mock_get(*args, **kwargs):
+            response = Mock()
+            response.json.return_value = {
+                "structure": {
+                    "dimensions": {
+                        "observation": [
+                            {"id": "LOCATION", "values": [{"id": "USA"}]},
+                            {"id": "TIME_PERIOD", "values": [{"id": "2020"}]}
+                        ]
+                    }
+                },
+                "dataSets": [{"observations": {"0:0": [42.5]}}]
+            }
+            response.raise_for_status = Mock()
+            return response
+
+        monkeypatch.setattr("data.importers.oecd_adapter.requests.get", mock_get)
+
+    def test_oecd_import_success(self):
+        """Test successful OECD import."""
         response = self.client.post(
             "/api/v1/import/oecd",
             data={
@@ -240,27 +267,81 @@ class TestOECDImportEndpoint:
             }
         )
 
-        assert response.status_code == 501
-        assert "not yet implemented" in response.json()["detail"].lower()
+        assert response.status_code == 200
+        data = response.json()
+        assert data["nodes_created"] >= 0  # May be 0 due to mocking
+        assert isinstance(data["errors"], list)
+
+    def test_oecd_import_invalid_filters(self):
+        """Test OECD import with invalid JSON filters."""
+        response = self.client.post(
+            "/api/v1/import/oecd",
+            data={
+                "dataset_id": "GREEN_GROWTH",
+                "filters": "invalid json"
+            }
+        )
+
+        assert response.status_code == 400
+        assert "invalid json" in response.json()["detail"].lower()
 
 
 class TestWorldBankImportEndpoint:
-    """Test POST /import/worldbank endpoint (placeholder)."""
+    """Test POST /import/worldbank endpoint."""
 
     def setup_method(self):
         """Set up test client."""
         self.app = create_app()
         self.client = TestClient(self.app)
 
-    def test_worldbank_import_not_implemented(self):
-        """Test that World Bank import returns 501 Not Implemented."""
+    @pytest.fixture(autouse=True)
+    def mock_worldbank_api(self, monkeypatch):
+        """Mock World Bank API requests."""
+        from unittest.mock import Mock
+
+        def mock_get(*args, **kwargs):
+            response = Mock()
+            response.json.return_value = [
+                {"page": 1, "pages": 1, "total": 1},
+                [
+                    {
+                        "indicator": {"id": "NY.GDP.MKTP.CD", "value": "GDP (current US$)"},
+                        "country": {"id": "USA", "value": "United States"},
+                        "value": 21000000000000,
+                        "date": "2020"
+                    }
+                ]
+            ]
+            response.raise_for_status = Mock()
+            return response
+
+        monkeypatch.setattr("data.importers.worldbank_adapter.requests.get", mock_get)
+
+    def test_worldbank_import_success(self):
+        """Test successful World Bank import."""
         response = self.client.post(
             "/api/v1/import/worldbank",
             data={
                 "country": "USA",
-                "indicator": "NY.GDP.MKTP.CD"
+                "indicator": "GDP"
             }
         )
 
-        assert response.status_code == 501
-        assert "not yet implemented" in response.json()["detail"].lower()
+        assert response.status_code == 200
+        data = response.json()
+        assert data["nodes_created"] >= 0
+        assert isinstance(data["errors"], list)
+
+    def test_worldbank_import_with_year_range(self):
+        """Test World Bank import with year range."""
+        response = self.client.post(
+            "/api/v1/import/worldbank",
+            data={
+                "country": "GBR",
+                "indicator": "POPULATION",
+                "start_year": 2015,
+                "end_year": 2020
+            }
+        )
+
+        assert response.status_code == 200

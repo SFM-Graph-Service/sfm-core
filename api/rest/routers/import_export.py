@@ -18,6 +18,8 @@ from pydantic import BaseModel, Field
 from api.rest.dependencies import get_sfm_service
 from data.importers import (
     CSVImportAdapter,
+    OECDAdapter,
+    WorldBankAdapter,
     MappingTemplates,
     ImportConfig,
     ImportResult,
@@ -132,14 +134,14 @@ async def list_supported_formats():
             display_name="OECD.Stat API",
             file_extensions=[],
             description="OECD statistical indicators (GREEN_GROWTH, QNA datasets). Requires API access.",
-            adapter_available=False
+            adapter_available=True
         ),
         SupportedFormat(
             format_name="worldbank",
             display_name="World Bank API",
             file_extensions=[],
             description="World Bank development indicators (GDP, population, emissions). Requires API access.",
-            adapter_available=False
+            adapter_available=True
         ),
         SupportedFormat(
             format_name="sdmx",
@@ -264,45 +266,156 @@ async def import_csv(
 
 @router.post("/oecd", response_model=ImportResultResponse)
 async def import_oecd(
-    dataset_id: str = Form(..., description="OECD dataset ID (e.g., GREEN_GROWTH)"),
+    dataset_id: str = Form(..., description="OECD dataset ID (e.g., GREEN_GROWTH, QNA)"),
     filters: Optional[str] = Form(None, description="JSON string of filters (e.g., {\"LOCATION\": \"USA\"})"),
-    dry_run: bool = Form(default=False, description="Validate without persisting data")
+    dry_run: bool = Form(default=False, description="Validate without persisting data"),
+    batch_size: int = Form(default=1000, description="Number of nodes per batch")
 ):
     """
     Import data from OECD.Stat API.
 
-    **NOT YET IMPLEMENTED** - Placeholder for Priority 2 feature.
-
-    Will support importing statistical indicators from OECD datasets:
+    Supports importing statistical indicators from OECD datasets:
     - GREEN_GROWTH (environmental indicators)
     - QNA (quarterly national accounts)
-    - Custom filters by country, measure, time period
+    - Custom datasets with dimension filters
+
+    **Examples**:
+    - dataset_id="GREEN_GROWTH", filters='{"LOCATION": "USA"}'
+    - dataset_id="QNA", filters='{"LOCATION": "FRA", "MEASURE": "CUR"}'
+
+    Data is automatically paginated and mapped to SocialFabricIndicator nodes.
     """
-    raise HTTPException(
-        status_code=status.HTTP_501_NOT_IMPLEMENTED,
-        detail="OECD adapter not yet implemented. Coming in Priority 2 release."
-    )
+    import json
+
+    # Parse filters
+    filter_dict = {}
+    if filters:
+        try:
+            filter_dict = json.loads(filters)
+        except json.JSONDecodeError:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid JSON in filters parameter"
+            )
+
+    try:
+        # Create import config
+        config = ImportConfig(
+            dry_run=dry_run,
+            continue_on_error=True,
+            batch_size=batch_size
+        )
+
+        # Create OECD adapter
+        adapter = OECDAdapter(
+            dataset_id=dataset_id,
+            filters=filter_dict,
+            config=config
+        )
+
+        # Import via service
+        service = get_sfm_service()
+        source = f"oecd:{dataset_id}"
+        result = service.import_bulk(source, adapter=adapter, config=config)
+
+        # Convert result to response model
+        errors_response = [
+            ImportErrorResponse(
+                row=err.row,
+                field=err.field,
+                message=err.message,
+                suggestion=err.suggested_fix
+            )
+            for err in result.errors
+        ]
+
+        return ImportResultResponse(
+            nodes_created=result.nodes_created,
+            nodes_failed=result.nodes_failed,
+            relationships_created=result.relationships_created,
+            relationships_failed=result.relationships_failed,
+            errors=errors_response,
+            warnings=result.warnings,
+            elapsed_time=result.elapsed_time
+        )
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"OECD import failed: {str(e)}"
+        ) from e
 
 
 @router.post("/worldbank", response_model=ImportResultResponse)
 async def import_worldbank(
-    country: str = Form(..., description="Country code (e.g., USA, GBR)"),
-    indicator: str = Form(..., description="Indicator code (e.g., NY.GDP.MKTP.CD)"),
+    country: str = Form(..., description="Country code (e.g., USA, GBR, CHN)"),
+    indicator: str = Form(..., description="Indicator code or name (e.g., NY.GDP.MKTP.CD or GDP)"),
     start_year: Optional[int] = Form(None, description="Start year for data range"),
     end_year: Optional[int] = Form(None, description="End year for data range"),
-    dry_run: bool = Form(default=False, description="Validate without persisting data")
+    dry_run: bool = Form(default=False, description="Validate without persisting data"),
+    batch_size: int = Form(default=1000, description="Number of nodes per batch")
 ):
     """
     Import data from World Bank API.
 
-    **NOT YET IMPLEMENTED** - Placeholder for Priority 2 feature.
+    Supports importing development indicators:
+    - GDP (NY.GDP.MKTP.CD or "GDP")
+    - Population (SP.POP.TOTL or "POPULATION")
+    - CO2 emissions (EN.ATM.CO2E.KT or "CO2_EMISSIONS")
+    - And 100+ other indicators
 
-    Will support importing development indicators:
-    - GDP, population, emissions
-    - Custom country and indicator filters
-    - Time range selection
+    **Examples**:
+    - country="USA", indicator="GDP", start_year=2010, end_year=2020
+    - country="GBR", indicator="NY.GDP.MKTP.CD"
+    - country="CHN", indicator="POPULATION", start_year=2015
+
+    Data is automatically paginated and mapped to SocialFabricIndicator nodes.
     """
-    raise HTTPException(
-        status_code=status.HTTP_501_NOT_IMPLEMENTED,
-        detail="World Bank adapter not yet implemented. Coming in Priority 2 release."
-    )
+    try:
+        # Create import config
+        config = ImportConfig(
+            dry_run=dry_run,
+            continue_on_error=True,
+            batch_size=batch_size
+        )
+
+        # Create World Bank adapter
+        adapter = WorldBankAdapter(
+            country=country,
+            indicator=indicator,
+            start_year=start_year,
+            end_year=end_year,
+            config=config
+        )
+
+        # Import via service
+        service = get_sfm_service()
+        source = f"worldbank:{country}:{indicator}"
+        result = service.import_bulk(source, adapter=adapter, config=config)
+
+        # Convert result to response model
+        errors_response = [
+            ImportErrorResponse(
+                row=err.row,
+                field=err.field,
+                message=err.message,
+                suggestion=err.suggested_fix
+            )
+            for err in result.errors
+        ]
+
+        return ImportResultResponse(
+            nodes_created=result.nodes_created,
+            nodes_failed=result.nodes_failed,
+            relationships_created=result.relationships_created,
+            relationships_failed=result.relationships_failed,
+            errors=errors_response,
+            warnings=result.warnings,
+            elapsed_time=result.elapsed_time
+        )
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"World Bank import failed: {str(e)}"
+        ) from e
