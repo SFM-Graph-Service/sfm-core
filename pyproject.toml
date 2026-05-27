@@ -5,57 +5,86 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "sfm-core"
 version = "0.1.0"
-description = "Social Fabric Matrix Graph Service"
+description = "Social Fabric Matrix (SFM) framework for institutional economics analysis using graph-based networks"
 readme = "README.md"
 license = {text = "GPL-3.0"}
 requires-python = ">=3.9"
 authors = [
-    {name = "SFM Graph Service Team", email = "contact@example.com"}
+    {name = "Garrick Dabbs", email = "garrickdabbs@gmail.com"}
 ]
-keywords = ["social-fabric-matrix", "graph-analysis", "policy-analysis", "network-analysis"]
+keywords = [
+    "social-fabric-matrix",
+    "sfm",
+    "institutional-economics",
+    "hayden",
+    "graph-analysis",
+    "policy-analysis",
+    "network-analysis",
+    "ceremonial-instrumental",
+    "circular-causation",
+    "heterodox-economics",
+    "computational-social-science",
+]
 classifiers = [
-    "Development Status :: 4 - Beta",
+    "Development Status :: 3 - Alpha",
     "Intended Audience :: Science/Research",
+    "Intended Audience :: Education",
     "License :: OSI Approved :: GNU General Public License v3 (GPLv3)",
     "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Topic :: Scientific/Engineering :: Information Analysis",
     "Topic :: Scientific/Engineering :: Visualization",
+    "Topic :: Sociology",
+    "Framework :: FastAPI",
 ]
 dependencies = [
-    "networkx",
-    "neo4j",
-    "matplotlib",
-    "pyvis",
-    "pydantic",
-    "pytest",
-    "pytest-asyncio",
-    "pytest-cov",
-    "httpx",
-    "requests",
-    "pylint",
-    "coverage",
-    "bleach",
-    "cachetools",
-    "redis",
-    "prometheus-client",
-    "PyYAML",
-    "psutil",
-    "types-networkx",
-    "fastapi==0.115.0",
-    "uvicorn[standard]==0.32.0",
-    "python-multipart==0.0.27",
-    "pydantic-settings==2.6.0",
+    "networkx>=3.0",
+    "fastapi>=0.104.0",
+    "uvicorn[standard]>=0.24.0",
+    "pydantic>=2.0.0",
+    "pydantic-settings>=2.0.0",
+    "python-multipart>=0.0.6",
     "pandas>=2.0.0",
     "openpyxl>=3.1.0",
+    "requests>=2.31.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.4.0",
+    "pytest-asyncio>=0.21.0",
+    "pytest-cov>=4.1.0",
+    "pytest-xdist>=3.3.0",
+    "black>=23.0.0",
+    "flake8>=6.1.0",
+    "mypy>=1.5.0",
+    "pylint>=3.0.0",
+    "httpx>=0.24.0",
+]
+neo4j = [
+    "neo4j>=5.14.0",
+]
+visualization = [
+    "matplotlib>=3.7.0",
+    "pyvis>=0.3.0",
+]
+all = [
+    "neo4j>=5.14.0",
+    "matplotlib>=3.7.0",
+    "pyvis>=0.3.0",
 ]
 
 [project.urls]
 Homepage = "https://github.com/SFM-Graph-Service/sfm-core"
+Documentation = "https://github.com/SFM-Graph-Service/sfm-core/tree/main/docs"
 Repository = "https://github.com/SFM-Graph-Service/sfm-core"
+Issues = "https://github.com/SFM-Graph-Service/sfm-core/issues"
+Changelog = "https://github.com/SFM-Graph-Service/sfm-core/blob/main/CHANGELOG.md"
+"Fidelity Analysis" = "https://github.com/SFM-Graph-Service/sfm-core/blob/main/SFM_FIDELITY_ANALYSIS.md"
 
 [tool.setuptools.packages.find]
 where = ["."]

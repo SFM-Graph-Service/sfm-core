@@ -1,0 +1,63 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite both the software and Hayden's foundational work"
+title: "SFM Core: Social Fabric Matrix Graph Service"
+version: 0.1.0
+date-released: "2026-05-27"
+url: "https://github.com/SFM-Graph-Service/sfm-core"
+repository-code: "https://github.com/SFM-Graph-Service/sfm-core"
+license: GPL-3.0
+type: software
+authors:
+  - family-names: "Dabbs"
+    given-names: "Garrick"
+    email: "garrickdabbs@gmail.com"
+abstract: >-
+  SFM Core is an experimental Python framework implementing F. Gregory Hayden's
+  Social Fabric Matrix (SFM) methodology for analyzing institutional systems
+  through graph-based networks. The framework provides 40+ specialized node types
+  across 12 analytical domains, dual-backend architecture (NetworkX/Neo4j),
+  REST API, and advanced analysis methods including ceremonial vs instrumental
+  classification, circular causation detection, and temporal modeling. This is
+  research software with known structural differences from Hayden's canonical
+  approach (documented in SFM_FIDELITY_ANALYSIS.md). Extensive AI assistance
+  (Claude AI) was used in development.
+keywords:
+  - social-fabric-matrix
+  - institutional-economics
+  - heterodox-economics
+  - graph-analysis
+  - policy-analysis
+  - ceremonial-instrumental
+  - circular-causation
+  - hayden
+  - network-analysis
+references:
+  - type: book
+    authors:
+      - family-names: "Hayden"
+        given-names: "F. Gregory"
+    title: "Policymaking for a Good Society: The Social Fabric Matrix Approach to Policy Analysis and Program Evaluation"
+    year: 2006
+    publisher:
+      name: "Springer"
+    isbn: "978-0-387-33812-8"
+  - type: article
+    authors:
+      - family-names: "Hayden"
+        given-names: "F. Gregory"
+    title: "Values, Beliefs and Attitudes in a Sociotechnical Setting"
+    journal: "Economic Issues"
+    volume: 22
+    issue: 2
+    year: 1988
+    start: 415
+    end: 432
+preferred-citation:
+  type: software
+  authors:
+    - family-names: "Dabbs"
+      given-names: "Garrick"
+  title: "SFM Core: Social Fabric Matrix Graph Service"
+  version: 0.1.0
+  year: 2026
+  url: "https://github.com/SFM-Graph-Service/sfm-core"
