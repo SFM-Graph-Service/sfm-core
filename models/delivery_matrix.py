@@ -343,3 +343,37 @@ class SFMDeliveryMatrix(Node):
                 errors.append(f"Cell references invalid target component {tgt}")
 
         return errors
+
+    def to_multidigraph(self, service: Any) -> Any:
+        """
+        Convert matrix to NetworkX MultiDiGraph.
+
+        Convenience method that delegates to graph.converters.to_multidigraph().
+
+        Args:
+            service: SFMService instance
+
+        Returns:
+            NetworkX MultiDiGraph
+
+        Example:
+            >>> G = matrix.to_multidigraph(service)
+        """
+        from graph.converters import to_multidigraph
+        return to_multidigraph(self, service)
+
+    def get_summary(self) -> dict:
+        """
+        Get summary statistics for this matrix.
+
+        Convenience method that delegates to graph.converters.get_delivery_summary().
+
+        Returns:
+            Dictionary with summary statistics
+
+        Example:
+            >>> summary = matrix.get_summary()
+            >>> summary['total_deliveries']
+        """
+        from graph.converters import get_delivery_summary
+        return get_delivery_summary(self)
