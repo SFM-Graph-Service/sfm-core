@@ -1,6 +1,7 @@
 """Phase 2 query analysis endpoints."""
 
 import uuid
+from datetime import timedelta
 from fastapi import APIRouter, Depends
 
 from api.sfm_service import SFMService
@@ -11,6 +12,10 @@ from api.rest.schemas import (
     CircularCausationResponse,
     HolarchyResponse,
     ConflictsResponse,
+    TemporalEvolutionRequest,
+    TemporalEvolutionResponse,
+    UncertaintyPropagationRequest,
+    UncertaintyPropagationResponse,
 )
 
 router = APIRouter()
@@ -123,3 +128,70 @@ def get_conflicts(
         conflicts=conflicts,
         total=len(conflicts)
     )
+
+
+@router.post(
+    "/temporal-evolution",
+    response_model=TemporalEvolutionResponse,
+    summary="Temporal evolution analysis",
+    description="Analyze how the system evolved over a time period"
+)
+def get_temporal_evolution(
+    request: TemporalEvolutionRequest,
+    service: SFMService = Depends(get_sfm_service)
+) -> TemporalEvolutionResponse:
+    """
+    Analyze temporal evolution of the system.
+
+    Returns snapshots of the system state at regular intervals,
+    showing how nodes and relationships changed over time.
+
+    Args:
+        request: Start date, end date, and time step parameters
+
+    Returns:
+        List of temporal snapshots with network metrics
+    """
+    service.initialize_query_engine()
+    snapshots = service._query_engine.query_temporal_evolution(
+        start_date=request.start_date,
+        end_date=request.end_date,
+        time_step=timedelta(days=request.time_step_days)
+    )
+    return TemporalEvolutionResponse(
+        snapshots=snapshots,
+        start_date=request.start_date,
+        end_date=request.end_date,
+        time_step_days=request.time_step_days,
+        total_snapshots=len(snapshots)
+    )
+
+
+@router.post(
+    "/uncertainty-propagation",
+    response_model=UncertaintyPropagationResponse,
+    summary="Uncertainty propagation analysis",
+    description="Propagate uncertainty through a causal pathway"
+)
+def get_uncertainty_propagation(
+    request: UncertaintyPropagationRequest,
+    service: SFMService = Depends(get_sfm_service)
+) -> UncertaintyPropagationResponse:
+    """
+    Propagate uncertainty through a causal pathway.
+
+    Calculates how uncertainty compounds through a chain of
+    causal relationships, providing confidence intervals for
+    the overall pathway effect.
+
+    Args:
+        request: Ordered list of node IDs forming the pathway
+
+    Returns:
+        Path segments with uncertainty ranges and cumulative effect
+    """
+    service.initialize_query_engine()
+    result = service._query_engine.propagate_uncertainty_through_path(
+        path=request.path
+    )
+    return UncertaintyPropagationResponse(**result)

@@ -6,7 +6,7 @@ for the Social Fabric Matrix framework, organized by domain.
 """
 
 # Base infrastructure
-from models.base_nodes import Node
+from models.base_nodes import Node, InformalNorm, Event
 
 # Matrix components
 from models.matrix_components import (
@@ -105,6 +105,8 @@ from models.sfm_enums import *
 __all__ = [
     # Base
     "Node",
+    "InformalNorm",
+    "Event",
     # Matrix components
     "MatrixCell",
     "SFMCriteria",

@@ -97,6 +97,22 @@ class SFMService:
 
         logger.info("SFM Service initialized with storage type: %s", self.config.storage_type)
 
+    def initialize_query_engine(self):
+        """
+        Initialize the query engine from the current graph state.
+
+        This must be called after nodes/relationships are added to enable
+        query methods like ceremonial analysis, conflict detection, etc.
+        """
+        from graph.sfm_query import NetworkXSFMQueryEngine
+
+        # Load the complete SFMGraph from the repository
+        graph = self._repository.load_graph()
+
+        # Create the query engine
+        self._query_engine = NetworkXSFMQueryEngine(graph)
+        logger.info("Query engine initialized with %d nodes", len(list(graph)))
+
     @property
     def repository(self) -> SFMRepository:
         """Get the underlying repository"""
@@ -213,9 +229,42 @@ class SFMService:
             SFMNotFoundError: If source or target node doesn't exist
             SFMValidationError: If relationship validation fails
         """
-        from graph.sfm_graph import Relationship
         created = self._repository.create_relationship(relationship)
         logger.info("Created relationship: %s -> %s (%s)", relationship.source_id, relationship.target_id, relationship.kind)
+        return created
+
+    def create_relationships_bulk(self, relationships: List[Relationship]) -> List[Relationship]:
+        """
+        Create multiple relationships in bulk for performance.
+
+        This method bypasses per-relationship duplicate checking by building
+        an ID set upfront, reducing O(n²) to O(n) complexity for large batches.
+
+        Recommended for:
+        - Scenario building with 100+ relationships
+        - Data imports from external sources
+        - Batch operations where IDs are known to be unique
+
+        Args:
+            relationships: List of relationship objects to create
+
+        Returns:
+            List of created relationships
+
+        Raises:
+            SFMNotFoundError: If any source or target node doesn't exist
+            SFMValidationError: If any relationship ID is duplicate
+
+        Example:
+            >>> rels = [
+            ...     Relationship(source_id=n1, target_id=n2, kind="influences", weight=0.8),
+            ...     Relationship(source_id=n2, target_id=n3, kind="enables", weight=0.9),
+            ... ]
+            >>> created = service.create_relationships_bulk(rels)
+            >>> print(f"Created {len(created)} relationships")
+        """
+        created = self._repository.create_relationships_bulk(relationships)
+        logger.info("Bulk created %d relationships", len(created))
         return created
 
     def get_relationship(self, relationship_id: uuid.UUID) -> Optional[Relationship]:
@@ -304,6 +353,170 @@ class SFMService:
 
         return relationships
 
+    # ─── CONDITIONAL RELATIONSHIP HELPERS (Gap 5) ───
+
+    def create_conditional_relationship(
+        self,
+        source_id: uuid.UUID,
+        target_id: uuid.UUID,
+        kind: str,
+        weight: float,
+        condition_node_id: uuid.UUID,
+        condition_type: str = "necessary_but_not_sufficient",
+        meta: Optional[Dict[str, Any]] = None
+    ) -> Relationship:
+        """
+        Create relationship with conditional dependency.
+
+        Args:
+            source_id: Source node UUID
+            target_id: Target node UUID
+            kind: Relationship kind (e.g., "depends_on", "enables")
+            weight: Relationship weight (0-1)
+            condition_node_id: UUID of condition node that must be satisfied
+            condition_type: "necessary", "sufficient", "necessary_and_sufficient",
+                           "necessary_but_not_sufficient"
+            meta: Additional metadata
+
+        Returns:
+            Created conditional relationship
+
+        Example:
+            # "Catalytic converter adoption depends on auto standards IF unleaded fuel available"
+            create_conditional_relationship(
+                source_id=catalytic_converter.id,
+                target_id=auto_standards.id,
+                kind="depends_on",
+                weight=0.8,
+                condition_node_id=unleaded_fuel.id,
+                condition_type="necessary_but_not_sufficient"
+            )
+        """
+        rel_meta = meta or {}
+        rel_meta["conditional"] = {
+            "condition_node": str(condition_node_id),
+            "condition_type": condition_type,
+            "logic": "depends_on_if"
+        }
+
+        relationship = Relationship(
+            source_id=source_id,
+            target_id=target_id,
+            kind=f"{kind}_if",  # e.g., "enables_if", "depends_on_if"
+            weight=weight,
+            meta=rel_meta
+        )
+
+        return self.create_relationship(relationship)
+
+    def create_compound_dependency(
+        self,
+        dependent_node_id: uuid.UUID,
+        required_nodes: List[uuid.UUID],
+        logic: str = "AND",  # "AND", "OR", "XOR"
+        weight: float = 1.0
+    ) -> List[Relationship]:
+        """
+        Create multiple relationships representing AND/OR logic.
+
+        Args:
+            dependent_node_id: Node that depends on others
+            required_nodes: List of node UUIDs that are required
+            logic: "AND" (all required), "OR" (any required), "XOR" (exactly one)
+            weight: Weight for all relationships
+
+        Returns:
+            List of created relationships
+
+        Example:
+            # EPA enforcement depends on (Congressional funding AND Public support)
+            create_compound_dependency(
+                dependent_node_id=epa_enforcement.id,
+                required_nodes=[congressional_funding.id, public_support.id],
+                logic="AND",
+                weight=0.9
+            )
+        """
+        relationships = []
+
+        for req_node_id in required_nodes:
+            rel_meta = {
+                "compound_dependency": {
+                    "logic": logic,
+                    "group": str(dependent_node_id),
+                    "total_required": len(required_nodes)
+                }
+            }
+
+            relationship = Relationship(
+                source_id=dependent_node_id,
+                target_id=req_node_id,
+                kind=f"depends_on_{logic.lower()}",
+                weight=weight,
+                meta=rel_meta
+            )
+
+            created = self.create_relationship(relationship)
+            relationships.append(created)
+
+        return relationships
+
+    # ─── GEOGRAPHIC HELPERS (Gap 6) ───
+
+    def create_node_with_geography(
+        self,
+        label: str,
+        node_type: str,
+        description: str,
+        geographic_scope: str,  # "federal", "state", "local", "regional"
+        state: Optional[str] = None,
+        jurisdiction: Optional[str] = None,
+        meta: Optional[Dict[str, str]] = None
+    ) -> Node:
+        """
+        Create node with geographic metadata.
+
+        Args:
+            label: Node label
+            node_type: Node type (e.g., "Institution", "Policy")
+            description: Node description
+            geographic_scope: "federal", "state", "local", "regional"
+            state: State name (e.g., "California", "TX")
+            jurisdiction: Specific jurisdiction name
+            meta: Additional metadata
+
+        Returns:
+            Created node with geographic metadata
+
+        Example:
+            # Create California-specific air quality standard
+            create_node_with_geography(
+                label="California Air Quality Standards",
+                node_type="Institution",
+                description="CARB emission standards stricter than federal",
+                geographic_scope="state",
+                state="California",
+                jurisdiction="CARB"
+            )
+        """
+        node_meta = meta or {}
+        node_meta["geography"] = {
+            "scope": geographic_scope,
+            "state": state,
+            "jurisdiction": jurisdiction
+        }
+
+        # Import Node here to avoid circular dependency
+        from models import Node
+
+        node = Node(
+            label=label,
+            description=description,
+            meta=node_meta
+        )
+
+        return self.create_node(node)
+
     def get_statistics(self) -> GraphStatistics:
         """
         Get graph statistics.
@@ -374,43 +587,83 @@ class SFMService:
                 "threshold": threshold,
             }
 
-        # Placeholder - will call query_engine.get_ceremonial_analysis in Phase 2 Step 2
+        # Call query engine method
         logger.info("Performing ceremonial analysis with threshold %.2f", threshold)
+        results = self.query_engine.query_ceremonial_vs_instrumental(threshold=threshold)
+
+        # Convert Node objects to dict summaries for API response
+        ceremonial_nodes = [{
+            "id": node.id,
+            "label": node.label,
+            "node_type": type(node).__name__
+        } for node in results.get("ceremonial", [])]
+
+        instrumental_nodes = [{
+            "id": node.id,
+            "label": node.label,
+            "node_type": type(node).__name__
+        } for node in results.get("instrumental", [])]
+
+        # Calculate ratio
+        total_classified = len(ceremonial_nodes) + len(instrumental_nodes)
+        ceremonial_ratio = len(ceremonial_nodes) / total_classified if total_classified > 0 else 0.0
+
         return {
-            "ceremonial_nodes": [],
-            "instrumental_nodes": [],
-            "ceremonial_ratio": 0.0,
+            "ceremonial_nodes": ceremonial_nodes,
+            "instrumental_nodes": instrumental_nodes,
+            "ceremonial_ratio": ceremonial_ratio,
             "threshold": threshold,
         }
 
     def get_circular_causation(self, source_id: uuid.UUID) -> list:
         """
-        Identify circular causation patterns starting from a source node.
+        Find circular causation paths starting from a source node.
+
+        Traces feedback loops and cumulative causation sequences.
 
         Args:
-            source_id: UUID of the starting node
+            source_id: Starting node UUID
 
         Returns:
-            List of circular causation cycles, where each cycle is:
-                - nodes: List of node IDs in the cycle
-                - strength: Aggregate strength of the cycle
-                - feedback_type: reinforcing or balancing
+            List of cycles, each cycle is a list of dicts with node info
 
         Raises:
             SFMNotFoundError: If source node doesn't exist
         """
-        # Verify source node exists
-        source_node = self.get_node(source_id)
-        if source_node is None:
-            raise SFMNotFoundError(entity_type="Node", entity_id=source_id)
+        try:
+            # Verify source node exists first (before checking query engine)
+            source_node = self.get_node(source_id)
+            if source_node is None:
+                raise SFMNotFoundError(entity_type="Node", entity_id=source_id)
 
-        if self.query_engine is None:
-            logger.warning("Query engine not initialized, returning empty cycles")
+            # Check if query engine is available
+            if self.query_engine is None:
+                logger.warning("Query engine not initialized, returning empty cycles")
+                return []
+
+            # Call query engine method
+            logger.info("Finding circular causation from node %s", source_id)
+            paths = self.query_engine.query_circular_causation_paths(source_id, max_depth=5)
+
+            # Convert Node objects to dicts for API response
+            cycles = []
+            for path in paths:
+                nodes = [{
+                    "id": str(node.id),
+                    "label": node.label,
+                    "type": type(node).__name__
+                } for node in path]
+                # Wrap in a dict with "nodes" key for schema compatibility
+                cycles.append({"nodes": nodes})
+
+            logger.info("Found %d circular causation paths", len(cycles))
+            return cycles
+
+        except SFMNotFoundError:
+            raise
+        except Exception as e:
+            logger.error("Error finding circular causation: %s", e, exc_info=True)
             return []
-
-        # Placeholder - will call query_engine.get_circular_causation in Phase 2 Step 2
-        logger.info("Finding circular causation from node %s", source_id)
-        return []
 
     def get_holarchy(self, institution_id: uuid.UUID) -> dict:
         """
@@ -467,9 +720,10 @@ class SFMService:
             logger.warning("Query engine not initialized, returning empty conflicts")
             return []
 
-        # Placeholder - will call query_engine.get_conflicts in Phase 2 Step 2
+        # Call query engine method
         logger.info("Detecting system conflicts")
-        return []
+        conflicts = self.query_engine.detect_conflicts()
+        return conflicts
 
     # ========================================================================
     # Phase 3 Evaluation Methods - Analysis & Assessment
@@ -877,7 +1131,7 @@ class SFMService:
             >>> with open('backup.json', 'w') as f:
             ...     json.dump(export_data, f)
         """
-        from datetime import datetime
+        from datetime import datetime, timezone
 
         nodes_data = []
         for node in self.list_nodes():
@@ -901,7 +1155,7 @@ class SFMService:
                 if callable(attr_value):
                     continue
                 # Serialize enums and complex types
-                if hasattr(attr_value, 'value'):  # Enum
+                if attr_value is not None and hasattr(attr_value, 'value'):  # Enum
                     node_dict[attr_name] = attr_value.value
                 elif isinstance(attr_value, (list, dict, str, int, float, bool, type(None))):
                     node_dict[attr_name] = attr_value
@@ -929,7 +1183,7 @@ class SFMService:
             "nodes": nodes_data,
             "relationships": relationships_data,
             "metadata": {
-                "export_time": datetime.utcnow().isoformat(),
+                "export_time": datetime.now(timezone.utc).isoformat(),
                 "node_count": len(nodes_data),
                 "relationship_count": len(relationships_data),
                 "sfm_version": "0.2.0",

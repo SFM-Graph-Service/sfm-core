@@ -28,6 +28,7 @@ import networkx as nx
 # Import all Beta unified model node types
 from models import (
     Node,
+    InformalNorm,
     MatrixCell,
     SFMCriteria,
     SFMMatrix,
@@ -67,6 +68,7 @@ from models import (
     Scenario,
     ScenarioPath,
     ScenarioSet,
+    Event,
 )
 
 # Setup logging
@@ -114,6 +116,7 @@ class NodeSerializer:
     # Map of all 33 Beta node types for serialization
     NODE_TYPE_REGISTRY = {
         "Node": Node,
+        "InformalNorm": InformalNorm,
         "MatrixCell": MatrixCell,
         "SFMCriteria": SFMCriteria,
         "SFMMatrix": SFMMatrix,
@@ -153,6 +156,7 @@ class NodeSerializer:
         "Scenario": Scenario,
         "ScenarioPath": ScenarioPath,
         "ScenarioSet": ScenarioSet,
+        "Event": Event,
     }
 
     @staticmethod

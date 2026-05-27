@@ -282,6 +282,10 @@ class TestBetaQueryMethods(unittest.TestCase):
         self.assertIn("instrumental", results)
         self.assertIn("mixed", results)
 
+        # Assert non-empty classification
+        total_classified = len(results["ceremonial"]) + len(results["instrumental"]) + len(results["mixed"])
+        self.assertGreater(total_classified, 0, "Expected nodes to be classified")
+
         # Verify ceremonial node is classified correctly
         ceremonial_ids = [n.id for n in results["ceremonial"]]
         self.assertIn(self.ceremonial_node.id, ceremonial_ids)
@@ -316,10 +320,11 @@ class TestBetaQueryMethods(unittest.TestCase):
         paths = engine.query_circular_causation_paths(node1.id, max_depth=5)
 
         self.assertIsInstance(paths, list)
-        # Should find at least one circular path
-        if paths:
-            self.assertIsInstance(paths[0], list)
-            self.assertIsInstance(paths[0][0], Node)
+        self.assertGreater(len(paths), 0, "Expected to find at least one circular path")
+        self.assertIsInstance(paths[0], list)
+        self.assertIsInstance(paths[0][0], Node)
+        self.assertEqual(paths[0][0].id, node1.id, "Cycle should start with source node")
+        self.assertEqual(paths[0][-1].id, node1.id, "Cycle should end with source node")
 
     def test_query_holarchy_levels(self):
         """Test institutional holarchy query."""
@@ -368,13 +373,10 @@ class TestBetaQueryMethods(unittest.TestCase):
         conflicts = engine.detect_conflicts()
 
         self.assertIsInstance(conflicts, list)
-        self.assertGreater(len(conflicts), 0)
-
-        # Verify conflict structure
-        if conflicts:
-            conflict = conflicts[0]
-            self.assertIn("type", conflict)
-            self.assertIn("details", conflict)
+        self.assertGreater(len(conflicts), 0, "Expected to find conflicts")
+        conflict = conflicts[0]
+        self.assertIn("type", conflict)
+        self.assertIn("conflict_type", conflict)
 
 
 class TestSFMQueryFactory(unittest.TestCase):
@@ -444,6 +446,158 @@ class TestEdgeCases(unittest.TestCase):
 
         metrics = engine.comprehensive_node_analysis(node.id)
         self.assertEqual(metrics.connectivity, 0)
+
+
+class TestUncertaintyAnalysis(unittest.TestCase):
+    """Test uncertainty analysis methods (Gap 3)."""
+
+    def setUp(self):
+        """Set up test graph with uncertainty data."""
+        self.graph = SFMGraph()
+
+        # Create test nodes
+        self.node1 = Node(label="Node1", description="First node")
+        self.node2 = Node(label="Node2", description="Second node")
+        self.node3 = Node(label="Node3", description="Third node")
+
+        self.graph.add_node(self.node1)
+        self.graph.add_node(self.node2)
+        self.graph.add_node(self.node3)
+
+        # Create relationships with confidence intervals
+        self.rel1 = Relationship(
+            source_id=self.node1.id,
+            target_id=self.node2.id,
+            kind="produces",
+            weight=0.8,
+            confidence_interval=(0.7, 0.9),
+            confidence=0.85,
+            uncertainty_type="epistemic",
+            data_sources=["EPA 1997", "Industry studies"],
+            source_agreement="low"
+        )
+        self.rel2 = Relationship(
+            source_id=self.node2.id,
+            target_id=self.node3.id,
+            kind="enables",
+            weight=0.6,
+            confidence_interval=(0.5, 0.7),
+            confidence=0.75,
+            uncertainty_type="aleatory"
+        )
+        self.rel3 = Relationship(
+            source_id=self.node1.id,
+            target_id=self.node3.id,
+            kind="influences",
+            weight=0.5
+            # No confidence interval
+        )
+
+        self.graph.add_relationship(self.rel1)
+        self.graph.add_relationship(self.rel2)
+        self.graph.add_relationship(self.rel3)
+
+        self.engine = NetworkXSFMQueryEngine(self.graph)
+
+    def test_analyze_weight_uncertainty(self):
+        """Test weight uncertainty analysis."""
+        result = self.engine.analyze_weight_uncertainty()
+
+        self.assertIsInstance(result, dict)
+        self.assertIn("total_relationships", result)
+        self.assertIn("with_confidence_intervals", result)
+        self.assertIn("without_confidence_intervals", result)
+        self.assertIn("coverage", result)
+        self.assertIn("avg_uncertainty_range", result)
+
+        # Verify counts
+        self.assertEqual(result["total_relationships"], 3)
+        self.assertEqual(result["with_confidence_intervals"], 2)
+        self.assertEqual(result["without_confidence_intervals"], 1)
+
+        # Verify coverage calculation
+        expected_coverage = 2 / 3
+        self.assertAlmostEqual(result["coverage"], expected_coverage, places=5)
+
+        # Verify average uncertainty range
+        # rel1: 0.9 - 0.7 = 0.2, rel2: 0.7 - 0.5 = 0.2, avg = 0.2
+        self.assertAlmostEqual(result["avg_uncertainty_range"], 0.2, places=5)
+
+    def test_propagate_uncertainty_through_path(self):
+        """Test uncertainty propagation through pathway."""
+        # Create path node1 -> node2 -> node3
+        path = [self.node1.id, self.node2.id, self.node3.id]
+        result = self.engine.propagate_uncertainty_through_path(path)
+
+        self.assertIsInstance(result, dict)
+        self.assertIn("path_segments", result)
+        self.assertIn("cumulative_effect", result)
+        self.assertIn("uncertainty_range", result)
+        self.assertIn("uncertainty_width", result)
+
+        # Verify path segments
+        self.assertEqual(len(result["path_segments"]), 2)
+
+        # Verify cumulative effect (0.8 * 0.6 = 0.48)
+        expected_effect = 0.8 * 0.6
+        self.assertAlmostEqual(result["cumulative_effect"], expected_effect, places=5)
+
+        # Verify uncertainty range
+        # Lower: 0.7 * 0.5 = 0.35
+        # Upper: 0.9 * 0.7 = 0.63
+        lower, upper = result["uncertainty_range"]
+        self.assertAlmostEqual(lower, 0.35, places=5)
+        self.assertAlmostEqual(upper, 0.63, places=5)
+
+        # Verify uncertainty width
+        expected_width = 0.63 - 0.35
+        self.assertAlmostEqual(result["uncertainty_width"], expected_width, places=5)
+
+    def test_sensitivity_analysis(self):
+        """Test sensitivity analysis."""
+        # Create simple causal chain
+        result = self.engine.sensitivity_analysis(
+            outcome_node_id=self.node3.id,
+            vary_percentage=0.2
+        )
+
+        self.assertIsInstance(result, dict)
+        self.assertIn("outcome_node", result)
+        self.assertIn("sensitivity_ranking", result)
+
+        # Verify outcome node
+        self.assertEqual(result["outcome_node"], "Node3")
+
+        # Verify rankings structure (even if empty, should be a list)
+        self.assertIsInstance(result["sensitivity_ranking"], list)
+
+    def test_relationship_uncertainty_fields(self):
+        """Test that uncertainty fields are properly set on relationships."""
+        # Verify rel1 has all uncertainty fields
+        self.assertEqual(self.rel1.confidence, 0.85)
+        self.assertEqual(self.rel1.confidence_interval, (0.7, 0.9))
+        self.assertEqual(self.rel1.uncertainty_type, "epistemic")
+        self.assertEqual(len(self.rel1.data_sources), 2)
+        self.assertIn("EPA 1997", self.rel1.data_sources)
+        self.assertEqual(self.rel1.source_agreement, "low")
+
+        # Verify rel3 has None for missing fields
+        self.assertIsNone(self.rel3.confidence)
+        self.assertIsNone(self.rel3.confidence_interval)
+        self.assertIsNone(self.rel3.uncertainty_type)
+        self.assertEqual(len(self.rel3.data_sources), 0)
+        self.assertIsNone(self.rel3.source_agreement)
+
+    def test_empty_graph_uncertainty(self):
+        """Test uncertainty analysis on empty graph."""
+        empty_graph = SFMGraph()
+        engine = NetworkXSFMQueryEngine(empty_graph)
+
+        result = engine.analyze_weight_uncertainty()
+        self.assertEqual(result["total_relationships"], 0)
+        self.assertEqual(result["with_confidence_intervals"], 0)
+        self.assertEqual(result["coverage"], 0)
+        self.assertEqual(result["avg_uncertainty_range"], 0.0)
 
 
 if __name__ == "__main__":

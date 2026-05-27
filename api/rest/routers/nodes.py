@@ -52,10 +52,16 @@ def _create_node_from_schema(node_data: NodeCreate) -> Node:
     """
     # For now, create basic Node objects
     # Future enhancement: Use node_type to create specialized node instances
+
+    # Copy metadata and add node_type if provided
+    meta = dict(node_data.meta) if node_data.meta else {}
+    if node_data.node_type and node_data.node_type != "Node":
+        meta["node_type"] = node_data.node_type
+
     return Node(
         label=node_data.label,
         description=node_data.description,
-        meta=node_data.meta
+        meta=meta  # Always pass dict, even if empty
     )
 
 

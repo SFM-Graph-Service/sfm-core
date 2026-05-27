@@ -7,8 +7,13 @@ import pytest
 def test_ceremonial_analysis_default_threshold(client, mock_service):
     """Test POST /api/v1/query/ceremonial with default threshold."""
     mock_service.get_ceremonial_analysis.return_value = {
-        "ceremonial_nodes": [str(uuid.uuid4()), str(uuid.uuid4())],
-        "instrumental_nodes": [str(uuid.uuid4())],
+        "ceremonial_nodes": [
+            {"id": uuid.uuid4(), "label": "Ceremonial Node 1", "node_type": "Institution"},
+            {"id": uuid.uuid4(), "label": "Ceremonial Node 2", "node_type": "Institution"}
+        ],
+        "instrumental_nodes": [
+            {"id": uuid.uuid4(), "label": "Instrumental Node 1", "node_type": "Technology"}
+        ],
         "ceremonial_ratio": 0.67,
         "threshold": 0.5
     }
@@ -27,8 +32,13 @@ def test_ceremonial_analysis_default_threshold(client, mock_service):
 def test_ceremonial_analysis_custom_threshold(client, mock_service):
     """Test POST /api/v1/query/ceremonial with custom threshold."""
     mock_service.get_ceremonial_analysis.return_value = {
-        "ceremonial_nodes": [str(uuid.uuid4())],
-        "instrumental_nodes": [str(uuid.uuid4()), str(uuid.uuid4())],
+        "ceremonial_nodes": [
+            {"id": uuid.uuid4(), "label": "Ceremonial Node 1", "node_type": "Institution"}
+        ],
+        "instrumental_nodes": [
+            {"id": uuid.uuid4(), "label": "Instrumental Node 1", "node_type": "Technology"},
+            {"id": uuid.uuid4(), "label": "Instrumental Node 2", "node_type": "Process"}
+        ],
         "ceremonial_ratio": 0.33,
         "threshold": 0.7
     }
@@ -224,3 +234,162 @@ def test_conflicts_integration(integration_client):
     assert "total" in data
     assert isinstance(data["conflicts"], list)
     assert isinstance(data["total"], int)
+
+
+@pytest.mark.integration
+def test_ceremonial_analysis_with_generic_nodes(integration_client, integration_app):
+    """Test ceremonial analysis works with generic Domain model nodes."""
+    from api.rest.dependencies import get_sfm_service
+
+    integration_client.delete("/api/v1/nodes/clear")
+
+    # Create Institution node (should infer ceremonial tendency)
+    resp1 = integration_client.post("/api/v1/nodes/", json={
+        "label": "Traditional Institution",
+        "node_type": "Institution",
+        "description": "Preserves status quo",
+        "meta": {}  # No scores - should infer from type
+    })
+    assert resp1.status_code == 201
+
+    # Create Technology node (should infer instrumental tendency)
+    resp2 = integration_client.post("/api/v1/nodes/", json={
+        "label": "Innovation Technology",
+        "node_type": "Technology",
+        "description": "Problem-solving tech",
+        "meta": {}
+    })
+    assert resp2.status_code == 201
+
+    # Initialize query engine with current graph state
+    service = integration_app.dependency_overrides[get_sfm_service]()
+    service.initialize_query_engine()
+
+    # Run ceremonial analysis
+    response = integration_client.post("/api/v1/query/ceremonial", json={"threshold": 0.5})
+    assert response.status_code == 200
+
+    data = response.json()
+
+    # CRITICAL: Assert non-empty results
+    total_classified = len(data["ceremonial_nodes"]) + len(data["instrumental_nodes"])
+    assert total_classified > 0, "Expected nodes to be classified based on type inference"
+
+    # Verify Institution was classified as ceremonial
+    ceremonial_labels = [n["label"] for n in data["ceremonial_nodes"]]
+    assert "Traditional Institution" in ceremonial_labels
+
+    # Verify Technology was classified as instrumental
+    instrumental_labels = [n["label"] for n in data["instrumental_nodes"]]
+    assert "Innovation Technology" in instrumental_labels
+
+
+@pytest.mark.integration
+def test_conflicts_with_semantic_relationships(integration_client, integration_app):
+    """Test conflict detection recognizes conflicts_with relationships."""
+    from api.rest.dependencies import get_sfm_service
+
+    integration_client.delete("/api/v1/nodes/clear")
+
+    # Create two actors
+    resp1 = integration_client.post("/api/v1/nodes/", json={
+        "label": "Industry Group",
+        "node_type": "Actor",
+        "description": "Business interests"
+    })
+    node1_id = resp1.json()["id"]
+
+    resp2 = integration_client.post("/api/v1/nodes/", json={
+        "label": "Advocacy Group",
+        "node_type": "Actor",
+        "description": "Environmental advocates"
+    })
+    node2_id = resp2.json()["id"]
+
+    # Create semantic conflict relationship
+    integration_client.post("/api/v1/relationships/", json={
+        "source_id": node1_id,
+        "target_id": node2_id,
+        "kind": "conflicts_with",
+        "weight": 0.85,
+        "meta": {
+            "evidence": "Opposing policy positions documented in Congressional testimony"
+        }
+    })
+
+    # Initialize query engine with current graph state
+    service = integration_app.dependency_overrides[get_sfm_service]()
+    service.initialize_query_engine()
+
+    # Detect conflicts
+    response = integration_client.get("/api/v1/query/conflicts")
+    assert response.status_code == 200
+
+    data = response.json()
+
+    # CRITICAL: Assert conflict was detected
+    assert data["total"] > 0, "Expected semantic conflict to be detected"
+    assert len(data["conflicts"]) > 0
+
+    # Verify conflict details
+    conflict = data["conflicts"][0]
+    assert conflict["type"] == "semantic"
+    assert conflict["conflict_type"] == "conflicts_with"
+
+
+@pytest.mark.integration
+def test_circular_causation_finds_cycles(integration_client, integration_app):
+    """Test that circular causation actually finds cycles in graph."""
+    from api.rest.dependencies import get_sfm_service
+
+    integration_client.delete("/api/v1/nodes/clear")
+
+    # Create 3-node cycle
+    nodes = []
+    for i in range(3):
+        resp = integration_client.post("/api/v1/nodes/", json={
+            "label": f"Node{i+1}",
+            "node_type": "Node",
+            "description": f"Test node {i+1}"
+        })
+        nodes.append(resp.json()["id"])
+
+    # Create cycle: node1 → node2 → node3 → node1
+    integration_client.post("/api/v1/relationships/", json={
+        "source_id": nodes[0],
+        "target_id": nodes[1],
+        "kind": "causes",
+        "weight": 1.0
+    })
+    integration_client.post("/api/v1/relationships/", json={
+        "source_id": nodes[1],
+        "target_id": nodes[2],
+        "kind": "causes",
+        "weight": 1.0
+    })
+    integration_client.post("/api/v1/relationships/", json={
+        "source_id": nodes[2],
+        "target_id": nodes[0],
+        "kind": "causes",
+        "weight": 1.0
+    })
+
+    # Initialize query engine with current graph state
+    service = integration_app.dependency_overrides[get_sfm_service]()
+    service.initialize_query_engine()
+
+    # Query circular causation
+    response = integration_client.get(f"/api/v1/query/circular-causation/{nodes[0]}")
+    assert response.status_code == 200
+
+    data = response.json()
+
+    # CRITICAL: Assert cycle was found
+    assert len(data["cycles"]) > 0, "Expected to find circular causation path in 3-node cycle"
+
+    # Verify cycle structure
+    cycle = data["cycles"][0]
+    assert isinstance(cycle, dict)
+    assert "nodes" in cycle
+    assert isinstance(cycle["nodes"], list)
+    assert len(cycle["nodes"]) >= 3  # At least 3 nodes in cycle

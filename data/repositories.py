@@ -63,6 +63,21 @@ class SFMRepository(ABC):
         """Create a new relationship in the repository."""
         pass
 
+    def create_relationships_bulk(self, relationships: List[Relationship]) -> List[Relationship]:
+        """
+        Create multiple relationships in bulk (optional optimization).
+
+        Default implementation falls back to individual creation.
+        Subclasses should override for performance optimization.
+
+        Args:
+            relationships: List of relationships to create
+
+        Returns:
+            List of created relationships
+        """
+        return [self.create_relationship(rel) for rel in relationships]
+
     @abstractmethod
     def read_relationship(self, rel_id: uuid.UUID) -> Optional[Relationship]:
         """Read a relationship by its ID."""
@@ -217,6 +232,75 @@ class NetworkXSFMRepository(SFMRepository):
         # Add relationship to graph as an edge with its data
         self.graph.add_edge(source_id, target_id, key=rel_id, data=rel)  # type: ignore[misc]
         return rel
+
+    def create_relationships_bulk(self, relationships: List[Relationship]) -> List[Relationship]:
+        """
+        Create multiple relationships in bulk, bypassing per-relationship validation.
+
+        This method is optimized for bulk creation by:
+        1. Validating all relationships upfront
+        2. Skipping the O(n) duplicate check per relationship
+        3. Adding all edges in a single pass
+
+        Use this for scenario building or large imports. Assumes relationships
+        have unique IDs and valid source/target references.
+
+        Args:
+            relationships: List of relationships to create
+
+        Returns:
+            List of created relationships
+
+        Raises:
+            SFMNotFoundError: If any source or target node doesn't exist
+            RelationshipValidationError: If any relationship ID is duplicate
+        """
+        if not relationships:
+            return []
+
+        # Build set of existing relationship IDs for O(1) duplicate detection
+        existing_ids = set()
+        for _, _, key, _ in self.graph.edges(data=True, keys=True):  # type: ignore[misc]
+            existing_ids.add(key)
+
+        # Validate all relationships upfront
+        for rel in relationships:
+            # Check source/target exist
+            if rel.source_id not in self.graph:
+                raise SFMNotFoundError(
+                    entity_type="Node",
+                    entity_id=rel.source_id
+                )
+            if rel.target_id not in self.graph:
+                raise SFMNotFoundError(
+                    entity_type="Node",
+                    entity_id=rel.target_id
+                )
+
+            # Check for duplicates
+            if rel.id in existing_ids:
+                kind_str: Optional[str] = None
+                if rel.kind:
+                    from enum import Enum
+                    if isinstance(rel.kind, Enum):
+                        kind_str = str(rel.kind.value)
+                    else:
+                        kind_str = str(rel.kind)
+                raise RelationshipValidationError(
+                    f"Relationship with ID {rel.id} already exists",
+                    source_id=rel.source_id,
+                    target_id=rel.target_id,
+                    relationship_kind=kind_str
+                )
+
+            # Mark as seen for intra-batch duplicate detection
+            existing_ids.add(rel.id)
+
+        # Add all relationships
+        for rel in relationships:
+            self.graph.add_edge(rel.source_id, rel.target_id, key=rel.id, data=rel)  # type: ignore[misc]
+
+        return relationships
 
     def read_relationship(self, rel_id: uuid.UUID) -> Optional[Relationship]:
         """Read a relationship by its ID."""

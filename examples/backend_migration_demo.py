@@ -364,7 +364,7 @@ def demonstrate_restore():
             }
 
             try:
-                neo4j_service = import_to_neo4j(str(latest_backup), neo4j_config)
+                _ = import_to_neo4j(str(latest_backup), neo4j_config)  # Restore to Neo4j
 
                 print_section("Restore Complete!")
                 print(f"\n✓ Data restored to Neo4j from: {latest_backup.name}")

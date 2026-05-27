@@ -122,6 +122,21 @@ class RelationshipResponse(BaseModel):
     weight: Optional[float]
     meta: Dict[str, Any]
 
+    # Temporal fields
+    created_at: Optional[datetime] = None
+    modified_at: Optional[datetime] = None
+    valid_from: Optional[datetime] = None
+    valid_to: Optional[datetime] = None
+    version: int = 1
+    previous_version_id: Optional[uuid.UUID] = None
+
+    # Uncertainty fields
+    confidence: Optional[float] = None
+    confidence_interval: Optional[tuple[float, float]] = None
+    uncertainty_type: Optional[str] = None
+    data_sources: List[str] = Field(default_factory=list)
+    source_agreement: Optional[str] = None
+
     model_config = ConfigDict(from_attributes=True)
 
 
@@ -133,6 +148,13 @@ class RelationshipListResponse(BaseModel):
 
 # Query Analysis Schemas
 
+class NodeSummary(BaseModel):
+    """Summary information for a node."""
+    id: uuid.UUID
+    label: str
+    node_type: str
+
+
 class CeremonialAnalysisRequest(BaseModel):
     """Request schema for ceremonial analysis."""
     threshold: float = Field(default=0.5, ge=0.0, le=1.0, description="Ceremonial threshold")
@@ -140,8 +162,8 @@ class CeremonialAnalysisRequest(BaseModel):
 
 class CeremonialAnalysisResponse(BaseModel):
     """Response schema for ceremonial analysis."""
-    ceremonial_nodes: List[uuid.UUID]
-    instrumental_nodes: List[uuid.UUID]
+    ceremonial_nodes: List[NodeSummary]
+    instrumental_nodes: List[NodeSummary]
     ceremonial_ratio: float
     threshold: float
 
@@ -164,6 +186,35 @@ class ConflictsResponse(BaseModel):
     """Response schema for conflicts detection."""
     conflicts: List[Dict[str, Any]]
     total: int
+
+
+class TemporalEvolutionRequest(BaseModel):
+    """Request schema for temporal evolution analysis."""
+    start_date: datetime = Field(..., description="Start date for temporal analysis")
+    end_date: datetime = Field(..., description="End date for temporal analysis")
+    time_step_days: int = Field(default=365, description="Time step in days (default: 365 = 1 year)")
+
+
+class TemporalEvolutionResponse(BaseModel):
+    """Response schema for temporal evolution analysis."""
+    snapshots: List[Dict[str, Any]]
+    start_date: datetime
+    end_date: datetime
+    time_step_days: int
+    total_snapshots: int
+
+
+class UncertaintyPropagationRequest(BaseModel):
+    """Request schema for uncertainty propagation analysis."""
+    path: List[uuid.UUID] = Field(..., description="Ordered list of node IDs forming causal pathway")
+
+
+class UncertaintyPropagationResponse(BaseModel):
+    """Response schema for uncertainty propagation analysis."""
+    path_segments: List[Dict[str, Any]]
+    cumulative_effect: float
+    uncertainty_range: tuple[float, float]
+    uncertainty_width: float
 
 
 # Evaluation Schemas

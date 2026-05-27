@@ -2,7 +2,7 @@
 
 import uuid
 from typing import Optional
-from fastapi import APIRouter, Depends, status, Query, HTTPException
+from fastapi import APIRouter, Depends, status, Query
 
 from api.sfm_service import SFMService
 from api.rest.dependencies import get_sfm_service

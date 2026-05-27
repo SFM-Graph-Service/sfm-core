@@ -10,7 +10,7 @@ from __future__ import annotations
 import uuid
 import logging
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Iterator, Set, Any
+from typing import Dict, List, Optional, Iterator, Set, Any, Tuple
 from datetime import datetime
 
 from models.base_nodes import Node
@@ -39,6 +39,23 @@ class Relationship:
     kind: str = ""
     weight: Optional[float] = None
     meta: Dict[str, Any] = field(default_factory=lambda: {})
+
+    # UNCERTAINTY FIELDS (NEW)
+    confidence: Optional[float] = None  # 0-1, distinct from weight
+    confidence_interval: Optional[Tuple[float, float]] = None  # (lower, upper) for weight
+    uncertainty_type: Optional[str] = None  # "aleatory", "epistemic", "ambiguity", "volatility"
+    data_sources: List[str] = field(default_factory=lambda: [])
+    source_agreement: Optional[str] = None  # "high", "medium", "low"
+
+    # TEMPORAL FIELDS
+    created_at: datetime = field(default_factory=datetime.now)
+    modified_at: Optional[datetime] = None
+    valid_from: Optional[datetime] = None  # When relationship became active
+    valid_to: Optional[datetime] = None    # When relationship ended
+
+    # VERSIONING
+    version: int = 1
+    previous_version_id: Optional[uuid.UUID] = None
 
 
 @dataclass
@@ -91,6 +108,11 @@ class SFMGraph:
     def get_node_by_id(self, node_id: uuid.UUID) -> Optional[Node]:
         """Public method to retrieve a node by its ID."""
         return self._find_node_by_id(node_id)
+
+
+    def get_relationship_by_id(self, relationship_id: uuid.UUID) -> Optional[Relationship]:
+        """Public method to retrieve a relationship by its ID."""
+        return self.relationships.get(relationship_id)
 
     def __iter__(self) -> Iterator[Node]:
         """Iterate over all nodes in the SFMGraph."""

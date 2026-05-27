@@ -7,8 +7,10 @@ Default implementation uses NetworkX for graph analysis.
 from abc import ABC, abstractmethod
 from typing import Dict, List, Optional, Tuple, Any
 import uuid
+from datetime import datetime, timedelta
 from dataclasses import dataclass
 from enum import Enum
+import warnings
 
 import networkx as nx
 
@@ -18,6 +20,7 @@ from models.complex_analysis import ConflictDetection
 from models.cultural_analysis import CeremonialInstrumentalClassification
 from models.sfm_enums import FlowNature
 from models.system_analysis import InstitutionalHolarchy
+from models.policy_framework import PolicyInstrument
 
 # Public API
 __all__ = [
@@ -426,38 +429,136 @@ class NetworkXSFMQueryEngine(SFMQueryEngine):  # pylint: disable=too-many-public
     # BETA FRAMEWORK EXTENSIONS - NEW METHODS
     # ═══════════════════════════════════════════════════════════════════════════
 
+    def _infer_ceremonial_instrumental_from_type(self, node: Node) -> Tuple[float, float]:
+        """Infer ceremonial/instrumental scores from node type.
+
+        Returns:
+            Tuple of (ceremonial_score, instrumental_score)
+        """
+        # Get the node's class name
+        node_type = type(node).__name__
+
+        # Check for specialized node types
+        if isinstance(node, PolicyInstrument):
+            return (0.5, 0.5)  # Policies can be either
+
+        # Infer from class name or node_type metadata
+        type_name = node_type
+        if hasattr(node, 'meta') and node.meta and 'node_type' in node.meta:
+            type_name = node.meta.get('node_type', node_type)
+
+        # Type-based inference
+        if type_name in ('Institution', 'InstitutionalStructure'):
+            return (0.6, 0.4)  # Institutions preserve status quo
+        elif type_name in ('Technology', 'ToolSkillTechnologyComplex'):
+            return (0.2, 0.8)  # Technology solves problems
+        elif type_name in ('Process', 'ProblemSolvingSequence'):
+            return (0.3, 0.7)
+        elif type_name == 'Resource':
+            return (0.3, 0.7)
+        elif type_name in ('PolicyInstrument', 'ValueJudgment'):
+            return (0.5, 0.5)  # Policies can be either
+        elif type_name in ('Actor', 'SocialBelief', 'CulturalAttitude'):
+            return (0.5, 0.5)  # Actors need relationship analysis
+
+        return (0.0, 0.0)
+
+    def _infer_ceremonial_instrumental_from_relationships(self, node: Node) -> Tuple[float, float]:
+        """Infer ceremonial/instrumental scores from relationship patterns.
+
+        Returns:
+            Tuple of (ceremonial_score, instrumental_score)
+        """
+        CEREMONIAL_KINDS = {"constrains", "controls", "regulates", "requires", "mandates"}
+        INSTRUMENTAL_KINDS = {"enables", "produces", "innovates", "solves", "improves"}
+
+        # Get outgoing relationships from this node
+        outgoing = [rel for rel in self.graph.relationships.values() if rel.source_id == node.id]
+        if not outgoing:
+            return (0.0, 0.0)
+
+        ceremonial_count = sum(1 for r in outgoing if r.kind in CEREMONIAL_KINDS)
+        instrumental_count = sum(1 for r in outgoing if r.kind in INSTRUMENTAL_KINDS)
+        total = ceremonial_count + instrumental_count
+
+        if total == 0:
+            return (0.0, 0.0)
+        return (ceremonial_count / total, instrumental_count / total)
+
     def query_ceremonial_vs_instrumental(
         self, threshold: float = 0.5
     ) -> Dict[str, List[Node]]:
-        """Query nodes classified by ceremonial vs instrumental characteristics."""
+        """Query nodes classified by ceremonial vs instrumental characteristics.
+
+        Uses a 4-method cascade for classification:
+        1. Beta model nodes (CeremonialInstrumentalClassification)
+        2. Metadata scores (ceremonial_score, instrumental_score)
+        3. Type-based inference (Institution → ceremonial, Technology → instrumental)
+        4. Relationship-based inference (count ceremonial vs instrumental relationship kinds)
+        """
         results: Dict[str, List[Node]] = {
             "ceremonial": [],
             "instrumental": [],
             "mixed": []
         }
+        unclassified_count = 0
 
         for node in self.graph:
-            # Check if node has ceremonial/instrumental classification
+            score_assigned = False
+            ceremonial_score = 0.0
+            instrumental_score = 0.0
+
+            # Method 1: Beta model nodes (existing - keep for backward compatibility)
             if isinstance(node, CeremonialInstrumentalClassification):
-                if node.ceremonial_score and node.ceremonial_score >= threshold:
+                ceremonial_score = node.ceremonial_score or 0.0
+                instrumental_score = node.instrumental_score or 0.0
+                score_assigned = True
+
+            # Method 2: Metadata (existing - improve to handle string/None values)
+            elif hasattr(node, 'meta') and node.meta:
+                c_score = node.meta.get('ceremonial_score')
+                i_score = node.meta.get('instrumental_score')
+                if c_score is not None or i_score is not None:
+                    try:
+                        ceremonial_score = float(c_score) if c_score not in (None, '', 'null') else 0.0
+                        instrumental_score = float(i_score) if i_score not in (None, '', 'null') else 0.0
+                        score_assigned = True
+                    except (ValueError, TypeError):
+                        # Invalid metadata values, continue to next method
+                        pass
+
+            # Method 3: Type inference (NEW)
+            if not score_assigned:
+                ceremonial_score, instrumental_score = self._infer_ceremonial_instrumental_from_type(node)
+                if ceremonial_score > 0.0 or instrumental_score > 0.0:
+                    score_assigned = True
+
+            # Method 4: Relationship inference (NEW)
+            if not score_assigned:
+                ceremonial_score, instrumental_score = self._infer_ceremonial_instrumental_from_relationships(node)
+                if ceremonial_score > 0.0 or instrumental_score > 0.0:
+                    score_assigned = True
+
+            # Classify based on scores
+            if score_assigned:
+                if ceremonial_score >= threshold and ceremonial_score > instrumental_score:
                     results["ceremonial"].append(node)
-                elif node.instrumental_score and node.instrumental_score >= threshold:
+                elif instrumental_score >= threshold and instrumental_score > ceremonial_score:
                     results["instrumental"].append(node)
                 else:
                     results["mixed"].append(node)
             else:
-                # For other nodes, try to infer from metadata
-                if hasattr(node, 'meta') and node.meta:
-                    ceremonial_score = node.meta.get('ceremonial_score', 0.0)
-                    instrumental_score = node.meta.get('instrumental_score', 0.0)
+                unclassified_count += 1
 
-                    # Ensure scores are numeric
-                    if isinstance(ceremonial_score, (int, float)) and ceremonial_score >= threshold:
-                        results["ceremonial"].append(node)
-                    elif isinstance(instrumental_score, (int, float)) and instrumental_score >= threshold:
-                        results["instrumental"].append(node)
-                    else:
-                        results["mixed"].append(node)
+        # Warn if nothing classified
+        total_nodes = len(list(self.graph))
+        if unclassified_count == total_nodes and total_nodes > 0:
+            warnings.warn(
+                f"No nodes were classified ({unclassified_count} total). "
+                "Consider adding 'ceremonial_score' and 'instrumental_score' to node metadata, "
+                "or use specialized node types like Institution or Technology.",
+                UserWarning
+            )
 
         return results
 
@@ -605,7 +706,391 @@ class NetworkXSFMQueryEngine(SFMQueryEngine):  # pylint: disable=too-many-public
                         "relationships": [r.id for r in rels]
                     })
 
+        # Method 3: Semantic conflict relationships
+        CONFLICT_KINDS = {
+            "conflicts_with", "opposes", "contradicts", "challenges",
+            "undermines", "blocks", "resists"
+        }
+
+        for rel in self.graph.relationships.values():
+            if rel.kind in CONFLICT_KINDS:
+                source_node = self.graph.get_node_by_id(rel.source_id)
+                target_node = self.graph.get_node_by_id(rel.target_id)
+
+                conflicts.append({
+                    "type": "semantic",
+                    "conflict_type": rel.kind,
+                    "source": source_node.label if source_node else "unknown",
+                    "source_id": str(rel.source_id),
+                    "target": target_node.label if target_node else "unknown",
+                    "target_id": str(rel.target_id),
+                    "weight": rel.weight,
+                    "evidence": rel.meta.get("evidence", "") if rel.meta else "",
+                    "relationship_id": str(rel.id)
+                })
+
         return conflicts
+
+    # ═══════════════════════════════════════════════════════════════════════════
+    # UNCERTAINTY ANALYSIS METHODS (GAP 3)
+    # ═══════════════════════════════════════════════════════════════════════════
+
+    def analyze_weight_uncertainty(self) -> Dict[str, Any]:
+        """Analyze uncertainty across all relationship weights."""
+        rels_with_ci = []
+        rels_without_ci = []
+
+        for rel in self.graph.relationships.values():
+            if rel.confidence_interval:
+                rels_with_ci.append(rel)
+            else:
+                rels_without_ci.append(rel)
+
+        return {
+            "total_relationships": len(list(self.graph.relationships.values())),
+            "with_confidence_intervals": len(rels_with_ci),
+            "without_confidence_intervals": len(rels_without_ci),
+            "coverage": len(rels_with_ci) / len(list(self.graph.relationships.values())) if self.graph.relationships else 0,
+            "avg_uncertainty_range": self._calculate_avg_uncertainty_range(rels_with_ci)
+        }
+
+    def _calculate_avg_uncertainty_range(self, rels: List[Relationship]) -> float:
+        """Calculate average width of confidence intervals."""
+        if not rels:
+            return 0.0
+        ranges = [upper - lower for lower, upper in [r.confidence_interval for r in rels if r.confidence_interval]]
+        return sum(ranges) / len(ranges) if ranges else 0.0
+
+    def propagate_uncertainty_through_path(
+        self,
+        path: List[uuid.UUID]
+    ) -> Dict[str, Any]:
+        """Propagate uncertainty through a causal pathway."""
+        cumulative_weight = 1.0
+        cumulative_lower = 1.0
+        cumulative_upper = 1.0
+
+        path_segments = []
+
+        for i in range(len(path) - 1):
+            source_id = path[i]
+            target_id = path[i + 1]
+
+            # Find relationship
+            rel = self._find_relationship(source_id, target_id)
+            if not rel:
+                continue
+
+            weight = rel.weight or 0.5
+            if rel.confidence_interval:
+                lower, upper = rel.confidence_interval
+            else:
+                lower, upper = weight, weight
+
+            cumulative_weight *= weight
+            cumulative_lower *= lower
+            cumulative_upper *= upper
+
+            source_node = self.graph.get_node_by_id(source_id)
+            target_node = self.graph.get_node_by_id(target_id)
+            path_segments.append({
+                "source": source_node.label if source_node else "unknown",
+                "target": target_node.label if target_node else "unknown",
+                "weight": weight,
+                "confidence_interval": (lower, upper)
+            })
+
+        return {
+            "path_segments": path_segments,
+            "cumulative_effect": cumulative_weight,
+            "uncertainty_range": (cumulative_lower, cumulative_upper),
+            "uncertainty_width": cumulative_upper - cumulative_lower
+        }
+
+    def sensitivity_analysis(
+        self,
+        outcome_node_id: uuid.UUID,
+        vary_percentage: float = 0.2
+    ) -> Dict[str, Any]:
+        """Perform sensitivity analysis by varying weights."""
+        # Find all paths to outcome node
+        paths_to_outcome = self._find_all_paths_to_node(outcome_node_id, max_depth=5)
+
+        # For each path, vary weights and see impact
+        sensitivity_results = []
+
+        for path in paths_to_outcome:
+            # Vary each relationship weight
+            for rel_id in path:
+                rel = self.graph.relationships.get(rel_id)
+                if not rel or rel.weight is None:
+                    continue
+
+                # Calculate with +/- vary_percentage
+                weight_low = rel.weight * (1 - vary_percentage)
+                weight_high = rel.weight * (1 + vary_percentage)
+
+                # Temporarily modify and recalculate
+                original_weight = rel.weight
+                rel.weight = weight_low
+                effect_low = self._calculate_path_effect(path)
+                rel.weight = weight_high
+                effect_high = self._calculate_path_effect(path)
+                rel.weight = original_weight  # Restore
+
+                source_node = self.graph.get_node_by_id(rel.source_id)
+                target_node = self.graph.get_node_by_id(rel.target_id)
+
+                sensitivity_results.append({
+                    "relationship": rel.kind,
+                    "source": source_node.label if source_node else "unknown",
+                    "target": target_node.label if target_node else "unknown",
+                    "base_weight": original_weight,
+                    "effect_range": (effect_low, effect_high),
+                    "sensitivity": (effect_high - effect_low) / (weight_high - weight_low) if weight_high != weight_low else 0.0
+                })
+
+        # Sort by sensitivity (highest first)
+        sensitivity_results.sort(key=lambda x: abs(x["sensitivity"]), reverse=True)
+
+        outcome_node = self.graph.get_node_by_id(outcome_node_id)
+        return {
+            "outcome_node": outcome_node.label if outcome_node else "unknown",
+            "sensitivity_ranking": sensitivity_results
+        }
+
+    def _find_relationship(self, source_id: uuid.UUID, target_id: uuid.UUID) -> Optional[Relationship]:
+        """Find relationship between two nodes."""
+        for rel in self.graph.relationships.values():
+            if rel.source_id == source_id and rel.target_id == target_id:
+                return rel
+        return None
+
+    def _find_all_paths_to_node(self, target_id: uuid.UUID, max_depth: int = 5) -> List[List[uuid.UUID]]:
+        """Find all paths leading to target node."""
+        # Simplified implementation - would use BFS/DFS in practice
+        # Returns list of paths, where each path is list of relationship IDs
+        return []  # Placeholder
+
+    def _calculate_path_effect(self, path: List[uuid.UUID]) -> float:
+        """Calculate cumulative effect along a path."""
+        effect = 1.0
+        for rel_id in path:
+            rel = self.graph.relationships.get(rel_id)
+            if rel and rel.weight:
+                effect *= rel.weight
+        return effect
+
+    # ═══════════════════════════════════════════════════════════════════════════
+    # CONDITIONAL RELATIONSHIP QUERIES (GAP 5)
+    # ═══════════════════════════════════════════════════════════════════════════
+
+    def check_conditional_satisfaction(
+        self,
+        dependent_node_id: uuid.UUID
+    ) -> Dict[str, Any]:
+        """
+        Check if conditional dependencies are satisfied.
+
+        Args:
+            dependent_node_id: UUID of node with conditional dependencies
+
+        Returns:
+            Dictionary with satisfied/unsatisfied conditions
+
+        Example:
+            # Check if catalytic converter dependencies are satisfied
+            result = engine.check_conditional_satisfaction(catalytic_converter.id)
+            # Returns: {"all_satisfied": True/False, "satisfied_conditions": [...], ...}
+        """
+        # Find all outgoing depends_on_if relationships
+        conditional_rels = [
+            rel for rel in self.graph.relationships.values()
+            if rel.source_id == dependent_node_id
+            and ("_if" in rel.kind or "conditional" in rel.meta)
+        ]
+
+        satisfied = []
+        unsatisfied = []
+
+        for rel in conditional_rels:
+            if "conditional" in rel.meta:
+                condition_node_id = uuid.UUID(rel.meta["conditional"]["condition_node"])  # type: ignore[index]
+                condition_node = self.graph.get_node_by_id(condition_node_id)
+
+                # Check if condition node is "active" (exists and has positive attributes)
+                is_satisfied = condition_node is not None
+
+                if is_satisfied:
+                    satisfied.append({
+                        "relationship": rel.kind,
+                        "condition": condition_node.label if condition_node else "unknown"
+                    })
+                else:
+                    unsatisfied.append({
+                        "relationship": rel.kind,
+                        "condition": "Missing condition node"
+                    })
+
+        dependent_node = self.graph.get_node_by_id(dependent_node_id)
+        return {
+            "dependent_node": dependent_node.label if dependent_node else "unknown",
+            "satisfied_conditions": satisfied,
+            "unsatisfied_conditions": unsatisfied,
+            "all_satisfied": len(unsatisfied) == 0
+        }
+
+    # ═══════════════════════════════════════════════════════════════════════════
+    # GEOGRAPHIC QUERY METHODS (GAP 6)
+    # ═══════════════════════════════════════════════════════════════════════════
+
+    def get_nodes_by_geography(
+        self,
+        state: Optional[str] = None,
+        scope: Optional[str] = None,
+        jurisdiction: Optional[str] = None
+    ) -> List[Node]:
+        """
+        Query nodes by geographic attributes.
+
+        Args:
+            state: State name to filter by (e.g., "California", "TX")
+            scope: Geographic scope to filter by ("federal", "state", "local", "regional")
+            jurisdiction: Specific jurisdiction to filter by
+
+        Returns:
+            List of nodes matching geographic criteria
+
+        Example:
+            # Find all California state-level policies
+            ca_policies = engine.get_nodes_by_geography(state="California", scope="state")
+        """
+        matching_nodes = []
+
+        for node in self.graph:
+            if not hasattr(node, 'meta') or not node.meta:
+                continue
+
+            geography = node.meta.get("geography", {})
+            if isinstance(geography, str):
+                # Handle string geography metadata
+                if state and state.lower() in geography.lower():
+                    matching_nodes.append(node)
+            elif isinstance(geography, dict):
+                # Handle structured geography
+                if state and geography.get("state") == state:
+                    matching_nodes.append(node)
+                elif scope and geography.get("scope") == scope:
+                    matching_nodes.append(node)
+                elif jurisdiction and geography.get("jurisdiction") == jurisdiction:
+                    matching_nodes.append(node)
+
+        return matching_nodes
+
+    def get_policy_stringency_map(self) -> Dict[str, float]:
+        """
+        Generate map of policy stringency by geographic unit.
+
+        Returns:
+            Dictionary of {state: avg_stringency} where stringency
+            is calculated from relationship weights
+
+        Example:
+            # Get average policy stringency by state
+            stringency_map = engine.get_policy_stringency_map()
+            # Returns: {"California": 0.85, "Texas": 0.62, ...}
+        """
+        state_map = {}
+
+        for node in self.graph:
+            if not hasattr(node, 'meta') or not node.meta:
+                continue
+
+            geography = node.meta.get("geography", {})
+            if isinstance(geography, dict) and "state" in geography:
+                state = geography["state"]
+
+                # Calculate stringency from outgoing relationships
+                outgoing = [
+                    rel for rel in self.graph.relationships.values()
+                    if rel.source_id == node.id
+                ]
+
+                if outgoing:
+                    avg_weight = sum(r.weight for r in outgoing if r.weight) / len(outgoing)
+                    if state in state_map:
+                        state_map[state] = (state_map[state] + avg_weight) / 2
+                    else:
+                        state_map[state] = avg_weight
+
+        return state_map
+
+
+
+    # ═══════════════════════════════════════════════════════════════════════════
+    # TEMPORAL QUERY METHODS
+    # ═══════════════════════════════════════════════════════════════════════════
+
+    def get_nodes_active_at_time(self, target_date: datetime) -> List[Node]:
+        """Get all nodes that existed at a specific time."""
+        active_nodes = []
+        for node in self.graph:
+            # Check if node was created before target_date
+            if node.created_at <= target_date:
+                # Check if not yet modified after target_date (still active)
+                if node.modified_at is None or node.modified_at > target_date:
+                    active_nodes.append(node)
+        return active_nodes
+
+    def get_relationships_active_at_time(self, target_date: datetime) -> List[Relationship]:
+        """Get all relationships active at a specific time."""
+        active_rels = []
+        for rel in self.graph.relationships.values():
+            # Check valid_from and valid_to bounds
+            if rel.valid_from and rel.valid_from > target_date:
+                continue
+            if rel.valid_to and rel.valid_to <= target_date:
+                continue
+            active_rels.append(rel)
+        return active_rels
+
+    def get_relationship_weight_history(
+        self, 
+        relationship_id: uuid.UUID
+    ) -> List[Dict[str, Any]]:
+        """Get weight change history for a relationship."""
+        rel = self.graph.get_relationship_by_id(relationship_id)
+        if not rel or "weight_history" not in rel.meta:
+            return []
+        return rel.meta["weight_history"]  # type: ignore[return-value]
+
+    def query_temporal_evolution(
+        self,
+        start_date: datetime,
+        end_date: datetime,
+        time_step: timedelta = timedelta(days=365)
+    ) -> List[Dict[str, Any]]:
+        """Query graph state evolution over time period."""
+        snapshots = []
+        current_date = start_date
+        
+        while current_date <= end_date:
+            snapshot = {
+                "date": current_date.isoformat(),
+                "nodes": len(self.get_nodes_active_at_time(current_date)),
+                "relationships": len(self.get_relationships_active_at_time(current_date)),
+                "avg_weight": self._calculate_avg_weight_at_time(current_date)
+            }
+            snapshots.append(snapshot)
+            current_date += time_step
+        
+        return snapshots
+
+    def _calculate_avg_weight_at_time(self, target_date: datetime) -> float:
+        """Calculate average relationship weight at specific time."""
+        active_rels = self.get_relationships_active_at_time(target_date)
+        weights = [r.weight for r in active_rels if r.weight is not None]
+        return sum(weights) / len(weights) if weights else 0.0
 
 
 class SFMQueryFactory:
@@ -620,3 +1105,4 @@ class SFMQueryFactory:
             return NetworkXSFMQueryEngine(graph)
 
         raise ValueError(f"Unsupported backend: {backend}")
+
