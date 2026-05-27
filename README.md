@@ -8,13 +8,15 @@
 
 An experimental Python framework implementing F. Gregory Hayden's Social Fabric Matrix (SFM) methodology for modeling, analyzing, and querying socio-economic systems through graph-based data structures.
 
-**Status**: This is research software under active development. The implementation is based on Hayden's published work, particularly:
+**Status**: This is experimental research software under active development. The implementation is based on interpretation of Hayden's published work, particularly:
 
 > Hayden, F. G. (2006). *Policymaking for a Good Society: The Social Fabric Matrix Approach to Policy Analysis and Program Evaluation*. Springer.
 
 This software is intended for academic evaluation and institutional economics research.
 
-**Note**: Claude AI was used to assist with code development and documentation. Errors may exist and users should verify outputs independently.
+**Implementation Fidelity Note**: This implementation interprets Hayden's Social Fabric Matrix methodology based on published literature. There are known structural differences from Hayden's canonical approach (e.g., current matrix uses institution×criteria instead of component×component structure). See project documentation for details.
+
+**AI Assistance Disclosure**: Claude AI was used extensively throughout code development, documentation, and architectural design. All outputs should be independently verified. Known limitations exist in the implementation.
 
 **Key Features:**
 - **40+ Specialized Node Types** across 12 analytical domains for institutional economic modeling
@@ -46,7 +48,7 @@ This software is intended for academic evaluation and institutional economics re
 
 ### Requirements
 
-- **Python**: 3.10 or higher
+- **Python**: 3.9 or higher (3.10+ recommended)
 - **System Dependencies**: graphviz (for visualization)
 - **Optional**: Docker & Docker Compose (for Neo4j backend)
 
@@ -81,7 +83,6 @@ pytest tests/
 
 **Validation Scripts:**
 - `./test_setup.sh` - Validate local installation
-- `./test_container_deployment.sh` - Validate Docker deployment
 - See [SETUP_GUIDE.md](SETUP_GUIDE.md) for troubleshooting
 
 ### Production Installation (Neo4j Backend)
@@ -219,9 +220,9 @@ curl -X POST http://localhost:8000/api/v1/query/temporal-evolution \
 
 ### Dual-Backend Support
 
-| Backend | Performance | Use Case | Strengths |
+| Backend | Performance (Synthetic Benchmarks) | Use Case | Strengths |
 |---------|------------|----------|-----------|
-| **NetworkX** (default) | 2-5M items/sec query speed<br>700K rels/sec bulk creation | Development, prototyping<br>Graphs <10K nodes | Fast queries, no setup required<br>Excellent for research |
+| **NetworkX** (default) | 2-5M items/sec (in-memory scans)<br>700K rels/sec bulk creation | Development, prototyping<br>Graphs <10K nodes | Fast queries, no setup required<br>Excellent for research |
 | **Neo4j** (production) | Indexed, constant-time ops<br>Multi-user concurrent | Production deployments<br>Graphs >10K nodes | Persistent storage, Cypher queries<br>Advanced graph algorithms |
 
 **When to migrate**: Graph exceeds 20K relationships, need concurrent access, or require persistent storage without manual save/load.
@@ -230,7 +231,7 @@ curl -X POST http://localhost:8000/api/v1/query/temporal-evolution \
 
 ## Core Features
 
-### 1. Comprehensive Domain Models (40+ Node Types)
+### 1. Domain Models (40+ Node Types)
 
 Organized across **12 analytical domains**:
 
@@ -252,7 +253,7 @@ Organized across **12 analytical domains**:
 - Versioning support (`version`, `previous_version_id`)
 - Temporal tracking (`created_at`, `modified_at`, `valid_from`, `valid_to`)
 - Data quality metadata (`certainty` 0-1, `data_quality`, `data_sources`)
-- Comprehensive enum validation (166KB enums covering flows, institutions, values)
+- Extensive enum validation (166KB enums covering flows, institutions, values)
 
 ### 2. Advanced Analysis Methods
 
@@ -320,7 +321,33 @@ service.create_relationships_bulk(relationships)
 - 1K-10K nodes: NetworkX with bulk operations
 - > 10K nodes: Neo4j backend recommended
 
-### 5. Production Features
+### 5. Security Considerations
+
+**File Import Security**: The CSV/Excel import adapters support optional path validation to prevent directory traversal attacks:
+
+```python
+from pathlib import Path
+from data.importers import CSVImportAdapter, MappingTemplates
+
+# INSECURE (default for backward compatibility):
+adapter = CSVImportAdapter(MappingTemplates.basic_node())
+# This allows reading ANY file path - only use with trusted sources
+
+# SECURE (recommended for production file uploads):
+adapter = CSVImportAdapter(
+    MappingTemplates.basic_node(),
+    allowed_base_dir=Path("/secure/upload/directory")
+)
+# This restricts file access to the specified directory tree
+```
+
+**Best Practices**:
+- Enable path validation (`allowed_base_dir=...`) for user-uploaded files
+- Use dedicated upload directories with restricted permissions
+- CodeQL security scanning is enabled on this repository
+- Review security alerts at: https://github.com/SFM-Graph-Service/sfm-core/security
+
+### 7. Production Features
 
 **REST API** (30+ endpoints):
 - **CRUD**: 12 endpoints (nodes: 7, relationships: 5)
@@ -527,13 +554,15 @@ for conflict in conflicts:
 
 ### NetworkX Backend Benchmarks
 
+**Note**: These are synthetic benchmarks measured on a single machine. Real-world performance depends on data characteristics, query patterns, and hardware.
+
 ```
 Operation                    Performance
 ─────────────────────────────────────────────
 Node creation               164,965 nodes/sec
 Individual relationships    703 rels/sec
 Bulk relationships          703,310 rels/sec (210x faster)
-Query scans                 2.2M-4.7M items/sec
+Query scans (in-memory)     2.2M-4.7M items/sec
 Adjacency lookups           O(1) constant time
 ```
 
@@ -567,6 +596,7 @@ Relationship: ~400 bytes (with all fields) + metadata
 - **[Analysis Methods Guide](docs/ANALYSIS_METHODS_GUIDE.md)** (31.3KB) - Complete guide to all analysis methods with examples, interpretation guidelines, and best practices
 - **[Neo4j Integration Guide](docs/NEO4J_INTEGRATION_GUIDE.md)** (13.5KB) - Backend setup, migration from NetworkX, Cypher query examples
 - **[Scaling Guide](docs/SCALING_GUIDE.md)** (13.5KB) - Performance tuning, backend selection, troubleshooting
+- **[SFM Fidelity Analysis](SFM_FIDELITY_ANALYSIS.md)** - Assessment of implementation fidelity to Hayden's published methodology, known gaps, and improvement roadmap
 
 ### Example Scripts
 
@@ -580,7 +610,7 @@ Relationship: ~400 bytes (with all fields) + metadata
 - Swagger UI: http://localhost:8000/docs
 - ReDoc: http://localhost:8000/redoc
 
-**Test Suite**: 501 passing tests covering all components
+**Test Suite**: 678 passing tests covering all components
 ```bash
 pytest tests/ -v --cov
 ```
@@ -614,7 +644,7 @@ sfm-core/
 │       └── routers/               # 5 router modules (30+ endpoints)
 ├── docs/                           # Documentation (3 guides)
 ├── examples/                       # Demonstration scripts
-├── tests/                          # Test suite (501 tests)
+├── tests/                          # Test suite (678 tests)
 ├── docker-compose.yml              # Docker deployment
 └── requirements.txt                # Python dependencies
 ```
@@ -679,4 +709,4 @@ GitHub: https://github.com/SFM-Graph-Service/sfm-core
 
 ---
 
-**Status**: Production-ready | **Version**: 0.1.0 | **Python**: 3.9+ | **Tests**: 501 passing ✓
+**Status**: Experimental Research Software | **Version**: 0.1.0 | **Python**: 3.9+ | **Tests**: 678 passing ✓
