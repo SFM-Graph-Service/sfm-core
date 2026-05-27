@@ -1602,6 +1602,169 @@ class SFMService:
 
         return errors
 
+    # ========================================
+    # Temporal Modeling & Threshold Monitoring
+    # ========================================
+
+    def check_delivery_thresholds(
+        self,
+        matrix: Any  # SFMDeliveryMatrix
+    ) -> List['ThresholdAlert']:
+        """
+        Monitor all deliveries against thresholds.
+
+        Implements Hayden 1987/1993 real-time monitoring concept.
+        Checks each delivery with a threshold and returns alerts for
+        values that have crossed the threshold.
+
+        Args:
+            matrix: SFMDeliveryMatrix to monitor
+
+        Returns:
+            List of ThresholdAlert objects for deliveries that crossed thresholds
+
+        Example:
+            >>> alerts = service.check_delivery_thresholds(matrix)
+            >>> for alert in alerts:
+            ...     print(f"{alert.delivery.delivery_type}: {alert.current_value} {alert.direction} threshold {alert.threshold}")
+        """
+        from models.delivery_matrix import SFMDeliveryMatrix
+        from datetime import datetime
+
+        alerts = []
+
+        for cell in matrix.cells.values():
+            for delivery in cell.deliveries:
+                if delivery.threshold is None or delivery.quantity is None:
+                    continue
+
+                triggered = False
+                direction = ""
+
+                if delivery.threshold_direction == "above":
+                    if delivery.quantity > delivery.threshold:
+                        triggered = True
+                        direction = "exceeded"
+                elif delivery.threshold_direction == "below":
+                    if delivery.quantity < delivery.threshold:
+                        triggered = True
+                        direction = "below"
+
+                if triggered:
+                    alert = ThresholdAlert(
+                        delivery=delivery,
+                        cell=cell,
+                        current_value=delivery.quantity,
+                        threshold=delivery.threshold,
+                        direction=direction,
+                        timestamp=datetime.now()
+                    )
+                    alerts.append(alert)
+
+                    # Update last check time on delivery
+                    delivery.last_threshold_check = datetime.now()
+
+        return alerts
+
+    def create_temporal_clock(
+        self,
+        clock_name: str,
+        label: str,
+        description: str = "",
+        period_length: Optional[Any] = None,  # timedelta
+        phases: Optional[List[Any]] = None  # List[TemporalPhase]
+    ) -> Any:  # TemporalClock
+        """
+        Create temporal clock for polychronic modeling.
+
+        Args:
+            clock_name: Unique identifier (e.g., "nebraska_legislative_cycle")
+            label: Display label
+            description: Clock description
+            period_length: Full cycle duration (timedelta)
+            phases: List of TemporalPhase objects
+
+        Returns:
+            TemporalClock instance
+
+        Example:
+            >>> from datetime import timedelta
+            >>> from models.temporal_clocks import TemporalPhase
+            >>> phase1 = TemporalPhase("session", timedelta(days=120))
+            >>> phase2 = TemporalPhase("interim", timedelta(days=245))
+            >>> clock = service.create_temporal_clock(
+            ...     "legislative_cycle",
+            ...     "Legislative Cycle",
+            ...     period_length=timedelta(days=365),
+            ...     phases=[phase1, phase2]
+            ... )
+        """
+        from models.temporal_clocks import TemporalClock
+
+        clock = TemporalClock(
+            label=label,
+            description=description,
+            clock_name=clock_name,
+            period_length=period_length,
+            phases=phases or []
+        )
+
+        # Register in repository
+        self.repository.create_node(clock)
+        return clock
+
+    def synchronize_delivery_to_clock(
+        self,
+        clock: Any,  # TemporalClock
+        source_id: uuid.UUID,
+        target_id: uuid.UUID,
+        delivery_index: int = 0
+    ) -> None:
+        """
+        Synchronize delivery to temporal clock.
+
+        Args:
+            clock: TemporalClock to synchronize to
+            source_id: Source component UUID
+            target_id: Target component UUID
+            delivery_index: Index of delivery in cell's delivery list
+
+        Example:
+            >>> clock = service.create_temporal_clock(...)
+            >>> service.synchronize_delivery_to_clock(
+            ...     clock, legislature_id, district_id, delivery_index=0
+            ... )
+        """
+        clock.synchronize_delivery(source_id, target_id, delivery_index)
+        self.repository.update_node(clock)
+
+
+# ThresholdAlert dataclass
+@dataclass
+class ThresholdAlert:
+    """
+    Alert when delivery crosses monitoring threshold.
+
+    Per Hayden 1987/1993 real-time monitoring concept.
+
+    Attributes:
+        delivery: Delivery that crossed threshold
+        cell: SFMDeliveryCell containing the delivery
+        current_value: Current delivery quantity
+        threshold: Threshold value
+        direction: "exceeded" (above) or "below"
+        timestamp: When alert was generated
+    """
+    from datetime import datetime
+    from models.delivery_matrix import Delivery, SFMDeliveryCell
+
+    delivery: 'Delivery'
+    cell: 'SFMDeliveryCell'
+    current_value: float
+    threshold: float
+    direction: str  # "exceeded" or "below"
+    timestamp: datetime
+
 
 # Public API
 __all__ = [
@@ -1609,6 +1772,7 @@ __all__ = [
     "SFMServiceConfig",
     "ServiceHealth",
     "GraphStatistics",
+    "ThresholdAlert",
     "SFMError",
     "SFMValidationError",
     "SFMNotFoundError",

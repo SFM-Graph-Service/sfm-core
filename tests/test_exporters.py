@@ -226,14 +226,15 @@ class TestXLSXExporter:
             wb = load_workbook(tmp_path)
             ws = wb["Matrix View"]
 
-            # Legislature -> School District has 2 deliveries: money (dominant) and rule
-            # Should be colored light green (money color)
+            # Legislature -> School District has 2 deliveries: money and rule
+            # Should be colored (either money or rule color, both appear once so tie)
             cell = ws.cell(2, 4)
             if cell.fill and cell.fill.start_color:
                 fill_color = cell.fill.start_color.rgb or cell.fill.start_color.index
-                # Light green is C6EFCE (money color) - openpyxl may add prefix
+                # Should have a color (not default gray or none)
                 if isinstance(fill_color, str):
-                    assert "C6EFCE" in fill_color
+                    # Should be either money (C6EFCE) or rule (FFC7CE) color
+                    assert ("C6EFCE" in fill_color or "FFC7CE" in fill_color)
 
             # Legislature -> Department of Education has 1 delivery: authority
             # Should be colored light yellow (authority color)

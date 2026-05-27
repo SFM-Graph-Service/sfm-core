@@ -74,6 +74,9 @@ from models import (
 # Import Hayden-compliant delivery matrix types
 from models.delivery_matrix import Delivery, SFMDeliveryCell, SFMDeliveryMatrix
 
+# Import temporal modeling types
+from models.temporal_clocks import TemporalClock, TemporalPhase
+
 # Setup logging
 logger = logging.getLogger(__name__)
 
@@ -164,6 +167,9 @@ class NodeSerializer:
         "Delivery": Delivery,
         "SFMDeliveryCell": SFMDeliveryCell,
         "SFMDeliveryMatrix": SFMDeliveryMatrix,
+        # Temporal modeling types
+        "TemporalClock": TemporalClock,
+        "TemporalPhase": TemporalPhase,
     }
 
     @staticmethod
