@@ -55,7 +55,7 @@ class OECDAdapter(BaseImportAdapter):
         self.mapping = mapping or self._default_mapping()
         self.rate_limit_delay = rate_limit_delay
         self._last_request_time = 0.0
-        self._cache: Dict[str, Any] = {}
+        self._cache: Dict[str, Dict[str, Any]] = {}
 
     def _default_mapping(self) -> MappingConfig:
         """Create default mapping for OECD indicators."""
@@ -159,7 +159,7 @@ class OECDAdapter(BaseImportAdapter):
 
                 self._last_request_time = time.time()
 
-                data = response.json()
+                data: Dict[str, Any] = response.json()
                 self._cache[cache_key] = data
                 return data
 

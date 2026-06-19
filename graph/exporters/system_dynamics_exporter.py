@@ -16,7 +16,7 @@ Mapping:
 """
 
 from pathlib import Path
-from typing import Any, List, Optional
+from typing import Any, Dict, List, Optional
 import xml.etree.ElementTree as ET
 import xml.dom.minidom as minidom
 
@@ -141,7 +141,7 @@ def export_to_xmile(
             })
 
     # Auxiliaries for delivery types (informational only)
-    delivery_type_counts = {}
+    delivery_type_counts: Dict[str, int] = {}
     for cell in matrix.cells.values():
         for delivery in cell.deliveries:
             dtype = delivery.delivery_type

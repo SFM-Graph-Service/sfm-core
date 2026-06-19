@@ -58,6 +58,21 @@ class SFMRepository(ABC):
         """List all nodes, optionally filtered by type."""
         pass
 
+    def create_nodes_bulk(self, nodes: List[Node]) -> List[Node]:
+        """
+        Create multiple nodes in bulk (optional optimization).
+
+        Default implementation falls back to individual creation.
+        Subclasses should override for performance optimization.
+
+        Args:
+            nodes: List of nodes to create
+
+        Returns:
+            List of created nodes
+        """
+        return [self.create_node(node) for node in nodes]
+
     @abstractmethod
     def create_relationship(self, rel: Relationship) -> Relationship:
         """Create a new relationship in the repository."""

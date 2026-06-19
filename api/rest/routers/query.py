@@ -153,6 +153,8 @@ def get_temporal_evolution(
         List of temporal snapshots with network metrics
     """
     service.initialize_query_engine()
+    if service._query_engine is None:
+        raise RuntimeError("Query engine failed to initialize")
     snapshots = service._query_engine.query_temporal_evolution(
         start_date=request.start_date,
         end_date=request.end_date,
@@ -191,6 +193,8 @@ def get_uncertainty_propagation(
         Path segments with uncertainty ranges and cumulative effect
     """
     service.initialize_query_engine()
+    if service._query_engine is None:
+        raise RuntimeError("Query engine failed to initialize")
     result = service._query_engine.propagate_uncertainty_through_path(
         path=request.path
     )

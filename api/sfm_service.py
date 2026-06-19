@@ -472,7 +472,7 @@ class SFMService:
         geographic_scope: str,  # "federal", "state", "local", "regional"
         state: Optional[str] = None,
         jurisdiction: Optional[str] = None,
-        meta: Optional[Dict[str, str]] = None
+        meta: Optional[Dict[str, Any]] = None
     ) -> Node:
         """
         Create node with geographic metadata.
@@ -724,7 +724,7 @@ class SFMService:
         # Call query engine method
         logger.info("Detecting system conflicts")
         conflicts = self.query_engine.detect_conflicts()
-        return conflicts
+        return list(conflicts)
 
     # ========================================================================
     # Phase 3 Evaluation Methods - Analysis & Assessment
@@ -766,7 +766,7 @@ class SFMService:
             analyzed_institutions=institutions,
         )
 
-        result = {
+        result: Dict[str, Any] = {
             "dependency_matrix": analysis.dependency_matrix,
             "cycles": analysis.cycle_detection,
             "critical_institutions": analysis.critical_institutions,
@@ -1137,7 +1137,7 @@ class SFMService:
         nodes_data = []
         for node in self.list_nodes():
             # Serialize node to dict
-            node_dict = {
+            node_dict: Dict[str, Any] = {
                 "id": str(node.id),
                 "label": node.label,
                 "description": node.description,
