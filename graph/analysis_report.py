@@ -45,7 +45,7 @@ class AnalysisReport:
     ceremonial_ratio:
         Ratio of ceremonial nodes to total classified nodes (0–1).
     circular_causation_paths:
-        Circular-causation feedback chains, each a list of node-info dicts.
+        Circular-causation feedback chains, each a dict with a ``"nodes"`` key containing node-info dicts.
     holarchy_levels:
         Mapping ``{node_label: {level_name: [node_dicts]}}`` for every node
         for which a holarchy was computed.
@@ -62,7 +62,7 @@ class AnalysisReport:
     ceremonial_nodes: List[Dict[str, Any]] = field(default_factory=list)
     instrumental_nodes: List[Dict[str, Any]] = field(default_factory=list)
     ceremonial_ratio: float = 0.0
-    circular_causation_paths: List[List[Dict[str, Any]]] = field(default_factory=list)
+    circular_causation_paths: List[Dict[str, Any]] = field(default_factory=list)
     holarchy_levels: Dict[str, Dict[str, List[Dict[str, Any]]]] = field(
         default_factory=dict
     )
@@ -134,7 +134,7 @@ def run_analysis_battery(service: Any) -> AnalysisReport:
     try:
         all_nodes = service.list_nodes()
         report.node_count = len(all_nodes)
-        paths: List[List[Dict[str, Any]]] = []
+        paths: List[Dict[str, Any]] = []
         for node in all_nodes:
             try:
                 node_paths = service.get_circular_causation(node.id)
@@ -260,8 +260,8 @@ def format_report(report: AnalysisReport) -> str:
         lines.append(f"    {len(report.circular_causation_paths)} path(s) found.")
         for i, path in enumerate(report.circular_causation_paths[:3]):
             nodes_in_path = path.get("nodes", path) if isinstance(path, dict) else path
-            labels = [
-                n.get("label", n.get("id", "?")) if isinstance(n, dict) else str(n)
+            labels: List[str] = [
+                str(n.get("label", n.get("id", "?")) if isinstance(n, dict) else n)
                 for n in nodes_in_path[:6]
             ]
             lines.append(f"      Path {i + 1}: {' → '.join(labels)}")
