@@ -22,8 +22,6 @@ from data.importers import (
     WorldBankAdapter,
     MappingTemplates,
     ImportConfig,
-    ImportResult,
-    ImportError as ImportErrorModel
 )
 
 

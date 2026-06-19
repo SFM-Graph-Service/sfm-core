@@ -12,8 +12,6 @@ from typing import Any, Dict, List, Optional, Type
 from enum import Enum
 import uuid
 
-from models.base_nodes import Node
-
 
 class ValidationError(Exception):
     """Base exception for validation errors."""

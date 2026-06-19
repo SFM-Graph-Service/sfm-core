@@ -243,7 +243,7 @@ class WorldBankAdapter(BaseImportAdapter):
                 self._cache[cache_key] = data
                 return data
 
-            except requests.RequestException as e:
+            except requests.RequestException:
                 if attempt == max_retries - 1:
                     raise
                 time.sleep(2 ** attempt)  # Exponential backoff

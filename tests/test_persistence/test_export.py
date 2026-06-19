@@ -584,5 +584,70 @@ class TestEmptyGraphExport(unittest.TestCase):
         self.assertEqual(len(loaded.relationships), 0)
 
 
+class TestPickleSecurityGate(unittest.TestCase):
+    """Tests for pickle deserialization security gate (Issue #1)."""
+
+    def setUp(self):
+        """Set up a simple graph and serialized pickle bytes for tests."""
+        from graph.sfm_persistence import SFMGraphSerializer, StorageFormat, SFMSerializationError
+        self.SFMGraphSerializer = SFMGraphSerializer
+        self.StorageFormat = StorageFormat
+        self.SFMSerializationError = SFMSerializationError
+
+        self.graph = SFMGraph(name="Pickle Test", description="Security test graph")
+        node = Node(label="Test Node", description="node for pickle test")
+        self.graph.add_node(node)
+
+        # Pre-serialise to pickle bytes for use in deserialization tests
+        self.pickle_bytes = SFMGraphSerializer.serialize_graph(
+            self.graph, StorageFormat.PICKLE
+        )
+        self.compressed_pickle_bytes = SFMGraphSerializer.serialize_graph(
+            self.graph, StorageFormat.COMPRESSED_PICKLE
+        )
+
+    def test_pickle_deserialize_blocked_by_default(self):
+        """Pickle deserialization must raise SFMSerializationError without allow_pickle."""
+        with self.assertRaises(self.SFMSerializationError) as ctx:
+            self.SFMGraphSerializer.deserialize_graph(
+                self.pickle_bytes, self.StorageFormat.PICKLE
+            )
+        self.assertIn("allow_pickle", str(ctx.exception))
+
+    def test_compressed_pickle_deserialize_blocked_by_default(self):
+        """Compressed pickle deserialization must raise without allow_pickle."""
+        with self.assertRaises(self.SFMSerializationError):
+            self.SFMGraphSerializer.deserialize_graph(
+                self.compressed_pickle_bytes, self.StorageFormat.COMPRESSED_PICKLE
+            )
+
+    def test_pickle_deserialize_allowed_with_opt_in(self):
+        """Pickle deserialization succeeds when allow_pickle=True."""
+        result = self.SFMGraphSerializer.deserialize_graph(
+            self.pickle_bytes, self.StorageFormat.PICKLE, allow_pickle=True
+        )
+        self.assertIsNotNone(result)
+
+    def test_json_round_trip_unaffected(self):
+        """JSON serialization/deserialization continues to work unchanged."""
+        json_bytes = self.SFMGraphSerializer.serialize_graph(
+            self.graph, self.StorageFormat.JSON
+        )
+        result = self.SFMGraphSerializer.deserialize_graph(
+            json_bytes, self.StorageFormat.JSON
+        )
+        self.assertIsNotNone(result)
+
+    def test_compressed_json_round_trip_unaffected(self):
+        """Compressed JSON round-trip continues to work unchanged."""
+        json_bytes = self.SFMGraphSerializer.serialize_graph(
+            self.graph, self.StorageFormat.COMPRESSED_JSON
+        )
+        result = self.SFMGraphSerializer.deserialize_graph(
+            json_bytes, self.StorageFormat.COMPRESSED_JSON
+        )
+        self.assertIsNotNone(result)
+
+
 if __name__ == "__main__":
     unittest.main()

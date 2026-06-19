@@ -10,9 +10,6 @@ from dataclasses import dataclass, field
 from typing import Any, Dict, Iterator, List, Optional, Union
 from pathlib import Path
 
-from models.base_nodes import Node
-from graph.sfm_graph import Relationship
-
 
 @dataclass
 class ImportError:

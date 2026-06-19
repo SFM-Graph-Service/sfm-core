@@ -24,7 +24,17 @@ from models.exceptions import (
 )
 from graph.sfm_graph import Relationship, SFMGraph
 
+# Detect whether the optional neo4j driver is installed so that tests that
+# patch GraphDatabase.driver can be skipped gracefully instead of raising
+# AttributeError (GraphDatabase is None when the driver is absent).
+try:
+    from neo4j import GraphDatabase as _GraphDatabase
+    _neo4j_available = _GraphDatabase is not None
+except ImportError:
+    _neo4j_available = False
 
+
+@unittest.skipIf(not _neo4j_available, "neo4j driver not installed — skipping neo4j tests")
 class TestNeo4jRepository(unittest.TestCase):
     """Test suite for Neo4jSFMRepository with mocked Neo4j driver."""
 

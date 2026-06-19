@@ -1307,7 +1307,6 @@ class SFMService:
             >>> print(f"Created {result.nodes_created} nodes")
         """
         import time
-        from pathlib import Path
         from data.importers import ImportResult, ImportConfig
         from graph.sfm_persistence import NodeSerializer
 
@@ -1628,7 +1627,6 @@ class SFMService:
             >>> for alert in alerts:
             ...     print(f"{alert.delivery.delivery_type}: {alert.current_value} {alert.direction} threshold {alert.threshold}")
         """
-        from models.delivery_matrix import SFMDeliveryMatrix
         from datetime import datetime
 
         alerts = []

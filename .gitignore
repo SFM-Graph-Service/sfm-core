@@ -10,6 +10,9 @@ sfm_data
 SFM_Graph_Service.egg-info
 *.egg-info
 .coverage
+.coverage.*
+coverage.json
+coverage.xml
 dist
 build
 *.egg
