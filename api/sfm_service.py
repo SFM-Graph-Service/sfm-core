@@ -676,9 +676,11 @@ class SFMService:
         Returns:
             Dictionary containing:
                 - institution_id: The root institution UUID
-                - layers: List of holarchy layers from top to bottom
-                - relationships: Parent-child relationships
-                - depth: Maximum depth of the holarchy
+                - layers: List of holarchy layers from top to bottom, each with
+                  ``level`` (str) and ``nodes`` (list of node dicts)
+                - relationships: Parent-child relationships (reserved for future)
+                - depth: Number of populated holarchy levels
+                - total_institutions: Total node count across all levels
 
         Raises:
             SFMNotFoundError: If institution doesn't exist
@@ -697,13 +699,34 @@ class SFMService:
                 "depth": 0,
             }
 
-        # Placeholder - will call query_engine.get_holarchy in Phase 2 Step 2
+        # Call the real query engine implementation
         logger.info("Building holarchy for institution %s", institution_id)
+        levels: Dict[str, List[Any]] = self.query_engine.query_holarchy_levels(institution_id)
+
+        # Convert Node objects to serialisable dicts and build layers list
+        layers = []
+        total_institutions = 0
+        for level_name, nodes in levels.items():
+            if nodes:
+                layer = {
+                    "level": level_name,
+                    "nodes": [
+                        {"id": str(n.id), "label": n.label, "type": type(n).__name__}
+                        for n in nodes
+                    ],
+                }
+                layers.append(layer)
+                total_institutions += len(nodes)
+
+        # Depth = number of non-empty levels
+        depth = len(layers)
+
         return {
             "institution_id": str(institution_id),
-            "layers": [],
+            "layers": layers,
             "relationships": [],
-            "depth": 0,
+            "depth": depth,
+            "total_institutions": total_institutions,
         }
 
     def get_conflicts(self) -> list:
