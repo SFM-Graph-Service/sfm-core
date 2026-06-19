@@ -13,7 +13,7 @@ Key Features:
 
 import logging
 import uuid
-from typing import Dict, List, Optional, Any, Type, TypeVar, Union
+from typing import Dict, List, Optional, Any, Type, TypeVar, Union, cast
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -666,7 +666,7 @@ class SFMService:
             logger.error("Error finding circular causation: %s", e, exc_info=True)
             return []
 
-    def get_holarchy(self, institution_id: uuid.UUID) -> dict:
+    def get_holarchy(self, institution_id: uuid.UUID) -> Dict[str, Any]:
         """
         Get institutional holarchy (nested hierarchy) for an institution.
 
@@ -697,13 +697,28 @@ class SFMService:
                 "depth": 0,
             }
 
-        # Placeholder - will call query_engine.get_holarchy in Phase 2 Step 2
         logger.info("Building holarchy for institution %s", institution_id)
+        level_order = ["global", "national", "regional", "local", "organizational", "individual"]
+        levels = cast(
+            Dict[str, List[Node]],
+            self.query_engine.query_holarchy_levels(institution_id)
+        )
+        layers = []
+        for level_name in level_order:
+            nodes = levels.get(level_name, [])
+            if nodes:
+                layers.append(
+                    {
+                        "level": level_name,
+                        "institutions": [str(node.id) for node in nodes],
+                    }
+                )
+
         return {
             "institution_id": str(institution_id),
-            "layers": [],
+            "layers": layers,
             "relationships": [],
-            "depth": 0,
+            "depth": len(layers),
         }
 
     def get_conflicts(self) -> list:

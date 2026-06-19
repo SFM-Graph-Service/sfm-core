@@ -5,14 +5,11 @@ Tests the service facade for Beta unified model operations including Phase 2 que
 
 import unittest
 import uuid
-from unittest.mock import Mock, patch
 
 from models import Node
 from models.exceptions import (
-    SFMError,
     SFMValidationError,
     SFMNotFoundError,
-    NodeCreationError,
 )
 from models.cultural_analysis import CeremonialInstrumentalClassification
 from models.system_analysis import InstitutionalHolarchy
@@ -22,7 +19,7 @@ from api.sfm_service import (
     ServiceHealth,
     GraphStatistics,
 )
-from data.repositories import SFMRepositoryFactory
+from graph.sfm_graph import Relationship
 
 
 class TestSFMServiceConfig(unittest.TestCase):
@@ -285,14 +282,54 @@ class TestPhase2QueryMethods(unittest.TestCase):
             description="Test holarchy"
         )
         created = self.service.create_node(institution)
+        self.service.initialize_query_engine()
 
         result = self.service.get_holarchy(created.id)
 
         self.assertIsInstance(result, dict)
-        self.assertIn("institution_id", result)
-        self.assertIn("layers", result)
-        self.assertIn("relationships", result)
-        self.assertIn("depth", result)
+        expected_keys = {"institution_id", "layers", "relationships", "depth"}
+        self.assertEqual(set(result.keys()), expected_keys)
+        self.assertEqual(result["institution_id"], str(created.id))
+        self.assertIsInstance(result["layers"], list)
+        self.assertIsInstance(result["relationships"], list)
+        self.assertIsInstance(result["depth"], int)
+
+    def test_get_holarchy_level_grouping_from_query_engine(self):
+        """Test holarchy levels come from query engine graph traversal."""
+        root = self.service.create_node(Node(label="Root Institution", description="Root"))
+        local = self.service.create_node(Node(label="Local Institution", description="Local"))
+        regional = self.service.create_node(Node(label="Regional Institution", description="Regional"))
+
+        self.service.create_relationship(
+            Relationship(source_id=root.id, target_id=local.id, kind="governs")
+        )
+        self.service.create_relationship(
+            Relationship(source_id=local.id, target_id=regional.id, kind="coordinates")
+        )
+
+        self.service.initialize_query_engine()
+        holarchy = self.service.get_holarchy(root.id)
+        level_map = {
+            layer["level"]: layer["institutions"]
+            for layer in holarchy["layers"]
+        }
+
+        self.assertEqual(level_map["organizational"], [str(root.id)])
+        self.assertEqual(level_map["local"], [str(local.id)])
+        self.assertEqual(level_map["regional"], [str(regional.id)])
+        self.assertEqual(holarchy["depth"], 3)
+
+    def test_get_holarchy_uninitialized_query_engine(self):
+        """Test holarchy returns empty levels when query engine is not initialized."""
+        institution = self.service.create_node(
+            Node(label="Institution", description="Test institution")
+        )
+
+        holarchy = self.service.get_holarchy(institution.id)
+        self.assertEqual(holarchy["institution_id"], str(institution.id))
+        self.assertEqual(holarchy["layers"], [])
+        self.assertEqual(holarchy["relationships"], [])
+        self.assertEqual(holarchy["depth"], 0)
 
     def test_get_conflicts(self):
         """Test conflict detection."""
@@ -359,7 +396,7 @@ class TestRepositoryIntegration(unittest.TestCase):
         service = SFMService()
 
         # Query engine may not be initialized yet (Phase 2 Step 2)
-        engine = service.query_engine
+        _ = service.query_engine
 
         # Should not raise error, may be None or initialized
 
