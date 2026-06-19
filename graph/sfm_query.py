@@ -5,7 +5,7 @@ Default implementation uses NetworkX for graph analysis.
 """
 
 from abc import ABC, abstractmethod
-from typing import Dict, List, Optional, Tuple, Any
+from typing import Dict, List, Optional, Tuple, Any, Union
 import uuid
 from datetime import datetime, timedelta
 from dataclasses import dataclass
@@ -374,7 +374,7 @@ class NetworkXSFMQueryEngine(SFMQueryEngine):  # pylint: disable=too-many-public
 
     def get_network_density(self) -> float:
         """Calculate overall network density."""
-        return nx.density(self.nx_graph)
+        return float(nx.density(self.nx_graph))
 
     def identify_communities(
         self, algorithm: str = "louvain"
@@ -520,8 +520,8 @@ class NetworkXSFMQueryEngine(SFMQueryEngine):  # pylint: disable=too-many-public
                 i_score = node.meta.get('instrumental_score')
                 if c_score is not None or i_score is not None:
                     try:
-                        ceremonial_score = float(c_score) if c_score not in (None, '', 'null') else 0.0
-                        instrumental_score = float(i_score) if i_score not in (None, '', 'null') else 0.0
+                        ceremonial_score = float(c_score) if isinstance(c_score, str) and c_score not in ('', 'null') else 0.0
+                        instrumental_score = float(i_score) if isinstance(i_score, str) and i_score not in ('', 'null') else 0.0
                         score_assigned = True
                     except (ValueError, TypeError):
                         # Invalid metadata values, continue to next method
@@ -817,7 +817,7 @@ class NetworkXSFMQueryEngine(SFMQueryEngine):  # pylint: disable=too-many-public
         paths_to_outcome = self._find_all_paths_to_node(outcome_node_id, max_depth=5)
 
         # For each path, vary weights and see impact
-        sensitivity_results = []
+        sensitivity_results: List[Dict[str, Any]] = []
 
         for path in paths_to_outcome:
             # Vary each relationship weight
@@ -971,7 +971,7 @@ class NetworkXSFMQueryEngine(SFMQueryEngine):  # pylint: disable=too-many-public
             if not hasattr(node, 'meta') or not node.meta:
                 continue
 
-            geography = node.meta.get("geography", {})
+            geography: Union[str, Dict[str, str]] = node.meta.get("geography", {})
             if isinstance(geography, str):
                 # Handle string geography metadata
                 if state and state.lower() in geography.lower():
@@ -1000,13 +1000,13 @@ class NetworkXSFMQueryEngine(SFMQueryEngine):  # pylint: disable=too-many-public
             stringency_map = engine.get_policy_stringency_map()
             # Returns: {"California": 0.85, "Texas": 0.62, ...}
         """
-        state_map = {}
+        state_map: Dict[str, float] = {}
 
         for node in self.graph:
             if not hasattr(node, 'meta') or not node.meta:
                 continue
 
-            geography = node.meta.get("geography", {})
+            geography: Union[str, Dict[str, str]] = node.meta.get("geography", {})
             if isinstance(geography, dict) and "state" in geography:
                 state = geography["state"]
 
@@ -1062,7 +1062,7 @@ class NetworkXSFMQueryEngine(SFMQueryEngine):  # pylint: disable=too-many-public
         rel = self.graph.get_relationship_by_id(relationship_id)
         if not rel or "weight_history" not in rel.meta:
             return []
-        return rel.meta["weight_history"]  # type: ignore[return-value]
+        return rel.meta["weight_history"]  # type: ignore[no-any-return]
 
     def query_temporal_evolution(
         self,

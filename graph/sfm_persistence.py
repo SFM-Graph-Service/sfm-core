@@ -32,7 +32,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Type
+from typing import Any, Dict, List, Optional, Type, cast
 
 import networkx as nx
 
@@ -131,7 +131,7 @@ class NodeSerializer:
     """Handles serialization of Beta unified model nodes."""
 
     # Map of all Beta node types plus Hayden-compliant delivery matrix types for serialization
-    NODE_TYPE_REGISTRY = {
+    NODE_TYPE_REGISTRY: Dict[str, type] = {
         "Node": Node,
         "InformalNorm": InformalNorm,
         "MatrixCell": MatrixCell,
@@ -184,7 +184,7 @@ class NodeSerializer:
     }
 
     @staticmethod
-    def get_node_class(node_type_name: str) -> Optional[Type[Node]]:
+    def get_node_class(node_type_name: str) -> Optional[type]:
         """
         Get node class by type name.
 
@@ -253,7 +253,7 @@ class NodeSerializer:
         try:
             # Remove 'type' from data as it's not a constructor parameter
             node_data = {k: v for k, v in data.items() if k != 'type'}
-            node = node_class(**node_data)
+            node = cast(Node, node_class(**node_data))
             return node
         except Exception as e:
             raise SFMSerializationError(

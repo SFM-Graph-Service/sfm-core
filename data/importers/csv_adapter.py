@@ -157,6 +157,8 @@ class CSVImportAdapter(BaseImportAdapter):
         Yields:
             Dictionaries with SFM node attributes (after mapping)
         """
+        if isinstance(source, dict):
+            raise TypeError(f"Expected a file path, got dict: {source}")
         path = Path(source) if isinstance(source, str) else source
 
         # Validate path for security (always blocks path traversal)
@@ -302,6 +304,9 @@ class CSVImportAdapter(BaseImportAdapter):
             List of validation errors
         """
         errors = []
+        if isinstance(source, dict):
+            errors.append("Invalid path: expected a file path, got dict")
+            return errors
         path = Path(source) if isinstance(source, str) else source
 
         # Validate path for security (if enabled)
@@ -346,6 +351,8 @@ class CSVImportAdapter(BaseImportAdapter):
         Returns:
             Estimated row count
         """
+        if isinstance(source, dict):
+            return None
         path = Path(source) if isinstance(source, str) else source
 
         # Validate path for security (if enabled)

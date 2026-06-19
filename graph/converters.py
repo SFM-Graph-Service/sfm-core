@@ -9,7 +9,7 @@ Reference:
     - Discusses matrix-digraph equivalence for SFM analysis
 """
 
-from typing import Any, Optional
+from typing import Any, Dict, Optional
 import uuid
 
 import networkx as nx
@@ -41,7 +41,7 @@ def to_multidigraph(
         >>> G.edges(data=True, keys=True)
         OutMultiEdgeDataView([(...)])
     """
-    G = nx.MultiDiGraph()
+    G: nx.MultiDiGraph = nx.MultiDiGraph()
 
     # Add nodes for components
     for comp_id in matrix.components:
@@ -118,7 +118,7 @@ def from_multidigraph(
     matrix_scope = G.graph.get('matrix_scope')
 
     # Create matrix
-    matrix = service.create_delivery_matrix(
+    matrix: SFMDeliveryMatrix = service.create_delivery_matrix(
         label=label,
         description=description,
         matrix_scope=matrix_scope
@@ -194,7 +194,7 @@ def matrix_to_adjacency_dict(
         >>> adj[legislature_id][school_district_id]
         [<Delivery money>, <Delivery rule>]
     """
-    adj = {}
+    adj: Dict[Any, Dict[Any, Any]] = {}
 
     for comp_id in matrix.components:
         adj[comp_id] = {}
@@ -230,7 +230,7 @@ def adjacency_dict_to_matrix(
         all_components.update(targets.keys())
 
     # Create matrix
-    matrix = service.create_delivery_matrix(
+    matrix: SFMDeliveryMatrix = service.create_delivery_matrix(
         label=label,
         description=description,
         components=list(all_components)
@@ -271,7 +271,7 @@ def get_delivery_summary(matrix: SFMDeliveryMatrix) -> dict:
         >>> summary['deliveries_by_type']
         {'money': 4, 'rule': 1, 'authority': 2, 'information': 1, 'energy': 1}
     """
-    summary = {
+    summary: Dict[str, Any] = {
         'components': len(matrix.components),
         'non_empty_cells': len(matrix.get_non_empty_cells()),
         'total_cells': len(matrix.cells),

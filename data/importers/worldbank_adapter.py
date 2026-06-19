@@ -219,7 +219,7 @@ class WorldBankAdapter(BaseImportAdapter):
         # Build URL
         url = f"{self.BASE_URL}/country/{country}/indicator/{indicator}"
 
-        params = {
+        params: Dict[str, Union[str, int]] = {
             "format": "json",
             "page": page,
             "per_page": per_page
@@ -298,7 +298,7 @@ class WorldBankAdapter(BaseImportAdapter):
                 url = f"{self.BASE_URL}/country/{self.country}/indicator/{self.indicator}"
                 response = requests.get(
                     url,
-                    params={"format": "json", "per_page": 1},
+                    params={"format": "json", "per_page": "1"},
                     timeout=5
                 )
 
@@ -333,7 +333,7 @@ class WorldBankAdapter(BaseImportAdapter):
 
             if isinstance(data, list) and len(data) >= 1:
                 metadata = data[0]
-                return metadata.get("total", 0)
+                return int(metadata.get("total", 0))
 
             return 0
         except Exception:

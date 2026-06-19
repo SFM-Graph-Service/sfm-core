@@ -31,7 +31,7 @@ jobs:
 
       - name: Run Pylint
         run: |
-          pylint core/ api/ db/ --output-format=parseable --score=yes --exit-zero > pylint-report.txt 2>&1
+          pylint models/ graph/ data/ api/ --output-format=parseable --score=yes --exit-zero > pylint-report.txt 2>&1
           cat pylint-report.txt
           
           # Extract score more reliably
@@ -56,7 +56,7 @@ jobs:
       - name: Run Flake8
         run: |
           if command -v flake8 &> /dev/null; then
-            flake8 core/ api/ db/ --max-line-length=100 --exclude=__pycache__,*.pyc \
+            flake8 models/ graph/ data/ api/ --max-line-length=100 --exclude=__pycache__,*.pyc \
                    --ignore=E203,W503,F401 --show-source --statistics \
                    --output-file=flake8-report.txt || true
             echo "Flake8 results:" && cat flake8-report.txt
@@ -94,18 +94,15 @@ jobs:
       - name: Run MyPy
         run: |
           if command -v mypy &> /dev/null; then
-            mypy core/ api/ db/ --ignore-missing-imports > mypy-report.txt 2>&1 || true
+            mypy > mypy-report.txt 2>&1
+            EXIT_CODE=$?
             cat mypy-report.txt
-            
-            # Count errors and warnings more reliably
-            ERROR_COUNT=$(grep -c ": error:" mypy-report.txt 2>/dev/null || echo "0")
-            echo "MyPy errors: $ERROR_COUNT"
-            
-            # Allow up to 50 errors for gradual typing adoption
-            if [ "$ERROR_COUNT" -gt 50 ]; then
-              echo "Warning: Many MyPy errors ($ERROR_COUNT), but continuing for gradual adoption"
+
+            if [ $EXIT_CODE -ne 0 ]; then
+              echo "MyPy reported type errors — see report above."
+              exit $EXIT_CODE
             else
-              echo "MyPy error count ($ERROR_COUNT) is within acceptable range"
+              echo "MyPy: no type errors found."
             fi
           else
             echo "MyPy not available, skipping type checking" > mypy-report.txt
@@ -138,7 +135,7 @@ jobs:
       - name: Check Black formatting
         run: |
           if command -v black &> /dev/null; then
-            black --check --diff core/ api/ db/ tests/ || echo "Warning: Black formatting issues found"
+            black --check --diff models/ graph/ data/ api/ tests/ || echo "Warning: Black formatting issues found"
           else
             echo "Black not available, skipping format check"
           fi
@@ -146,7 +143,7 @@ jobs:
       - name: Check isort formatting
         run: |
           if command -v isort &> /dev/null; then
-            isort --check-only --diff core/ api/ db/ tests/ || echo "Warning: isort formatting issues found"
+            isort --check-only --diff models/ graph/ data/ api/ tests/ || echo "Warning: isort formatting issues found"
           else
             echo "isort not available, skipping import sort check"
           fi

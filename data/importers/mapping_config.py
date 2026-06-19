@@ -6,7 +6,7 @@ including type coercion, enum translation, and metadata extraction.
 """
 
 from dataclasses import dataclass, field
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional, Type
 from enum import Enum
 import uuid
 from datetime import datetime
@@ -95,7 +95,7 @@ class MappingConfig:
             KeyError: If required field missing
             ValueError: If transformation fails
         """
-        result = {
+        result: Dict[str, Any] = {
             "_node_type": self.node_type  # Store type for later instantiation
         }
         meta_dict = {}
@@ -305,7 +305,7 @@ def parse_uuid(value: str) -> uuid.UUID:
     return uuid.UUID(value)
 
 
-def parse_enum(enum_class: type) -> Callable[[str], Enum]:
+def parse_enum(enum_class: Type[Enum]) -> Callable[[str], Enum]:
     """
     Create enum parser for specific enum class.
 
