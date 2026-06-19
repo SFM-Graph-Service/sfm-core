@@ -32,7 +32,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Type, cast
+from typing import Any, Dict, List, Optional, cast
 
 import networkx as nx
 
