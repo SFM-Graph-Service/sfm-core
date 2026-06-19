@@ -18,12 +18,18 @@ Key concepts:
 - Financial institutions deliver capital and credit to corporations
 - Industry associations coordinate policy positions
 - Information flows through director networks
+
+What the analysis reveals:
+- Feedback loops between directors, boards, and associations.
+- Concentrated authority/information channels in interlocking directorates.
+- Structural conflicts where coordination and competition overlap.
 """
 
 from pathlib import Path
 from api.sfm_service import SFMService
 from models import Node
 from models.delivery_matrix import Delivery
+from graph.analysis_report import format_report, run_analysis_battery
 from graph.exporters import export_delivery_matrix_to_xlsx
 
 
@@ -452,6 +458,9 @@ def main():
 
     print(f"\nCells with multiple deliveries: {summary['cells_with_multiple_deliveries']}")
     print(f"Quantified deliveries: {summary['quantified_deliveries']}")
+
+    report = run_analysis_battery(service)
+    print("\n" + format_report(report))
 
     # Export to XLSX
     output_path = Path(__file__).parent / "director_networks.xlsx"

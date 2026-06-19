@@ -33,6 +33,11 @@ Key Sources:
 Components represent the institutional framework that emerged,
 with deliveries based on documented policy mechanisms, emissions data,
 and verified compliance requirements.
+
+What the analysis reveals:
+- Federal-state-regulated industry chains create persistent feedback loops.
+- Regulatory authority and enforcement produce measurable instrumental effects.
+- Environmental justice actors surface conflicts in delivery outcomes.
 """
 
 from pathlib import Path
@@ -40,8 +45,48 @@ from datetime import datetime, timedelta
 from api.sfm_service import SFMService
 from models import Node
 from models.delivery_matrix import Delivery
+from models.matrix_components import SFMCriteria
+from models.enums.analysis import CriteriaPriority, CriteriaType, MeasurementApproach
 from models.temporal_clocks import TemporalClock, TemporalPhase
+from graph.analysis_report import format_report, run_analysis_battery
+from graph.criteria_evaluation import evaluate_against_criteria
+from graph.sfm_graph import Relationship
 from graph.exporters import export_delivery_matrix_to_xlsx
+
+
+def _attach_clean_air_criteria(service: SFMService) -> None:
+    criteria_nodes = [
+        SFMCriteria(
+            label="Clean air public health criterion",
+            description="Air governance should reduce health harm from pollution exposure",
+            criteria_type=CriteriaType.SOCIAL,
+            measurement_approach=MeasurementApproach.MIXED,
+            priority=CriteriaPriority.PRIMARY,
+            meta={"is_criterion": "true"},
+        ),
+        SFMCriteria(
+            label="Clean air ecological emissions criterion",
+            description="Institutional deliveries should reduce ecological pollutant burden",
+            criteria_type=CriteriaType.ENVIRONMENTAL,
+            measurement_approach=MeasurementApproach.MIXED,
+            priority=CriteriaPriority.PRIMARY,
+            meta={"is_criterion": "true"},
+        ),
+    ]
+    for criterion in criteria_nodes:
+        service.create_node(criterion)
+
+    nodes_by_label = {node.label: node for node in service.list_nodes()}
+    epa = nodes_by_label.get("Environmental Protection Agency (EPA)")
+    industry = nodes_by_label.get("Industrial Facilities (Steel, Chemical, Manufacturing)")
+    if epa:
+        service.create_relationship(
+            Relationship(source_id=epa.id, target_id=criteria_nodes[0].id, kind="supports")
+        )
+    if industry:
+        service.create_relationship(
+            Relationship(source_id=industry.id, target_id=criteria_nodes[1].id, kind="undermines")
+        )
 
 
 def create_clean_air_act_matrix():
@@ -810,6 +855,7 @@ def create_clean_air_act_matrix():
         cell_description="Clean Air Act implementation delivers substantial public health benefits through dramatic pollution reductions"
     )
 
+    _attach_clean_air_criteria(service)
     return matrix, service
 
 
@@ -894,6 +940,11 @@ def main():
 
     print(f"\nCells with multiple deliveries: {summary['cells_with_multiple_deliveries']}")
     print(f"Quantified deliveries: {summary['quantified_deliveries']}")
+
+    report = run_analysis_battery(service)
+    print("\n" + format_report(report))
+    criteria_results = evaluate_against_criteria(service)
+    print(f"\nNormative criteria linked: {len(criteria_results)}")
 
     # Check thresholds (pollution monitoring)
     alerts = service.check_delivery_thresholds(matrix)

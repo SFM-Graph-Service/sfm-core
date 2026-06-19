@@ -19,13 +19,51 @@ Key concepts:
 - Interstate compacts coordinate regional solutions
 - Federal NRC provides oversight and standards
 - Cultural values conflict: ceremonial vs. instrumental
+
+What the analysis reveals:
+- Ceremonial resistance and instrumental safety claims are simultaneously present.
+- Interstate waste and payment cycles generate cumulative causation.
+- Compact governance introduces conflict-prone authority chokepoints.
 """
 
 from pathlib import Path
 from api.sfm_service import SFMService
 from models import Node
 from models.delivery_matrix import Delivery
+from models.matrix_components import SFMCriteria
+from models.enums.analysis import CriteriaPriority, CriteriaType, MeasurementApproach
+from graph.analysis_report import format_report, run_analysis_battery
+from graph.criteria_evaluation import evaluate_against_criteria
+from graph.sfm_graph import Relationship
 from graph.exporters import export_delivery_matrix_to_xlsx
+
+
+def _attach_llrw_criteria(service: SFMService, host_state_id, federal_regulator_id) -> None:
+    public_health = SFMCriteria(
+        label="Public health protection criterion",
+        description="LLRW handling should reduce exposure risk",
+        criteria_type=CriteriaType.SOCIAL,
+        measurement_approach=MeasurementApproach.MIXED,
+        priority=CriteriaPriority.PRIMARY,
+        meta={"is_criterion": "true"},
+    )
+    environmental_safety = SFMCriteria(
+        label="Environmental containment criterion",
+        description="LLRW storage should avoid ecological contamination",
+        criteria_type=CriteriaType.ENVIRONMENTAL,
+        measurement_approach=MeasurementApproach.MIXED,
+        priority=CriteriaPriority.PRIMARY,
+        meta={"is_criterion": "true"},
+    )
+
+    service.create_node(public_health)
+    service.create_node(environmental_safety)
+    service.create_relationship(
+        Relationship(source_id=federal_regulator_id, target_id=public_health.id, kind="supports")
+    )
+    service.create_relationship(
+        Relationship(source_id=host_state_id, target_id=environmental_safety.id, kind="undermines")
+    )
 
 
 def create_llrw_matrix():
@@ -412,6 +450,8 @@ def create_llrw_matrix():
         cell_description="Environmental groups provide public input to NRC regulatory process"
     )
 
+    _attach_llrw_criteria(service, nebraska.id, federal_nrc.id)
+
     return matrix, service
 
 
@@ -439,6 +479,11 @@ def main():
 
     print(f"\nCells with multiple deliveries: {summary['cells_with_multiple_deliveries']}")
     print(f"Quantified deliveries: {summary['quantified_deliveries']}")
+
+    report = run_analysis_battery(service)
+    print("\n" + format_report(report))
+    criteria_results = evaluate_against_criteria(service)
+    print(f"\nNormative criteria linked: {len(criteria_results)}")
 
     # Check thresholds (pollution monitoring)
     alerts = service.check_delivery_thresholds(matrix)

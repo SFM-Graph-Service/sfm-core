@@ -29,6 +29,11 @@ Key Deliveries:
     - Taxpayers → Legislature: Property tax revenue
     - Districts → Students: K-12 educational services
     - Dept Ed → Districts: Academic standards, audit authority
+
+What the analysis reveals:
+    - Circular funding dependencies between taxpayers, legislature, and districts.
+    - Institutional layering from legislature to agency to district implementation.
+    - Conflict points around tax equity and delivery adequacy.
 """
 
 from pathlib import Path
@@ -36,7 +41,8 @@ from pathlib import Path
 from api.sfm_service import SFMService
 from models import Node
 from models.delivery_matrix import Delivery
-from graph.exporters import export_delivery_matrix_to_xlsx
+from graph.analysis_report import format_report, run_analysis_battery
+from graph.exporters import export_delivery_matrix_to_xlsx, export_to_xmile
 
 
 def build_nebraska_k12_matrix():
@@ -327,6 +333,9 @@ def main():
     total_deliveries = sum(len(cell.deliveries) for cell in matrix.cells.values())
     print(f"  Total deliveries: {total_deliveries}")
 
+    report = run_analysis_battery(service)
+    print("\n" + format_report(report))
+
     # Print delivery breakdown by type
     delivery_types = {}
     for cell in matrix.cells.values():
@@ -336,6 +345,16 @@ def main():
     print(f"\n  Deliveries by type:")
     for dtype, count in sorted(delivery_types.items()):
         print(f"    {dtype}: {count}")
+
+    xmile_output = Path(__file__).parent / "nebraska_k12_finance.xmile"
+    export_to_xmile(
+        matrix=matrix,
+        filepath=xmile_output,
+        service=service,
+        model_name="Nebraska K-12 Finance",
+        model_description="System dynamics handoff from SFM delivery matrix",
+    )
+    print(f"  System dynamics export: {xmile_output}")
 
 
 if __name__ == "__main__":
