@@ -364,5 +364,56 @@ class TestRepositoryIntegration(unittest.TestCase):
         # Should not raise error, may be None or initialized
 
 
+class TestHolarchyWiring(unittest.TestCase):
+    """Tests verifying the holarchy service method is wired to the query engine."""
+
+    def setUp(self):
+        self.service = SFMService()
+
+    def test_get_holarchy_returns_real_result_when_engine_initialized(self):
+        """get_holarchy should return non-placeholder data when query engine is active."""
+        # Build a simple 2-level institutional nesting
+        parent = Node(label="Federal Agency", description="Top-level institution")
+        child1 = Node(label="Regional Office A", description="Sub-institution")
+        child2 = Node(label="Regional Office B", description="Sub-institution")
+
+        self.service.create_node(parent)
+        self.service.create_node(child1)
+        self.service.create_node(child2)
+
+        # Connect parent → children so the BFS traversal finds them
+        from graph.sfm_graph import Relationship
+        self.service.create_relationship(
+            Relationship(source_id=parent.id, target_id=child1.id, kind="contains")
+        )
+        self.service.create_relationship(
+            Relationship(source_id=parent.id, target_id=child2.id, kind="contains")
+        )
+
+        self.service.initialize_query_engine()
+        result = self.service.get_holarchy(parent.id)
+
+        self.assertIsInstance(result, dict)
+        self.assertIn("institution_id", result)
+        self.assertIn("layers", result)
+        self.assertIn("depth", result)
+        self.assertIn("total_institutions", result)
+        # With 3 nodes reachable the result should have at least the root node
+        self.assertGreater(result["total_institutions"], 0)
+        self.assertGreater(result["depth"], 0)
+
+    def test_get_holarchy_uninitialized_engine_returns_empty(self):
+        """get_holarchy should return empty-but-valid dict if engine not initialized."""
+        institution = Node(label="Lonely Agency", description="no children")
+        self.service.create_node(institution)
+
+        # Do NOT call initialize_query_engine()
+        result = self.service.get_holarchy(institution.id)
+
+        self.assertIsInstance(result, dict)
+        self.assertEqual(result["layers"], [])
+        self.assertEqual(result["depth"], 0)
+
+
 if __name__ == "__main__":
     unittest.main()
