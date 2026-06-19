@@ -16,7 +16,7 @@ Mapping:
 """
 
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, List, Optional
 import xml.etree.ElementTree as ET
 import xml.dom.minidom as minidom
 
@@ -101,7 +101,7 @@ def export_to_xmile(
         ET.SubElement(stock, "eqn").text = "0"  # Initial value
 
         # Display information (for visual layout)
-        display = ET.SubElement(stock, "display", {
+        ET.SubElement(stock, "display", {
             "x": str(stock_positions[idx][0]),
             "y": str(stock_positions[idx][1]),
             "color": "blue"

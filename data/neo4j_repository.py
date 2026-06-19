@@ -10,7 +10,7 @@ provides efficient graph operations using Cypher queries.
 import uuid
 import json
 from datetime import datetime
-from typing import Optional, List, Type, Any, Dict, TYPE_CHECKING
+from typing import Optional, List, Type, Any, Dict
 from enum import Enum
 
 try:

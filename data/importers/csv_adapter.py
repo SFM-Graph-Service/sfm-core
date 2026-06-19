@@ -58,7 +58,6 @@ def _validate_safe_path(path: Path, base_dir: Optional[Path] = None) -> Path:
 
     # ALWAYS block obvious path traversal patterns before resolution
     # This catches "../../../etc/passwd" and similar attacks
-    path_str = str(path)
     if ".." in path.parts:
         raise ValueError(
             f"Path traversal detected: path contains '..' component: {path}. "

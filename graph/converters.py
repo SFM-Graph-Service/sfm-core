@@ -14,7 +14,7 @@ import uuid
 
 import networkx as nx
 
-from models.delivery_matrix import Delivery, SFMDeliveryCell, SFMDeliveryMatrix
+from models.delivery_matrix import Delivery, SFMDeliveryMatrix
 
 
 def to_multidigraph(

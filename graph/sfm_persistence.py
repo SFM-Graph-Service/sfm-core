@@ -5,10 +5,21 @@ Provides persistence capabilities for Social Fabric Matrix graphs using the Beta
 Enables storage, loading, and serialization of in-memory graph data.
 
 Key Features:
-- JSON and Pickle storage formats
+- JSON storage formats (default and recommended)
+- Pickle storage formats (opt-in only — see security warning below)
 - Serialization for all 33 Beta unified model node types
 - Data validation and integrity checking
 - Version management
+
+.. warning:: **Pickle Security**
+    The ``PICKLE`` and ``COMPRESSED_PICKLE`` storage formats use Python's
+    ``pickle`` module.  Deserializing pickle data from an **untrusted source**
+    allows arbitrary code execution on the host.  Pickle deserialization is
+    therefore **disabled by default**.  It must be explicitly opted into by
+    passing ``allow_pickle=True`` to :meth:`SFMGraphSerializer.deserialize_graph`
+    and :meth:`SFMPersistenceManager.load_graph`.  Never enable ``allow_pickle``
+    for data received from untrusted parties.  The default and recommended
+    format is JSON.
 """
 
 import gzip
@@ -332,8 +343,27 @@ class SFMGraphSerializer:
         raise TypeError(f"Type {type(obj)} not serializable")
 
     @staticmethod
-    def deserialize_graph(data: bytes, format_type: StorageFormat = StorageFormat.JSON) -> Any:
-        """Deserialize bytes to an SFM graph."""
+    def deserialize_graph(
+        data: bytes,
+        format_type: StorageFormat = StorageFormat.JSON,
+        allow_pickle: bool = False,
+    ) -> Any:
+        """Deserialize bytes to an SFM graph.
+
+        Args:
+            data: Raw bytes to deserialize.
+            format_type: The :class:`StorageFormat` used when the graph was
+                serialized.  Defaults to ``StorageFormat.JSON``.
+            allow_pickle: Must be explicitly set to ``True`` to allow pickle
+                deserialization.  Defaults to ``False``.  **Only enable this
+                for data that originates from a fully trusted source** — pickle
+                data from an untrusted source can execute arbitrary code.
+
+        Raises:
+            SFMSerializationError: If deserialization fails, the format is
+                unsupported, or pickle deserialization is attempted without
+                ``allow_pickle=True``.
+        """
         try:
             if format_type in [StorageFormat.COMPRESSED_JSON, StorageFormat.COMPRESSED_PICKLE]:
                 data = gzip.decompress(data)
@@ -343,10 +373,18 @@ class SFMGraphSerializer:
                 return SFMGraphSerializer._dict_to_graph(dict_data)
 
             if format_type in [StorageFormat.PICKLE, StorageFormat.COMPRESSED_PICKLE]:
-                return pickle.loads(data)
+                if not allow_pickle:
+                    raise SFMSerializationError(
+                        "Pickle deserialization is disabled by default because unpickling "
+                        "untrusted data can execute arbitrary code (CWE-502). "
+                        "Pass allow_pickle=True only when the source is fully trusted."
+                    )
+                return pickle.loads(data)  # nosec B301 – caller has opted in
 
             raise SFMSerializationError(f"Unsupported format: {format_type}")
 
+        except SFMSerializationError:
+            raise
         except Exception as e:
             raise SFMSerializationError(f"Failed to deserialize graph: {str(e)}") from e
 
@@ -428,9 +466,19 @@ class SFMPersistenceManager:
     def load_graph(
         self,
         filename: str,
-        format_type: StorageFormat = StorageFormat.JSON
+        format_type: StorageFormat = StorageFormat.JSON,
+        allow_pickle: bool = False,
     ) -> Any:
-        """Load a graph from disk."""
+        """Load a graph from disk.
+
+        Args:
+            filename: Name of the file to load (relative to ``base_path``).
+            format_type: The :class:`StorageFormat` the file was saved in.
+                Defaults to ``StorageFormat.JSON``.
+            allow_pickle: Set to ``True`` only for files from fully trusted
+                sources.  See :meth:`SFMGraphSerializer.deserialize_graph` for
+                the security implications.
+        """
         file_path = self.base_path / filename
 
         if not file_path.exists():
@@ -441,7 +489,7 @@ class SFMPersistenceManager:
             data = f.read()
 
         # Deserialize graph
-        graph = SFMGraphSerializer.deserialize_graph(data, format_type)
+        graph = SFMGraphSerializer.deserialize_graph(data, format_type, allow_pickle=allow_pickle)
 
         logger.info("Loaded graph from %s", file_path)
         return graph

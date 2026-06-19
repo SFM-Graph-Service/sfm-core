@@ -11,7 +11,7 @@ Three-sheet format:
 """
 
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 from openpyxl import Workbook
 from openpyxl.styles import PatternFill, Font, Alignment, Border, Side
