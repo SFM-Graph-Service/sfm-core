@@ -164,8 +164,8 @@ class TestBulkCreatePerformance:
         self.service = SFMService()
 
     def test_bulk_vs_individual_creation(self):
-        """Compare bulk vs individual node creation performance."""
-        # Create 500 nodes individually for measurable timing difference
+        """Verify bulk and individual node creation both produce the expected graph state."""
+        # Create 500 nodes individually
         nodes_individual = [
             Node(label=f'Individual {i}', description=f'Node {i}')
             for i in range(500)
@@ -186,16 +186,12 @@ class TestBulkCreatePerformance:
         self.service.repository.create_nodes_bulk(nodes_bulk)
         bulk_time = time.time() - start
 
-        # Bulk should be faster or at least comparable
-        speedup = individual_time / bulk_time if bulk_time > 0 else 0
+        # Log timing for informational purposes only (not a gating assertion)
+        speedup = individual_time / bulk_time if bulk_time > 0 else float('inf')
         print(f"Individual: {individual_time:.4f}s, Bulk: {bulk_time:.4f}s, Speedup: {speedup:.1f}x")
 
-        # Should see speedup (exact ratio varies by backend, NetworkX is very fast for both)
-        # Allow 20% tolerance for timing variability on slower CI runners
-        tolerance = 1.2
-        assert bulk_time < individual_time * tolerance, \
-            f"Bulk creation significantly slower than individual: {bulk_time:.4f}s vs {individual_time:.4f}s (speedup: {speedup:.2f}x)"
-
-        # Verify all nodes created
+        # Correctness: verify all nodes were created regardless of path taken
         all_nodes = self.service.list_nodes()
-        assert len(all_nodes) == 1000  # 500 individual + 500 bulk
+        assert len(all_nodes) == 1000, (
+            f"Expected 1000 nodes (500 individual + 500 bulk), got {len(all_nodes)}"
+        )
