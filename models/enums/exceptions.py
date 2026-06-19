@@ -8,7 +8,7 @@ enum combinations and relationships.
 from __future__ import annotations
 
 from enum import Enum
-from typing import Any, Callable, Dict, List, Set, Tuple, Type, Union
+from typing import Any, Callable, Dict, List, Tuple, Type, Union
 
 from models.enums.values import ValueCategory
 from models.enums.institutions import (
