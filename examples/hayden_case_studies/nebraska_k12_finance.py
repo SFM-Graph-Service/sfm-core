@@ -326,7 +326,7 @@ def main():
     print(f"✓ Exported to: {output_path}")
 
     # Print summary
-    print(f"\nMatrix Summary:")
+    print("\nMatrix Summary:")
     print(f"  Components: {len(matrix.components)}")
     print(f"  Non-empty cells: {len(matrix.get_non_empty_cells())}")
 
@@ -342,7 +342,7 @@ def main():
         for delivery in cell.deliveries:
             delivery_types[delivery.delivery_type] = delivery_types.get(delivery.delivery_type, 0) + 1
 
-    print(f"\n  Deliveries by type:")
+    print("\n  Deliveries by type:")
     for dtype, count in sorted(delivery_types.items()):
         print(f"    {dtype}: {count}")
 

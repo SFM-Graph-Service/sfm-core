@@ -41,7 +41,7 @@ What the analysis reveals:
 """
 
 from pathlib import Path
-from datetime import datetime, timedelta
+from datetime import timedelta
 from api.sfm_service import SFMService
 from models import Node
 from models.delivery_matrix import Delivery
@@ -930,11 +930,11 @@ def main():
     # Display summary
     summary = matrix.get_summary()
 
-    print(f"\nMatrix Summary:")
+    print("\nMatrix Summary:")
     print(f"  Components: {summary['components']}")
     print(f"  Non-empty cells: {summary['non_empty_cells']}")
     print(f"  Total deliveries: {summary['total_deliveries']}")
-    print(f"\nDeliveries by type:")
+    print("\nDeliveries by type:")
     for dtype, count in summary['deliveries_by_type'].items():
         print(f"  {dtype}: {count}")
 
