@@ -77,12 +77,6 @@ def _validate_safe_path(path: Path, base_dir: Optional[Path] = None) -> Path:
             "This is a security risk (CWE-22)."
         )
 
-    # In non-strict mode, reject absolute paths to avoid arbitrary filesystem access.
-    if base_dir is None and path.is_absolute():
-        raise ValueError(
-            f"Absolute paths are not allowed without an allowed base directory: {path}"
-        )
-
     # Resolve to absolute path to handle symlinks and relative paths
     try:
         resolved_path = path.resolve()
