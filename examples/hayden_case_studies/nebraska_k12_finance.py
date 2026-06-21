@@ -28,6 +28,26 @@ Key Deliveries:
     - Legislature → Dept Ed: Oversight authority, administrative budget
     - Taxpayers → Legislature: Property tax revenue
     - Districts → Students: K-12 educational services
+
+What the Analysis Reveals:
+    The SFM analysis battery demonstrates Nebraska's education finance system
+    as a circular causation mechanism with strong holarchical structure. The
+    analysis identifies:
+
+    1. Circular causation paths: Property taxes → state appropriations →
+       TEEOSA formula → district funding → student outcomes → property values
+
+    2. Institutional holarchy: Three governance levels (state legislature,
+       department of education, local school districts) with nested authority
+
+    3. Ceremonial vs instrumental: TEEOSA formula (instrumental equalization)
+       balanced against local control and property tax autonomy (ceremonial)
+
+    4. Feedback cycles: Student enrollment → formula calculations → funding
+       allocations → service delivery → enrollment changes
+
+    5. Conflicts: Urban-rural funding disparities may reveal tensions between
+       equalization goals and local property wealth concentration
     - Dept Ed → Districts: Academic standards, audit authority
 """
 
@@ -37,6 +57,7 @@ from api.sfm_service import SFMService
 from models import Node
 from models.delivery_matrix import Delivery
 from graph.exporters import export_delivery_matrix_to_xlsx
+from graph.analysis_report import run_analysis_battery, format_report
 
 
 def build_nebraska_k12_matrix():
@@ -306,6 +327,14 @@ def main():
         print(f"⚠ Matrix validation errors: {errors}")
     else:
         print("✓ Matrix validation passed")
+
+    # Run SFM analysis battery
+    print("\n" + "=" * 70)
+    print("RUNNING SFM ANALYSIS BATTERY")
+    print("=" * 70)
+    report = run_analysis_battery(service)
+    analysis_text = format_report(report)
+    print(analysis_text)
 
     # Export to XLSX
     output_path = Path(__file__).parent / "nebraska_k12_finance.xlsx"

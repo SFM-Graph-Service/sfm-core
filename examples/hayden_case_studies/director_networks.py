@@ -18,6 +18,25 @@ Key concepts:
 - Financial institutions deliver capital and credit to corporations
 - Industry associations coordinate policy positions
 - Information flows through director networks
+
+What the Analysis Reveals:
+    The SFM analysis battery demonstrates corporate director networks as power
+    delivery systems with concentrated authority flows. The analysis identifies:
+
+    1. Circular causation paths: Financial institutions → corporate boards →
+       strategic decisions → capital allocation → investment returns → reinvestment
+
+    2. Institutional holarchy: Multi-level structure from individual directors
+       through boards to industry associations and regulatory oversight
+
+    3. Ceremonial vs instrumental: Board governance (ceremonial status maintenance)
+       balanced against capital allocation and strategic guidance (instrumental)
+
+    4. Feedback cycles: Director appointments → board decisions → corporate
+       performance → director reputation → future appointments
+
+    5. Conflicts: Interlocking directorates may reveal conflicts between
+       fiduciary duties to different corporations
 """
 
 from pathlib import Path
@@ -25,6 +44,7 @@ from api.sfm_service import SFMService
 from models import Node
 from models.delivery_matrix import Delivery
 from graph.exporters import export_delivery_matrix_to_xlsx
+from graph.analysis_report import run_analysis_battery, format_report
 
 
 def create_director_network_matrix():
@@ -452,6 +472,14 @@ def main():
 
     print(f"\nCells with multiple deliveries: {summary['cells_with_multiple_deliveries']}")
     print(f"Quantified deliveries: {summary['quantified_deliveries']}")
+
+    # Run SFM analysis battery
+    print("\n" + "=" * 70)
+    print("RUNNING SFM ANALYSIS BATTERY")
+    print("=" * 70)
+    report = run_analysis_battery(service)
+    analysis_text = format_report(report)
+    print(analysis_text)
 
     # Export to XLSX
     output_path = Path(__file__).parent / "director_networks.xlsx"

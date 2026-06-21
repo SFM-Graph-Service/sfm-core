@@ -19,6 +19,27 @@ Key concepts:
 - Interstate compacts coordinate regional solutions
 - Federal NRC provides oversight and standards
 - Cultural values conflict: ceremonial vs. instrumental
+
+What the Analysis Reveals:
+    The SFM analysis battery demonstrates LLRW policy as a case study in
+    ceremonial-instrumental conflict and interstate cooperation. The analysis
+    identifies:
+
+    1. Circular causation paths: Waste generation → disposal fees → host state
+       revenue → facility operation → continued waste acceptance
+
+    2. Institutional holarchy: Federal NRC oversight → interstate compacts →
+       member states → facility operators
+
+    3. Ceremonial vs instrumental: NIMBY resistance and state sovereignty
+       (ceremonial) versus scientific risk assessment and regional cooperation
+       (instrumental)
+
+    4. Feedback cycles: Host state payments → facility maintenance → regulatory
+       compliance → continued NRC approval → sustained operations
+
+    5. Conflicts: Interstate compact structure reveals tensions between host
+       state burdens and generator state responsibilities
 """
 
 from pathlib import Path
@@ -26,6 +47,7 @@ from api.sfm_service import SFMService
 from models import Node
 from models.delivery_matrix import Delivery
 from graph.exporters import export_delivery_matrix_to_xlsx
+from graph.analysis_report import run_analysis_battery, format_report
 
 
 def create_llrw_matrix():
@@ -449,6 +471,14 @@ def main():
             print(f"  Current: {alert.current_value}, Threshold: {alert.threshold}")
     else:
         print("\nNo threshold alerts (waste volumes within baseline)")
+
+    # Run SFM analysis battery
+    print("\n" + "=" * 70)
+    print("RUNNING SFM ANALYSIS BATTERY")
+    print("=" * 70)
+    report = run_analysis_battery(service)
+    analysis_text = format_report(report)
+    print(analysis_text)
 
     # Export to XLSX
     output_path = Path(__file__).parent / "radioactive_waste.xlsx"
