@@ -44,10 +44,13 @@ What the Analysis Reveals:
 
 from pathlib import Path
 from api.sfm_service import SFMService
-from models import Node
-from models.delivery_matrix import Delivery
+from models import Node, SFMCriteria
+from models.sfm_enums import CriteriaType, CriteriaPriority
+from models.delivery_matrix import Delivery, SFMDeliveryMatrix
 from graph.exporters import export_delivery_matrix_to_xlsx
 from graph.analysis_report import run_analysis_battery, format_report
+from graph.criteria_evaluation import evaluate_against_criteria, format_evaluation_report
+from graph import Relationship
 
 
 def create_llrw_matrix():
@@ -434,6 +437,129 @@ def create_llrw_matrix():
         cell_description="Environmental groups provide public input to NRC regulatory process"
     )
 
+    # =========================================================================
+    # CRITERIA: Normative Evaluation Framework
+    # =========================================================================
+    # Add criteria to evaluate LLRW policy deliveries against social goals
+
+    # Criterion 1: Public Health Protection
+    public_health = SFMCriteria(
+        label="Public Health Protection",
+        description="Protection of public health from radioactive waste exposure risks",
+        criteria_type=CriteriaType.SOCIAL,
+        priority=CriteriaPriority.PRIMARY,
+        weight=1.0,
+        life_process_relevance=0.98,
+        instrumental_capacity=0.90,
+        ceremonial_bias_risk=0.05,
+        normative_justification="Primary purpose of LLRW policy is to protect public health and safety from radiation exposure per Low-Level Radioactive Waste Policy Act of 1980"
+    )
+    service.create_node(public_health)
+
+    # Criterion 2: Interstate Equity
+    interstate_equity = SFMCriteria(
+        label="Interstate Equity",
+        description="Fair distribution of LLRW disposal burdens and benefits among states",
+        criteria_type=CriteriaType.SOCIAL,
+        priority=CriteriaPriority.PRIMARY,
+        weight=0.90,
+        life_process_relevance=0.85,
+        instrumental_capacity=0.75,
+        ceremonial_bias_risk=0.30,
+        normative_justification="Interstate compact system was designed to achieve equitable sharing of disposal responsibilities (Hayden & Bolduc 2000)"
+    )
+    service.create_node(interstate_equity)
+
+    # Criterion 3: Scientific Risk Management
+    scientific_management = SFMCriteria(
+        label="Scientific Risk Management",
+        description="Evidence-based decision making for waste disposal siting and operation",
+        criteria_type=CriteriaType.TECHNOLOGICAL,
+        priority=CriteriaPriority.SECONDARY,
+        weight=0.85,
+        life_process_relevance=0.90,
+        instrumental_capacity=0.95,
+        ceremonial_bias_risk=0.10,
+        normative_justification="NRC regulations require scientifically-based site selection and operational controls to minimize environmental risk"
+    )
+    service.create_node(scientific_management)
+
+    # =========================================================================
+    # LINK DELIVERIES TO CRITERIA via Relationships
+    # =========================================================================
+    # Create relationships that link delivery cells to criteria they serve/undermine
+
+    # Get the delivery matrix
+    matrices = [n for n in service.list_nodes() if isinstance(n, SFMDeliveryMatrix)]
+    if matrices:
+        delivery_matrix = matrices[0]
+
+        # Link: Federal NRC → Nebraska safety standards SERVE public health
+        nrc_to_nebraska_cell = delivery_matrix.get_cell(federal_nrc.id, nebraska.id)
+        if nrc_to_nebraska_cell:
+            service.create_relationship(
+                Relationship(
+                    source_id=nrc_to_nebraska_cell.id,
+                    target_id=public_health.id,
+                    kind="evaluates_to",
+                    weight=0.95  # Strong positive - federal safety standards protect health
+                )
+            )
+            service.create_relationship(
+                Relationship(
+                    source_id=nrc_to_nebraska_cell.id,
+                    target_id=scientific_management.id,
+                    kind="evaluates_to",
+                    weight=0.90  # Strong positive - NRC uses scientific standards
+                )
+            )
+
+        # Link: Central Compact → Nebraska payment flows SERVE interstate equity
+        compact_to_nebraska_cell = delivery_matrix.get_cell(central_compact.id, nebraska.id)
+        if compact_to_nebraska_cell:
+            service.create_relationship(
+                Relationship(
+                    source_id=compact_to_nebraska_cell.id,
+                    target_id=interstate_equity.id,
+                    kind="evaluates_to",
+                    weight=0.85  # Positive - payments compensate host state
+                )
+            )
+
+        # Link: Generator states → Nebraska waste shipments UNDERMINE interstate equity
+        # (Nebraska bears disproportionate burden)
+        for state_id in [arkansas.id, kansas.id, louisiana.id, oklahoma.id]:
+            state_to_nebraska_cell = delivery_matrix.get_cell(state_id, nebraska.id)
+            if state_to_nebraska_cell:
+                service.create_relationship(
+                    Relationship(
+                        source_id=state_to_nebraska_cell.id,
+                        target_id=interstate_equity.id,
+                        kind="evaluates_to",
+                        weight=-0.60  # Negative - waste burden concentrated on host state
+                    )
+                )
+
+        # Link: Environmental groups → Nebraska monitoring SERVES scientific management
+        enviro_to_nebraska_cell = delivery_matrix.get_cell(environmental_groups.id, nebraska.id)
+        if enviro_to_nebraska_cell:
+            service.create_relationship(
+                Relationship(
+                    source_id=enviro_to_nebraska_cell.id,
+                    target_id=scientific_management.id,
+                    kind="evaluates_to",
+                    weight=0.80  # Positive - instrumental evidence-based monitoring
+                )
+            )
+            service.create_relationship(
+                Relationship(
+                    source_id=enviro_to_nebraska_cell.id,
+                    target_id=public_health.id,
+                    kind="evaluates_to",
+                    weight=0.75  # Positive - safety monitoring protects health
+                )
+            )
+
     return matrix, service
 
 
@@ -451,11 +577,11 @@ def main():
     # Display summary
     summary = matrix.get_summary()
 
-    print(f"\nMatrix Summary:")
+    print("\nMatrix Summary:")
     print(f"  Components: {summary['components']}")
     print(f"  Non-empty cells: {summary['non_empty_cells']}")
     print(f"  Total deliveries: {summary['total_deliveries']}")
-    print(f"\nDeliveries by type:")
+    print("\nDeliveries by type:")
     for dtype, count in summary['deliveries_by_type'].items():
         print(f"  {dtype}: {count}")
 
@@ -479,6 +605,14 @@ def main():
     report = run_analysis_battery(service)
     analysis_text = format_report(report)
     print(analysis_text)
+
+    # Run criteria evaluation
+    print("\n" + "=" * 80)
+    print("CRITERIA EVALUATION REPORT")
+    print("=" * 80)
+    criteria_results = evaluate_against_criteria(service)
+    evaluation_text = format_evaluation_report(criteria_results, include_details=True)
+    print(evaluation_text)
 
     # Export to XLSX
     output_path = Path(__file__).parent / "radioactive_waste.xlsx"

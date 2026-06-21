@@ -56,13 +56,16 @@ What the Analysis Reveals:
 """
 
 from pathlib import Path
-from datetime import datetime, timedelta
+from datetime import timedelta
 from api.sfm_service import SFMService
-from models import Node
-from models.delivery_matrix import Delivery
+from models import Node, SFMCriteria
+from models.sfm_enums import CriteriaType, CriteriaPriority
+from models.delivery_matrix import Delivery, SFMDeliveryMatrix
 from models.temporal_clocks import TemporalClock, TemporalPhase
 from graph.exporters import export_delivery_matrix_to_xlsx
 from graph.analysis_report import run_analysis_battery, format_report
+from graph.criteria_evaluation import evaluate_against_criteria, format_evaluation_report
+from graph import Relationship
 
 
 def create_clean_air_act_matrix():
@@ -831,6 +834,123 @@ def create_clean_air_act_matrix():
         cell_description="Clean Air Act implementation delivers substantial public health benefits through dramatic pollution reductions"
     )
 
+    # =========================================================================
+    # CRITERIA: Normative Evaluation Framework
+    # =========================================================================
+    # Add criteria to evaluate deliveries against social goals
+
+    # Criterion 1: Public Health Protection
+    public_health = SFMCriteria(
+        label="Public Health Protection",
+        description="Protection of public health from air pollution hazards",
+        criteria_type=CriteriaType.SOCIAL,
+        priority=CriteriaPriority.PRIMARY,
+        weight=1.0,
+        life_process_relevance=0.95,
+        instrumental_capacity=0.90,
+        ceremonial_bias_risk=0.10,
+        normative_justification="Primary purpose of Clean Air Act (Section 101) is to 'protect and enhance the quality of the Nation's air resources so as to promote the public health and welfare'"
+    )
+    service.create_node(public_health)
+
+    # Criterion 2: Environmental Justice
+    environmental_justice = SFMCriteria(
+        label="Environmental Justice",
+        description="Equitable distribution of air quality benefits and burdens across communities",
+        criteria_type=CriteriaType.SOCIAL,
+        priority=CriteriaPriority.PRIMARY,
+        weight=0.85,
+        life_process_relevance=0.90,
+        instrumental_capacity=0.70,
+        ceremonial_bias_risk=0.40,
+        normative_justification="Executive Order 12898 (1994) and EPA's environmental justice mandate require fair treatment of all communities"
+    )
+    service.create_node(environmental_justice)
+
+    # Criterion 3: Technology Forcing & Innovation
+    technology_forcing = SFMCriteria(
+        label="Technology Forcing & Innovation",
+        description="Stimulation of pollution control technology development",
+        criteria_type=CriteriaType.TECHNOLOGICAL,
+        priority=CriteriaPriority.SECONDARY,
+        weight=0.75,
+        life_process_relevance=0.80,
+        instrumental_capacity=0.95,
+        ceremonial_bias_risk=0.15,
+        normative_justification="Clean Air Act's technology-forcing provisions drive innovation in pollution control (catalytic converter, scrubbers)"
+    )
+    service.create_node(technology_forcing)
+
+    # =========================================================================
+    # LINK DELIVERIES TO CRITERIA via Relationships
+    # =========================================================================
+    # Create relationships that link delivery cells to criteria they serve/undermine
+    # Uses SFMDeliveryMatrix cells (not DeliveryRelationship nodes)
+
+    # Get the delivery matrix
+    matrices = [n for n in service.list_nodes() if isinstance(n, SFMDeliveryMatrix)]
+    if matrices:
+        delivery_matrix = matrices[0]  # Should only be one matrix in this case study
+
+        # Link: EPA → american_public cell SERVES public health criterion
+        epa_to_public_cell = delivery_matrix.get_cell(epa.id, american_public.id)
+        if epa_to_public_cell:
+            service.create_relationship(
+                Relationship(
+                    source_id=epa_to_public_cell.id,
+                    target_id=public_health.id,
+                    kind="evaluates_to",
+                    weight=0.95  # Strong positive alignment - health deliveries serve health criterion
+                )
+            )
+
+        # Link: EPA → auto_manufacturers cell SERVES technology forcing criterion
+        # (EPA standards drive catalytic converter innovation)
+        epa_to_auto_cell = delivery_matrix.get_cell(epa.id, auto_manufacturers.id)
+        if epa_to_auto_cell:
+            service.create_relationship(
+                Relationship(
+                    source_id=epa_to_auto_cell.id,
+                    target_id=technology_forcing.id,
+                    kind="evaluates_to",
+                    weight=0.90  # Strong positive - technology-forcing standards
+                )
+            )
+
+        # Link: auto_manufacturers → american_public cell also SERVES public health
+        # (Catalytic converters reduce pollution exposure)
+        auto_to_public_cell = delivery_matrix.get_cell(auto_manufacturers.id, american_public.id)
+        if auto_to_public_cell:
+            service.create_relationship(
+                Relationship(
+                    source_id=auto_to_public_cell.id,
+                    target_id=public_health.id,
+                    kind="evaluates_to",
+                    weight=0.75  # Positive - cleaner cars improve health
+                )
+            )
+
+        # Link: industrial_facilities → american_public cell UNDERMINES environmental justice
+        # (Pollution disproportionately impacts EJ communities)
+        # Note: Looking for cells where industrial facilities deliver pollution to public
+        for (source_id, target_id), cell in delivery_matrix.cells.items():
+            # Check if this is an industrial facility delivering pollution
+            source_node = service.get_node(source_id)
+            target_node = service.get_node(target_id)
+
+            if (source_node and target_node and
+                source_node.label in ["Steel Mill", "Chemical Plant", "Oil Refinery"] and
+                target_node.label == "American Public"):
+                # Industrial pollution deliveries undermine environmental justice
+                service.create_relationship(
+                    Relationship(
+                        source_id=cell.id,
+                        target_id=environmental_justice.id,
+                        kind="evaluates_to",
+                        weight=-0.80  # Strong negative - disproportionate harm
+                    )
+                )
+
     return matrix, service
 
 
@@ -905,11 +1025,11 @@ def main():
     # Display summary
     summary = matrix.get_summary()
 
-    print(f"\nMatrix Summary:")
+    print("\nMatrix Summary:")
     print(f"  Components: {summary['components']}")
     print(f"  Non-empty cells: {summary['non_empty_cells']}")
-    print(f"  Total deliveries: {summary['total_deliveries']}")
-    print(f"\nDeliveries by type:")
+    print(f"  Total deliveries: {summary['total deliveries']}")
+    print("\nDeliveries by type:")
     for dtype, count in summary['deliveries_by_type'].items():
         print(f"  {dtype}: {count}")
 
@@ -933,6 +1053,14 @@ def main():
     report = run_analysis_battery(service)
     analysis_text = format_report(report)
     print(analysis_text)
+
+    # Run criteria evaluation
+    print("\n" + "=" * 80)
+    print("CRITERIA EVALUATION REPORT")
+    print("=" * 80)
+    criteria_results = evaluate_against_criteria(service)
+    evaluation_text = format_evaluation_report(criteria_results, include_details=True)
+    print(evaluation_text)
 
     # Export to XLSX
     output_path = Path(__file__).parent / "clean_air_act_1970.xlsx"

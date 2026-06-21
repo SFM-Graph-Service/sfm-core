@@ -17,6 +17,13 @@ from graph.sfm_query import (
     NetworkXSFMQueryEngine,
     SFMQueryFactory,
 )
+from graph.criteria_evaluation import (
+    EvaluationAlignment,
+    DeliveryEvaluation,
+    CriterionEvaluationResult,
+    evaluate_against_criteria,
+    format_evaluation_report,
+)
 
 __all__ = [
     # Graph
@@ -31,4 +38,10 @@ __all__ = [
     "SFMQueryEngine",
     "NetworkXSFMQueryEngine",
     "SFMQueryFactory",
+    # Criteria Evaluation
+    "EvaluationAlignment",
+    "DeliveryEvaluation",
+    "CriterionEvaluationResult",
+    "evaluate_against_criteria",
+    "format_evaluation_report",
 ]
