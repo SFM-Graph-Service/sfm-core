@@ -21,14 +21,23 @@ from .validators import validate_csv_headers
 
 def _is_uri_like_source(value: str) -> bool:
     """
-    Return True when a source string is URI-like (scheme:...), not a local file path.
-    Examples: oecd:GREEN_GROWTH, http://..., s3://bucket/key
+    Return True when a source string looks like a non-local identifier/URI (scheme:... or scheme://...),
+    rather than a filesystem path.
+
+    Notes:
+    - Windows drive-letter paths (e.g. "C:\\tmp\\file.csv") are treated as local paths.
     """
+    # Windows drive-letter paths: "C:\\...", "C:/...", or "C:relative"
+    if len(value) >= 2 and value[1] == ":" and value[0].isalpha():
+        return False
+
     if "://" in value:
         return True
+
     if ":" in value:
         scheme = value.split(":", 1)[0]
         return scheme.isalpha()
+
     return False
 
 
