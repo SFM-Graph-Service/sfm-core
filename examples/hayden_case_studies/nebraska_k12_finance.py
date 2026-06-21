@@ -57,6 +57,7 @@ from api.sfm_service import SFMService
 from models import Node
 from models.delivery_matrix import Delivery
 from graph.exporters import export_delivery_matrix_to_xlsx
+from graph.exporters.system_dynamics_exporter import export_to_xmile
 from graph.analysis_report import run_analysis_battery, format_report
 
 
@@ -626,7 +627,27 @@ def main():
         include_delivery_details=True
     )
 
-    print(f"✓ Exported to: {output_path}")
+    print(f"✓ Exported XLSX to: {output_path}")
+
+    # Export to System Dynamics XMILE format
+    # Per Hoffman & Hayden (2007): "used ithink for Nebraska education finance"
+    xmile_path = Path(__file__).parent / "nebraska_k12_finance.xmile"
+    export_to_xmile(
+        matrix,
+        xmile_path,
+        service,
+        model_name="Nebraska K-12 Education Finance (TEEOSA)",
+        model_description="System Dynamics model of Nebraska's TEEOSA formula per Hoffman & Hayden (2007)"
+    )
+
+    print(f"✓ Exported XMILE (System Dynamics) to: {xmile_path}")
+    print("\nSFM → System Dynamics Mapping:")
+    print("  Components → Stocks (levels)")
+    print("  Deliveries with quantities → Flows (rates)")
+    print("  Temporal rates → Flow equations")
+    print("  Feedback loops → SD circular causation")
+    print("\nThe XMILE file can be imported into Stella, Vensim, or other SD tools")
+    print("for simulation and dynamic analysis per Hayden's methodology.")
 
     # Print summary
     print("\nMatrix Summary:")
