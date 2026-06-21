@@ -64,7 +64,8 @@ def test_llrw_reproduces_published_structure_and_normative_links():
 
     # Hayden & Bolduc (2000), LLRW compact matrix includes host state, four generator
     # states, compact authority, and federal regulator (see docs/hayden_sfm_guide.md).
-    component_labels = {nodes_by_id_label for nodes_by_id_label in _labels_by_id(service).values()}
+    labels_by_id = _labels_by_id(service)
+    component_labels = {labels_by_id[component_id] for component_id in matrix.components}
     assert {
         "Nebraska (Host State)",
         "Arkansas",
