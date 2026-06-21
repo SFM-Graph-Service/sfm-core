@@ -33,6 +33,26 @@ Key Sources:
 Components represent the institutional framework that emerged,
 with deliveries based on documented policy mechanisms, emissions data,
 and verified compliance requirements.
+
+What the Analysis Reveals:
+    The SFM analysis battery demonstrates the Clean Air Act's institutional structure
+    as a multi-level holarchy (federal→state→local) with strong ceremonial-instrumental
+    balance. The analysis identifies:
+
+    1. Circular causation paths: EPA standards → state implementation → emissions
+       reductions → health improvements → public support → stronger standards
+
+    2. Institutional holarchy: Three distinct governance levels (federal, state, local)
+       with clear authority deliveries and compliance requirements
+
+    3. Ceremonial vs instrumental: Technology-forcing requirements (instrumental)
+       balanced by cooperative federalism and state autonomy (ceremonial preservation)
+
+    4. Feedback cycles: Emission monitoring → violations → enforcement → compliance
+       creates closed-loop regulatory system
+
+    5. Conflicts: Environmental justice gaps reveal contradictions between universal
+       air quality goals and disproportionate exposure in EJ communities
 """
 
 from pathlib import Path
@@ -42,6 +62,7 @@ from models import Node
 from models.delivery_matrix import Delivery
 from models.temporal_clocks import TemporalClock, TemporalPhase
 from graph.exporters import export_delivery_matrix_to_xlsx
+from graph.analysis_report import run_analysis_battery, format_report
 
 
 def create_clean_air_act_matrix():
@@ -904,6 +925,14 @@ def main():
             print(f"     Current: {alert.current_value}, Target: {alert.threshold} {alert.delivery.units}")
     else:
         print("\n✓ All emissions below target thresholds (1970 baselines → 2010 achievements)")
+
+    # Run SFM analysis battery
+    print("\n" + "=" * 80)
+    print("RUNNING SFM ANALYSIS BATTERY")
+    print("=" * 80)
+    report = run_analysis_battery(service)
+    analysis_text = format_report(report)
+    print(analysis_text)
 
     # Export to XLSX
     output_path = Path(__file__).parent / "clean_air_act_1970.xlsx"
