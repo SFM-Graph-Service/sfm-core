@@ -96,12 +96,47 @@ def build_nebraska_k12_matrix():
         description="K-12 students receiving educational services"
     )
 
+    # Federal oversight
+    federal_dept_ed = Node(
+        label="Federal Department of Education",
+        description="Federal oversight via ESSA (Every Student Succeeds Act, successor to NCLB)"
+    )
+
+    # State Board of Education
+    state_board = Node(
+        label="State Board of Education",
+        description="Sets academic standards and certifies teachers - appointed by governor"
+    )
+
+    # Local communities (stakeholders)
+    local_communities = Node(
+        label="Local Communities",
+        description="Parents, voters, and community members demanding accountability"
+    )
+
+    # Teachers union (ceremonial actor)
+    teachers_union = Node(
+        label="Nebraska State Education Association (NSEA)",
+        description="Teachers union advocating for local control and professional autonomy"
+    )
+
+    # Property assessment system
+    property_assessors = Node(
+        label="County Property Assessors",
+        description="Assess property values that drive TEEOSA formula calculations"
+    )
+
     # Register components
     service.create_node(legislature)
     service.create_node(dept_education)
     service.create_node(school_districts)
     service.create_node(taxpayers)
     service.create_node(students)
+    service.create_node(federal_dept_ed)
+    service.create_node(state_board)
+    service.create_node(local_communities)
+    service.create_node(teachers_union)
+    service.create_node(property_assessors)
 
     # Create delivery matrix
     matrix = service.create_delivery_matrix(
@@ -116,6 +151,11 @@ def build_nebraska_k12_matrix():
     matrix.add_component(school_districts.id)
     matrix.add_component(taxpayers.id)
     matrix.add_component(students.id)
+    matrix.add_component(federal_dept_ed.id)
+    matrix.add_component(state_board.id)
+    matrix.add_component(local_communities.id)
+    matrix.add_component(teachers_union.id)
+    matrix.add_component(property_assessors.id)
 
     # DELIVERY 1: Legislature → School Districts
     # Money delivery: TEEOSA appropriation
@@ -309,6 +349,246 @@ def build_nebraska_k12_matrix():
                         "which supplement state aid and create funding disparities based on local wealth."
     )
 
+    # =========================================================================
+    # ADDITIONAL DELIVERIES FOR FULL BATTERY ANALYSIS
+    # =========================================================================
+
+    # DELIVERY 7: Federal Dept of Education → State Dept of Education
+    federal_to_state_money = Delivery(
+        delivery_type="money",
+        delivery_content="Title I grants, special education funding (IDEA), and other federal programs",
+        quantity=150_000_000,
+        units="USD/year",
+        temporal_rate="annual",
+        certainty=0.90,
+        data_sources=["ED.gov Federal Education Budget for States"]
+    )
+
+    service.add_delivery_to_matrix(
+        matrix,
+        federal_dept_ed.id,
+        dept_education.id,
+        federal_to_state_money,
+        cell_description="Federal Department of Education provides categorical grants to Nebraska "
+                        "for Title I (low-income schools), IDEA (special education), and other programs."
+    )
+
+    federal_to_state_rules = Delivery(
+        delivery_type="rule",
+        delivery_content="ESSA compliance requirements, civil rights mandates, data reporting standards",
+        certainty=1.0,
+        data_sources=["Every Student Succeeds Act of 2015"]
+    )
+
+    service.add_delivery_to_matrix(
+        matrix,
+        federal_dept_ed.id,
+        dept_education.id,
+        federal_to_state_rules,
+        cell_description="Federal Department of Education provides categorical grants to Nebraska "
+                        "for Title I (low-income schools), IDEA (special education), and other programs."
+    )
+
+    # DELIVERY 8: State Board → Department of Education
+    board_to_dept_rules = Delivery(
+        delivery_type="rule",
+        delivery_content="Academic content standards, teacher certification requirements, graduation criteria",
+        certainty=1.0,
+        data_sources=["Nebraska Board of Education Policy"]
+    )
+
+    service.add_delivery_to_matrix(
+        matrix,
+        state_board.id,
+        dept_education.id,
+        board_to_dept_rules,
+        cell_description="State Board of Education sets academic standards that Department must enforce. "
+                        "Board is appointed by governor but operates with statutory independence."
+    )
+
+    # DELIVERY 9: Property Assessors → Legislature
+    assessors_to_legislature_info = Delivery(
+        delivery_type="information",
+        delivery_content="County property valuation data that drives TEEOSA formula calculations",
+        temporal_rate="annual",
+        certainty=0.95,
+        data_sources=["Nebraska Property Tax Administrator"]
+    )
+
+    service.add_delivery_to_matrix(
+        matrix,
+        property_assessors.id,
+        legislature.id,
+        assessors_to_legislature_info,
+        cell_description="County assessors provide property valuation data that Legislature uses in "
+                        "TEEOSA formula. Valuations determine each district's 'needs' and 'resources', "
+                        "creating circular causation with funding allocations."
+    )
+
+    # DELIVERY 10: School Districts → Property Assessors (feedback)
+    districts_to_assessors_info = Delivery(
+        delivery_type="information",
+        delivery_content="School quality signals affecting property values (feedback to assessment system)",
+        temporal_rate="continuous",
+        certainty=0.70
+    )
+
+    service.add_delivery_to_matrix(
+        matrix,
+        school_districts.id,
+        property_assessors.id,
+        districts_to_assessors_info,
+        cell_description="School district performance affects local property values, which assessors "
+                        "capture in valuations. Creates circular causation: better schools → higher "
+                        "property values → higher local resources → different TEEOSA needs calculation."
+    )
+
+    # DELIVERY 11: Local Communities → School Districts
+    communities_to_districts_authority = Delivery(
+        delivery_type="authority",
+        delivery_content="Electoral accountability via school board elections and budget approval votes",
+        temporal_rate="event-triggered",
+        certainty=1.0
+    )
+
+    service.add_delivery_to_matrix(
+        matrix,
+        local_communities.id,
+        school_districts.id,
+        communities_to_districts_authority,
+        cell_description="Local communities exercise democratic control over school districts through "
+                        "elected school boards and budget referendums, creating ceremonial preference "
+                        "for local autonomy over state-mandated equalization."
+    )
+
+    communities_to_districts_demands = Delivery(
+        delivery_type="information",
+        delivery_content="Demands for academic excellence, fiscal restraint, and local responsiveness",
+        temporal_rate="continuous",
+        certainty=0.85
+    )
+
+    service.add_delivery_to_matrix(
+        matrix,
+        local_communities.id,
+        school_districts.id,
+        communities_to_districts_demands,
+        cell_description="Local communities exercise democratic control over school districts through "
+                        "elected school boards and budget referendums, creating ceremonial preference "
+                        "for local autonomy over state-mandated equalization."
+    )
+
+    # DELIVERY 12: Teachers Union → Legislature (CEREMONIAL RESISTANCE)
+    union_to_legislature_resistance = Delivery(
+        delivery_type="information",
+        delivery_content="Lobbying for local control, professional autonomy, and resistance to "
+                        "centralized accountability (ceremonial preservation of status quo)",
+        temporal_rate="continuous",
+        certainty=0.90
+    )
+
+    service.add_delivery_to_matrix(
+        matrix,
+        teachers_union.id,
+        legislature.id,
+        union_to_legislature_resistance,
+        cell_description="Nebraska State Education Association advocates for local control and teacher "
+                        "professional autonomy, creating ceremonial resistance to state accountability "
+                        "mandates. Demonstrates Veblen-Hayden ceremonial vs instrumental conflict."
+    )
+
+    # Set ceremonial component for this cell
+    union_leg_cell = matrix.get_cell(teachers_union.id, legislature.id)
+    if union_leg_cell:
+        union_leg_cell.ceremonial_component = 0.75  # HIGH ceremonial (status quo preservation)
+        union_leg_cell.instrumental_component = 0.25  # LOW instrumental (not problem-solving)
+
+    # DELIVERY 13: Teachers Union → School Districts
+    union_to_districts_rules = Delivery(
+        delivery_type="rule",
+        delivery_content="Collective bargaining agreements on wages, working conditions, class sizes",
+        temporal_rate="periodic",
+        certainty=0.95,
+        data_sources=["NSEA Collective Bargaining Agreements"]
+    )
+
+    service.add_delivery_to_matrix(
+        matrix,
+        teachers_union.id,
+        school_districts.id,
+        union_to_districts_rules,
+        cell_description="Teachers union negotiates contracts that constrain district flexibility, "
+                        "creating tension between formula efficiency and labor agreements."
+    )
+
+    # DELIVERY 14: Students → Local Communities (feedback loop)
+    students_to_communities_outcomes = Delivery(
+        delivery_type="information",
+        delivery_content="Student achievement outcomes, graduation rates, college enrollment data",
+        temporal_rate="annual",
+        certainty=0.90
+    )
+
+    service.add_delivery_to_matrix(
+        matrix,
+        students.id,
+        local_communities.id,
+        students_to_communities_outcomes,
+        cell_description="Student outcomes create feedback loop: performance data drives community "
+                        "demands for district accountability, completing circular causation path."
+    )
+
+    # DELIVERY 15: Department of Education → Federal Dept of Education (compliance reporting)
+    dept_to_federal_info = Delivery(
+        delivery_type="information",
+        delivery_content="ESSA compliance reports, test score data, accountability metrics",
+        temporal_rate="annual",
+        certainty=1.0
+    )
+
+    service.add_delivery_to_matrix(
+        matrix,
+        dept_education.id,
+        federal_dept_ed.id,
+        dept_to_federal_info,
+        cell_description="Nebraska reports to federal government on ESSA compliance, creating "
+                        "hierarchical accountability chain: federal → state → districts."
+    )
+
+    # DELIVERY 16: Legislature → State Board (appointments and budget)
+    legislature_to_board_authority = Delivery(
+        delivery_type="authority",
+        delivery_content="Governor appointment power (with legislative confirmation) for Board members",
+        certainty=1.0
+    )
+
+    service.add_delivery_to_matrix(
+        matrix,
+        legislature.id,
+        state_board.id,
+        legislature_to_board_authority,
+        cell_description="Legislature confirms State Board appointments and funds Board operations, "
+                        "creating hierarchical control despite Board's statutory independence."
+    )
+
+    legislature_to_board_money = Delivery(
+        delivery_type="money",
+        delivery_content="State Board operational budget",
+        quantity=5_000_000,
+        units="USD/year",
+        temporal_rate="annual",
+        certainty=0.95
+    )
+
+    service.add_delivery_to_matrix(
+        matrix,
+        legislature.id,
+        state_board.id,
+        legislature_to_board_money,
+        cell_description="Legislature confirms State Board appointments and funds Board operations, "
+                        "creating hierarchical control despite Board's statutory independence."
+    )
+
     return matrix, service
 
 
@@ -349,7 +629,7 @@ def main():
     print(f"✓ Exported to: {output_path}")
 
     # Print summary
-    print(f"\nMatrix Summary:")
+    print("\nMatrix Summary:")
     print(f"  Components: {len(matrix.components)}")
     print(f"  Non-empty cells: {len(matrix.get_non_empty_cells())}")
 
@@ -362,7 +642,7 @@ def main():
         for delivery in cell.deliveries:
             delivery_types[delivery.delivery_type] = delivery_types.get(delivery.delivery_type, 0) + 1
 
-    print(f"\n  Deliveries by type:")
+    print("\n  Deliveries by type:")
     for dtype, count in sorted(delivery_types.items()):
         print(f"    {dtype}: {count}")
 

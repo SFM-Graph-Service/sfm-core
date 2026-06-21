@@ -24,10 +24,11 @@ This software is intended for academic evaluation and institutional economics re
 **Key Features:**
 - **40+ Specialized Node Types** across 12 analytical domains for institutional economic modeling
 - **Dual-Backend Architecture**: NetworkX (in-memory, 700K rels/sec) or Neo4j (persistent, production-scale)
-- **Advanced Analysis**: Ceremonial vs instrumental classification, circular causation detection, institutional holarchy mapping, conflict detection
+- **Advanced Analysis**: Ceremonial vs instrumental classification, circular causation detection, institutional holarchy mapping, conflict detection, normative criteria evaluation
 - **Temporal & Uncertainty Support**: Track institutional evolution over time with confidence intervals and uncertainty propagation
 - **REST API**: 30+ FastAPI endpoints with OpenAPI documentation
 - **Performance Optimized**: 210x speedup with bulk operations, handles 50K+ nodes efficiently
+- **Hayden Case Studies**: 4 complete implementations with cross-case comparison and Excel export
 
 ---
 
@@ -606,6 +607,33 @@ Relationship: ~400 bytes (with all fields) + metadata
 - **`examples/rest_api_demo.py`** (9.9KB) - Complete REST API workflow demonstration
 - **`examples/neo4j_integration_demo.py`** (13.0KB) - Neo4j backend usage and migration
 - **`examples/backend_migration_demo.py`** (13.5KB) - NetworkX to Neo4j migration example
+
+### Hayden Case Studies
+
+Complete implementations of Social Fabric Matrix methodology based on Hayden's published research:
+
+- **[Case Studies README](examples/hayden_case_studies/README.md)** - Overview, methodology, and citation guide
+- **Clean Air Act 1970** (48KB) - Environmental policy with temporal evolution, criteria evaluation, and verified EPA data
+- **Corporate Director Networks** (18KB) - Interlocking directorates analysis (Hayden, Wood & Kaya 2002)
+- **Low-Level Radioactive Waste** (26KB) - Ceremonial-instrumental conflict analysis (Hayden & Bolduc 2000)
+- **Nebraska K-12 Education Finance** (14KB) - TEEOSA formula system (Hoffman & Hayden 2007)
+- **Cross-Case Comparison** - `compare_cases.py` generates comparative metrics table
+
+**Run the comparison:**
+```bash
+python examples/hayden_case_studies/compare_cases.py
+```
+
+**Features Demonstrated:**
+- Square N×N delivery matrices with multiple deliveries per cell
+- Normative criteria evaluation (SERVES/UNDERMINES/NEUTRAL classification)
+- Circular causation and feedback cycle detection
+- Ceremonial vs instrumental conflict analysis
+- Cultural values quantification
+- Temporal modeling with phase transitions
+- Excel export with cell descriptions
+
+All case studies export to `.xlsx` format with three sheets: matrix view, cell descriptions (Hayden deliverable standard), and delivery details.
 
 ### API Documentation
 
