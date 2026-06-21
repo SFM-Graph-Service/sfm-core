@@ -31,7 +31,7 @@ jobs:
 
       - name: Run Pylint
         run: |
-          pylint models/ graph/ data/ api/ --output-format=parseable --score=yes --exit-zero > pylint-report.txt 2>&1
+          pylint models/ graph/ api/ data/ --output-format=parseable --score=yes --exit-zero > pylint-report.txt 2>&1
           cat pylint-report.txt
           
           # Extract score more reliably
@@ -56,7 +56,7 @@ jobs:
       - name: Run Flake8
         run: |
           if command -v flake8 &> /dev/null; then
-            flake8 models/ graph/ data/ api/ --max-line-length=100 --exclude=__pycache__,*.pyc \
+            flake8 models/ graph/ api/ data/ --max-line-length=100 --exclude=__pycache__,*.pyc \
                    --ignore=E203,W503,F401 --show-source --statistics \
                    --output-file=flake8-report.txt || true
             echo "Flake8 results:" && cat flake8-report.txt
@@ -135,7 +135,7 @@ jobs:
       - name: Check Black formatting
         run: |
           if command -v black &> /dev/null; then
-            black --check --diff models/ graph/ data/ api/ tests/ || echo "Warning: Black formatting issues found"
+            black --check --diff models/ graph/ api/ data/ tests/ || echo "Warning: Black formatting issues found"
           else
             echo "Black not available, skipping format check"
           fi
@@ -143,7 +143,7 @@ jobs:
       - name: Check isort formatting
         run: |
           if command -v isort &> /dev/null; then
-            isort --check-only --diff models/ graph/ data/ api/ tests/ || echo "Warning: isort formatting issues found"
+            isort --check-only --diff models/ graph/ api/ data/ tests/ || echo "Warning: isort formatting issues found"
           else
             echo "isort not available, skipping import sort check"
           fi

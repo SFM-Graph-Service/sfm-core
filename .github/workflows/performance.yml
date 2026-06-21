@@ -32,19 +32,23 @@ jobs:
           pip install psutil
           pip install -r requirements.txt
 
-      - name: Run SFMGraph performance tests
+      - name: Run SFM service tests
         run: |
-          echo "Running SFMGraph performance tests..."
+          echo "Running SFM service tests..."
           if [ -f tests/test_service/test_sfm_service.py ]; then
-            pytest tests/test_service/test_sfm_service.py -v --tb=short -k performance || true
+            pytest tests/test_service/test_sfm_service.py -v --tb=short || true
           else
-            echo "Note: test_sfm_service.py not found or no performance tests defined"
+            echo "Note: test_sfm_service.py not found"
           fi
 
-      - name: Run memory efficiency tests
+      - name: Run lookup performance tests
         run: |
-          echo "Running memory efficiency tests..."
-          pytest tests/test_lookup_performance.py -v --tb=short || true
+          echo "Running lookup performance tests..."
+          if [ -f tests/test_lookup_performance.py ]; then
+            pytest tests/test_lookup_performance.py -v --tb=short || true
+          else
+            echo "Note: test_lookup_performance.py not found"
+          fi
 
       - name: Generate performance summary
         run: |

@@ -32,7 +32,7 @@ jobs:
       - name: Check docstring style with pydocstyle
         run: |
           if command -v pydocstyle &> /dev/null; then
-            pydocstyle models/ api/ graph/ data/ infrastructure/ utils/ core/ db/ --convention=google --count > pydocstyle-report.txt 2>&1 || true
+            pydocstyle models/ graph/ api/ data/ --convention=google --count > pydocstyle-report.txt 2>&1 || true
           else
             echo "pydocstyle not available, skipping docstring style check" > pydocstyle-report.txt
           fi
@@ -41,7 +41,7 @@ jobs:
       - name: Check docstring coverage with interrogate
         run: |
           if command -v interrogate &> /dev/null; then
-            interrogate models/ api/ graph/ data/ infrastructure/ utils/ core/ db/ --verbose --ignore-init-method \
+            interrogate models/ graph/ api/ data/ --verbose --ignore-init-method \
                        --ignore-magic --ignore-module --ignore-private \
                        > interrogate-report.txt 2>&1 || true
           else

@@ -8,8 +8,8 @@ on:
         required: false
         default: '5'
         type: string
-      run_all_examples:
-        description: 'Run all examples (if false, only run basic ones)'
+      run_all_case_studies:
+        description: 'Run all Hayden case studies (if false, only run basic ones)'
         required: false
         default: 'true'
         type: boolean
@@ -18,14 +18,14 @@ permissions:
   contents: read
 
 jobs:
-  test-examples:
-    name: Test Examples
+  test-hayden-case-studies:
+    name: Test Hayden Case Studies
     runs-on: ubuntu-latest
     strategy:
       matrix:
         python-version: ["3.11"]
       fail-fast: false
-    
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -51,366 +51,251 @@ jobs:
       - name: Create example test results directory
         run: mkdir -p example-test-results
 
-      - name: Discover and validate example files
+      - name: Discover and validate Hayden case study files
         run: |
-          echo "Discovering example files..."
-          find examples/ -name "*.py" -not -name "__init__.py" | sort > example-test-results/discovered_examples.txt
-          echo "Found example files:"
-          cat example-test-results/discovered_examples.txt
-          
-          # List of examples that should be tested by this workflow
-          echo "examples/global_supply_chain_resilience_example.py" > example-test-results/expected_examples.txt
-          echo "examples/healthcare_system_policy_example.py" >> example-test-results/expected_examples.txt
-          echo "examples/smart_city_urban_planning_example.py" >> example-test-results/expected_examples.txt
-          echo "examples/us_grain_export_example.py" >> example-test-results/expected_examples.txt
-          echo "examples/us_grain_market_forecast.py" >> example-test-results/expected_examples.txt
-          
-          echo "Expected examples to be tested:"
-          cat example-test-results/expected_examples.txt
-          
-          # Check if any new examples were added that are not being tested
-          if ! diff -q example-test-results/discovered_examples.txt example-test-results/expected_examples.txt > /dev/null; then
-            echo "⚠️ WARNING: Discovered examples don't match expected examples!"
-            echo "Differences:"
-            diff example-test-results/discovered_examples.txt example-test-results/expected_examples.txt || true
-            echo "Please update the workflow to include any new examples."
+          echo "Discovering Hayden case study files..."
+          find examples/hayden_case_studies/ -name "*.py" -not -name "__init__.py" | sort > example-test-results/discovered_case_studies.txt
+          echo "Found case study files:"
+          cat example-test-results/discovered_case_studies.txt
+
+          # List of case studies that should be tested
+          echo "examples/hayden_case_studies/clean_air_act_1970.py" > example-test-results/expected_case_studies.txt
+          echo "examples/hayden_case_studies/director_networks.py" >> example-test-results/expected_case_studies.txt
+          echo "examples/hayden_case_studies/nebraska_k12_finance.py" >> example-test-results/expected_case_studies.txt
+          echo "examples/hayden_case_studies/radioactive_waste.py" >> example-test-results/expected_case_studies.txt
+
+          echo "Expected case studies:"
+          cat example-test-results/expected_case_studies.txt
+
+          # Check if all expected case studies exist
+          missing=0
+          while IFS= read -r study; do
+            if [ ! -f "$study" ]; then
+              echo "❌ Missing: $study"
+              missing=$((missing + 1))
+            else
+              echo "✅ Found: $study"
+            fi
+          done < example-test-results/expected_case_studies.txt
+
+          if [ $missing -gt 0 ]; then
+            echo "⚠️ WARNING: $missing expected case studies are missing!"
           else
-            echo "✅ All discovered examples are covered by the workflow."
+            echo "✅ All expected case studies found."
           fi
 
-      - name: Test US Grain Export Example
-        id: test_grain_export
+      - name: Test Clean Air Act 1970 Case Study
+        id: test_clean_air
         continue-on-error: true
         run: |
-          echo "Testing US Grain Export Example..."
-          timeout ${{ inputs.timeout_minutes }}m python examples/us_grain_export_example.py > example-test-results/us_grain_export_output.txt 2>&1
+          echo "Testing Clean Air Act 1970 Case Study..."
+          timeout ${{ inputs.timeout_minutes }}m python -m examples.hayden_case_studies.clean_air_act_1970 > example-test-results/clean_air_act_output.txt 2>&1
           exit_code=$?
           echo "exit_code=$exit_code" >> $GITHUB_OUTPUT
           if [ $exit_code -eq 0 ]; then
-            echo "✅ US Grain Export Example: PASSED"
+            echo "✅ Clean Air Act 1970: PASSED"
             echo "status=PASSED" >> $GITHUB_OUTPUT
           else
-            echo "❌ US Grain Export Example: FAILED (exit code: $exit_code)"
+            echo "❌ Clean Air Act 1970: FAILED (exit code: $exit_code)"
             echo "status=FAILED" >> $GITHUB_OUTPUT
           fi
 
-      - name: Test US Grain Market Forecast Example
-        id: test_grain_forecast
+      - name: Test Director Networks Case Study
+        id: test_directors
         continue-on-error: true
         run: |
-          echo "Testing US Grain Market Forecast Example..."
-          timeout ${{ inputs.timeout_minutes }}m python examples/us_grain_market_forecast.py > example-test-results/us_grain_market_forecast_output.txt 2>&1
+          echo "Testing Director Networks Case Study..."
+          timeout ${{ inputs.timeout_minutes }}m python -m examples.hayden_case_studies.director_networks > example-test-results/director_networks_output.txt 2>&1
           exit_code=$?
           echo "exit_code=$exit_code" >> $GITHUB_OUTPUT
           if [ $exit_code -eq 0 ]; then
-            echo "✅ US Grain Market Forecast Example: PASSED"
+            echo "✅ Director Networks: PASSED"
             echo "status=PASSED" >> $GITHUB_OUTPUT
           else
-            echo "❌ US Grain Market Forecast Example: FAILED (exit code: $exit_code)"
+            echo "❌ Director Networks: FAILED (exit code: $exit_code)"
             echo "status=FAILED" >> $GITHUB_OUTPUT
           fi
 
-      - name: Test Smart City Urban Planning Example
-        id: test_smart_city
+      - name: Test Nebraska K-12 Finance Case Study
+        id: test_nebraska
         continue-on-error: true
-        if: ${{ inputs.run_all_examples }}
+        if: ${{ inputs.run_all_case_studies }}
         run: |
-          echo "Testing Smart City Urban Planning Example..."
-          timeout ${{ inputs.timeout_minutes }}m python examples/smart_city_urban_planning_example.py > example-test-results/smart_city_output.txt 2>&1
+          echo "Testing Nebraska K-12 Finance Case Study..."
+          timeout ${{ inputs.timeout_minutes }}m python -m examples.hayden_case_studies.nebraska_k12_finance > example-test-results/nebraska_k12_output.txt 2>&1
           exit_code=$?
           echo "exit_code=$exit_code" >> $GITHUB_OUTPUT
           if [ $exit_code -eq 0 ]; then
-            echo "✅ Smart City Urban Planning Example: PASSED"
+            echo "✅ Nebraska K-12 Finance: PASSED"
             echo "status=PASSED" >> $GITHUB_OUTPUT
           else
-            echo "❌ Smart City Urban Planning Example: FAILED (exit code: $exit_code)"
+            echo "❌ Nebraska K-12 Finance: FAILED (exit code: $exit_code)"
             echo "status=FAILED" >> $GITHUB_OUTPUT
           fi
 
-      - name: Test Healthcare System Policy Example
-        id: test_healthcare
+      - name: Test Radioactive Waste Case Study
+        id: test_radioactive
         continue-on-error: true
-        if: ${{ inputs.run_all_examples }}
+        if: ${{ inputs.run_all_case_studies }}
         run: |
-          echo "Testing Healthcare System Policy Example..."
-          timeout ${{ inputs.timeout_minutes }}m python examples/healthcare_system_policy_example.py > example-test-results/healthcare_output.txt 2>&1
+          echo "Testing Radioactive Waste Case Study..."
+          timeout ${{ inputs.timeout_minutes }}m python -m examples.hayden_case_studies.radioactive_waste > example-test-results/radioactive_waste_output.txt 2>&1
           exit_code=$?
           echo "exit_code=$exit_code" >> $GITHUB_OUTPUT
           if [ $exit_code -eq 0 ]; then
-            echo "✅ Healthcare System Policy Example: PASSED"
+            echo "✅ Radioactive Waste: PASSED"
             echo "status=PASSED" >> $GITHUB_OUTPUT
           else
-            echo "❌ Healthcare System Policy Example: FAILED (exit code: $exit_code)"
+            echo "❌ Radioactive Waste: FAILED (exit code: $exit_code)"
             echo "status=FAILED" >> $GITHUB_OUTPUT
           fi
 
-      - name: Test Global Supply Chain Resilience Example
-        id: test_supply_chain
-        continue-on-error: true
-        if: ${{ inputs.run_all_examples }}
+      - name: Validate Case Study Outputs
         run: |
-          echo "Testing Global Supply Chain Resilience Example..."
-          timeout ${{ inputs.timeout_minutes }}m python examples/global_supply_chain_resilience_example.py > example-test-results/supply_chain_output.txt 2>&1
-          exit_code=$?
-          echo "exit_code=$exit_code" >> $GITHUB_OUTPUT
-          if [ $exit_code -eq 0 ]; then
-            echo "✅ Global Supply Chain Resilience Example: PASSED"
-            echo "status=PASSED" >> $GITHUB_OUTPUT
-          else
-            echo "❌ Global Supply Chain Resilience Example: FAILED (exit code: $exit_code)"
-            echo "status=FAILED" >> $GITHUB_OUTPUT
-          fi
+          echo "Validating case study outputs..."
 
-      - name: Validate Example Outputs
-        run: |
-          echo "Validating example outputs..."
-          
-          # Check for expected patterns in US Grain Export Example
-          if [ -f example-test-results/us_grain_export_output.txt ]; then
-            if grep -q "Graph created with.*entities" example-test-results/us_grain_export_output.txt && \
-               grep -q "SFM Analysis Examples" example-test-results/us_grain_export_output.txt && \
-               grep -q "Most central actors" example-test-results/us_grain_export_output.txt; then
-              echo "✅ US Grain Export Example output validation: PASSED"
+          # Check for expected patterns in Clean Air Act output
+          if [ -f example-test-results/clean_air_act_output.txt ]; then
+            if grep -q -i "clean air\|matrix\|delivery" example-test-results/clean_air_act_output.txt; then
+              echo "✅ Clean Air Act output validation: PASSED"
             else
-              echo "❌ US Grain Export Example output validation: FAILED - missing expected patterns"
-            fi
-          fi
-          
-          # Check for expected patterns in US Grain Market Forecast Example
-          if [ -f example-test-results/us_grain_market_forecast_output.txt ]; then
-            if grep -q "Graph created with.*entities" example-test-results/us_grain_market_forecast_output.txt && \
-               grep -q "SFM Analysis Examples" example-test-results/us_grain_market_forecast_output.txt; then
-              echo "✅ US Grain Market Forecast Example output validation: PASSED"
-            else
-              echo "❌ US Grain Market Forecast Example output validation: FAILED - missing expected patterns"
-            fi
-          fi
-          
-          # Check for expected patterns in Smart City Example (if run)
-          if [ "${{ inputs.run_all_examples }}" == "true" ] && [ -f example-test-results/smart_city_output.txt ]; then
-            if grep -q "SMART CITY URBAN PLANNING SFM ANALYSIS" example-test-results/smart_city_output.txt && \
-               grep -q "Graph Structure Summary" example-test-results/smart_city_output.txt; then
-              echo "✅ Smart City Urban Planning Example output validation: PASSED"
-            else
-              echo "❌ Smart City Urban Planning Example output validation: FAILED - missing expected patterns"
-            fi
-          fi
-          
-          # Check for expected patterns in Healthcare Example (if run)
-          if [ "${{ inputs.run_all_examples }}" == "true" ] && [ -f example-test-results/healthcare_output.txt ]; then
-            if grep -q "HEALTHCARE SYSTEM POLICY ANALYSIS" example-test-results/healthcare_output.txt && \
-               grep -q "Graph Structure Summary" example-test-results/healthcare_output.txt; then
-              echo "✅ Healthcare System Policy Example output validation: PASSED"
-            else
-              echo "❌ Healthcare System Policy Example output validation: FAILED - missing expected patterns"
-            fi
-          fi
-          
-          # Check for expected patterns in Supply Chain Example (if run)
-          if [ "${{ inputs.run_all_examples }}" == "true" ] && [ -f example-test-results/supply_chain_output.txt ]; then
-            if grep -q "GLOBAL SUPPLY CHAIN RESILIENCE SFM ANALYSIS" example-test-results/supply_chain_output.txt && \
-               grep -q "Graph Structure Summary" example-test-results/supply_chain_output.txt; then
-              echo "✅ Global Supply Chain Resilience Example output validation: PASSED"
-            else
-              echo "❌ Global Supply Chain Resilience Example output validation: FAILED - missing expected patterns"
+              echo "❌ Clean Air Act output validation: FAILED - missing expected patterns"
+              echo "Content preview:"
+              head -20 example-test-results/clean_air_act_output.txt
             fi
           fi
 
-      - name: Test Edge Cases and Error Scenarios
-        run: |
-          echo "Testing edge cases and error scenarios..."
-          
-          # Test with corrupted Python path
-          echo "Testing with modified Python path..."
-          PYTHONPATH=/invalid/path python examples/us_grain_export_example.py > example-test-results/edge_case_pythonpath.txt 2>&1 || echo "✅ Expected failure with invalid PYTHONPATH"
-          
-          # Test with missing dependencies (simulate by temporarily renaming a module)
-          echo "Testing import error handling..."
-          if [ -d "core" ]; then
-            mv core core_backup
-            python examples/us_grain_export_example.py > example-test-results/edge_case_import.txt 2>&1 || echo "✅ Expected failure with missing core module"
-            mv core_backup core
+          # Check for expected patterns in Director Networks output
+          if [ -f example-test-results/director_networks_output.txt ]; then
+            if grep -q -i "director\|network\|corporate" example-test-results/director_networks_output.txt; then
+              echo "✅ Director Networks output validation: PASSED"
+            else
+              echo "❌ Director Networks output validation: FAILED - missing expected patterns"
+            fi
           fi
-          
-          # Test memory constraints (create a large graph scenario)
-          echo "Testing memory constraints..."
-          python -c "
-          import sys
-          from pathlib import Path
-          workspace_root = Path('.')
-          sys.path.insert(0, str(workspace_root))
-          try:
-              from core.sfm_models import Actor, SFMGraph
-              from db.sfm_dao import NetworkXSFMRepository
-              
-              # Create a large graph to test memory usage
-              repo = NetworkXSFMRepository()
-              graph = SFMGraph()
-              
-              # Add many actors to test memory constraints
-              for i in range(100):
-                  actor = Actor(label=f'Actor_{i}', sector='Test')
-                  repo.create_node(actor)
-                  graph.add_node(actor)
-              
-              print(f'✅ Created large graph with {len(graph)} nodes successfully')
-              
-              # Clean up
-              repo.clear()
-              graph.clear()
-          except Exception as e:
-              print(f'❌ Memory test failed: {e}')
-              sys.exit(1)
-          " > example-test-results/edge_case_memory.txt 2>&1
-          
-          if [ $? -eq 0 ]; then
-            echo "✅ Memory constraints test passed"
-          else
-            echo "❌ Memory constraints test failed"
+
+          # Check Nebraska K-12 output (if run)
+          if [ "${{ inputs.run_all_case_studies }}" == "true" ] && [ -f example-test-results/nebraska_k12_output.txt ]; then
+            if grep -q -i "nebraska\|k-12\|education\|TEEOSA" example-test-results/nebraska_k12_output.txt; then
+              echo "✅ Nebraska K-12 Finance output validation: PASSED"
+            else
+              echo "❌ Nebraska K-12 Finance output validation: FAILED - missing expected patterns"
+            fi
+          fi
+
+          # Check Radioactive Waste output (if run)
+          if [ "${{ inputs.run_all_case_studies }}" == "true" ] && [ -f example-test-results/radioactive_waste_output.txt ]; then
+            if grep -q -i "radioactive\|waste\|compact" example-test-results/radioactive_waste_output.txt; then
+              echo "✅ Radioactive Waste output validation: PASSED"
+            else
+              echo "❌ Radioactive Waste output validation: FAILED - missing expected patterns"
+            fi
           fi
 
       - name: Generate Test Summary Report
         run: |
-          echo "## Example Test Results Summary" > example-test-results/summary.md
+          echo "## Hayden Case Studies Test Results" > example-test-results/summary.md
           echo "" >> example-test-results/summary.md
           echo "### Test Configuration" >> example-test-results/summary.md
           echo "- Python Version: ${{ matrix.python-version }}" >> example-test-results/summary.md
           echo "- Timeout: ${{ inputs.timeout_minutes }} minutes" >> example-test-results/summary.md
-          echo "- Run All Examples: ${{ inputs.run_all_examples }}" >> example-test-results/summary.md
+          echo "- Run All Case Studies: ${{ inputs.run_all_case_studies }}" >> example-test-results/summary.md
           echo "- Test Date: $(date)" >> example-test-results/summary.md
           echo "- Workflow Run: ${{ github.run_number }}" >> example-test-results/summary.md
           echo "" >> example-test-results/summary.md
-          
-          echo "### Examples Discovery" >> example-test-results/summary.md
-          echo "Discovered examples:" >> example-test-results/summary.md
-          echo "\`\`\`" >> example-test-results/summary.md
-          if [ -f example-test-results/discovered_examples.txt ]; then
-            cat example-test-results/discovered_examples.txt >> example-test-results/summary.md
-          else
-            echo "Discovery step not run" >> example-test-results/summary.md
-          fi
-          echo "\`\`\`" >> example-test-results/summary.md
-          echo "" >> example-test-results/summary.md
-          
+
           echo "### Test Results" >> example-test-results/summary.md
           echo "" >> example-test-results/summary.md
-          
-          # US Grain Export Example
-          echo "#### US Grain Export Example" >> example-test-results/summary.md
-          if [ "${{ steps.test_grain_export.outputs.status }}" == "PASSED" ]; then
+
+          # Clean Air Act
+          echo "#### Clean Air Act 1970" >> example-test-results/summary.md
+          if [ "${{ steps.test_clean_air.outputs.status }}" == "PASSED" ]; then
             echo "- Status: ✅ PASSED" >> example-test-results/summary.md
           else
-            echo "- Status: ❌ FAILED (exit code: ${{ steps.test_grain_export.outputs.exit_code }})" >> example-test-results/summary.md
+            echo "- Status: ❌ FAILED (exit code: ${{ steps.test_clean_air.outputs.exit_code }})" >> example-test-results/summary.md
           fi
           echo "" >> example-test-results/summary.md
-          
-          # US Grain Market Forecast Example
-          echo "#### US Grain Market Forecast Example" >> example-test-results/summary.md
-          if [ "${{ steps.test_grain_forecast.outputs.status }}" == "PASSED" ]; then
+
+          # Director Networks
+          echo "#### Director Networks" >> example-test-results/summary.md
+          if [ "${{ steps.test_directors.outputs.status }}" == "PASSED" ]; then
             echo "- Status: ✅ PASSED" >> example-test-results/summary.md
           else
-            echo "- Status: ❌ FAILED (exit code: ${{ steps.test_grain_forecast.outputs.exit_code }})" >> example-test-results/summary.md
+            echo "- Status: ❌ FAILED (exit code: ${{ steps.test_directors.outputs.exit_code }})" >> example-test-results/summary.md
           fi
           echo "" >> example-test-results/summary.md
-          
-          # Smart City Example (if run)
-          if [ "${{ inputs.run_all_examples }}" == "true" ]; then
-            echo "#### Smart City Urban Planning Example" >> example-test-results/summary.md
-            if [ "${{ steps.test_smart_city.outputs.status }}" == "PASSED" ]; then
+
+          # Nebraska K-12 (if run)
+          if [ "${{ inputs.run_all_case_studies }}" == "true" ]; then
+            echo "#### Nebraska K-12 Finance" >> example-test-results/summary.md
+            if [ "${{ steps.test_nebraska.outputs.status }}" == "PASSED" ]; then
               echo "- Status: ✅ PASSED" >> example-test-results/summary.md
-            elif [ "${{ steps.test_smart_city.outputs.status }}" == "FAILED" ]; then
-              echo "- Status: ❌ FAILED (exit code: ${{ steps.test_smart_city.outputs.exit_code }})" >> example-test-results/summary.md
+            elif [ "${{ steps.test_nebraska.outputs.status }}" == "FAILED" ]; then
+              echo "- Status: ❌ FAILED (exit code: ${{ steps.test_nebraska.outputs.exit_code }})" >> example-test-results/summary.md
             else
               echo "- Status: ⚠️ SKIPPED OR ERROR" >> example-test-results/summary.md
             fi
             echo "" >> example-test-results/summary.md
-            
-            # Healthcare Example
-            echo "#### Healthcare System Policy Example" >> example-test-results/summary.md
-            if [ "${{ steps.test_healthcare.outputs.status }}" == "PASSED" ]; then
+
+            # Radioactive Waste
+            echo "#### Radioactive Waste" >> example-test-results/summary.md
+            if [ "${{ steps.test_radioactive.outputs.status }}" == "PASSED" ]; then
               echo "- Status: ✅ PASSED" >> example-test-results/summary.md
-            elif [ "${{ steps.test_healthcare.outputs.status }}" == "FAILED" ]; then
-              echo "- Status: ❌ FAILED (exit code: ${{ steps.test_healthcare.outputs.exit_code }})" >> example-test-results/summary.md
-            else
-              echo "- Status: ⚠️ SKIPPED OR ERROR" >> example-test-results/summary.md
-            fi
-            echo "" >> example-test-results/summary.md
-            
-            # Supply Chain Example
-            echo "#### Global Supply Chain Resilience Example" >> example-test-results/summary.md
-            if [ "${{ steps.test_supply_chain.outputs.status }}" == "PASSED" ]; then
-              echo "- Status: ✅ PASSED" >> example-test-results/summary.md
-            elif [ "${{ steps.test_supply_chain.outputs.status }}" == "FAILED" ]; then
-              echo "- Status: ❌ FAILED (exit code: ${{ steps.test_supply_chain.outputs.exit_code }})" >> example-test-results/summary.md
+            elif [ "${{ steps.test_radioactive.outputs.status }}" == "FAILED" ]; then
+              echo "- Status: ❌ FAILED (exit code: ${{ steps.test_radioactive.outputs.exit_code }})" >> example-test-results/summary.md
             else
               echo "- Status: ⚠️ SKIPPED OR ERROR" >> example-test-results/summary.md
             fi
           else
-            echo "#### Advanced Examples" >> example-test-results/summary.md
-            echo "- Status: ⏭️ SKIPPED (run_all_examples = false)" >> example-test-results/summary.md
-            echo "" >> example-test-results/summary.md
+            echo "#### Advanced Case Studies" >> example-test-results/summary.md
+            echo "- Status: ⏭️ SKIPPED (run_all_case_studies = false)" >> example-test-results/summary.md
           fi
-          
-          echo "" >> example-test-results/summary.md
-          echo "### File Sizes" >> example-test-results/summary.md
-          echo "\`\`\`" >> example-test-results/summary.md
-          ls -la example-test-results/ >> example-test-results/summary.md
-          echo "\`\`\`" >> example-test-results/summary.md
-          
-          echo "" >> example-test-results/summary.md
-          echo "### Debugging Information" >> example-test-results/summary.md
-          echo "For detailed output and error logs, check the uploaded artifacts." >> example-test-results/summary.md
-          
+
           # Display summary
           cat example-test-results/summary.md
 
       - name: Check for Test Failures
         run: |
           failed_tests=0
-          
-          if [ "${{ steps.test_grain_export.outputs.status }}" == "FAILED" ]; then
+
+          if [ "${{ steps.test_clean_air.outputs.status }}" == "FAILED" ]; then
             failed_tests=$((failed_tests + 1))
-            echo "US Grain Export Example failed"
+            echo "Clean Air Act 1970 case study failed"
           fi
-          
-          if [ "${{ steps.test_grain_forecast.outputs.status }}" == "FAILED" ]; then
+
+          if [ "${{ steps.test_directors.outputs.status }}" == "FAILED" ]; then
             failed_tests=$((failed_tests + 1))
-            echo "US Grain Market Forecast Example failed"
+            echo "Director Networks case study failed"
           fi
-          
-          if [ "${{ inputs.run_all_examples }}" == "true" ]; then
-            if [ "${{ steps.test_smart_city.outputs.status }}" == "FAILED" ]; then
+
+          if [ "${{ inputs.run_all_case_studies }}" == "true" ]; then
+            if [ "${{ steps.test_nebraska.outputs.status }}" == "FAILED" ]; then
               failed_tests=$((failed_tests + 1))
-              echo "Smart City Urban Planning Example failed"
+              echo "Nebraska K-12 Finance case study failed"
             fi
-            
-            if [ "${{ steps.test_healthcare.outputs.status }}" == "FAILED" ]; then
+
+            if [ "${{ steps.test_radioactive.outputs.status }}" == "FAILED" ]; then
               failed_tests=$((failed_tests + 1))
-              echo "Healthcare System Policy Example failed"
-            fi
-            
-            if [ "${{ steps.test_supply_chain.outputs.status }}" == "FAILED" ]; then
-              failed_tests=$((failed_tests + 1))
-              echo "Global Supply Chain Resilience Example failed"
+              echo "Radioactive Waste case study failed"
             fi
           else
-            echo "Advanced examples were skipped (run_all_examples = false)"
+            echo "Advanced case studies were skipped (run_all_case_studies = false)"
           fi
-          
+
           echo "Total failed tests: $failed_tests"
-          
+
           if [ $failed_tests -gt 0 ]; then
-            echo "❌ One or more examples failed. Check the logs above for details."
+            echo "❌ One or more case studies failed. Check the logs above for details."
             exit 1
           else
-            echo "✅ All examples passed successfully!"
+            echo "✅ All case studies passed successfully!"
           fi
 
       - name: Upload test results
         uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: example-test-results
+          name: case-study-test-results
           path: example-test-results/
           retention-days: 30
 
@@ -418,6 +303,6 @@ jobs:
         uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: example-test-summary
+          name: case-study-test-summary
           path: example-test-results/summary.md
           retention-days: 30
