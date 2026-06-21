@@ -99,6 +99,11 @@ from models.meta_entities import (
     ScenarioSet,
 )
 
+# Framework integrations
+from models.frameworks import (
+    build_doughnut_criteria,
+)
+
 # Enums and utilities — explicit import using the module's __all__
 from models.sfm_enums import (
     ValueCategory,
@@ -246,6 +251,8 @@ __all__ = [
     "Scenario",
     "ScenarioPath",
     "ScenarioSet",
+    # Framework integrations
+    "build_doughnut_criteria",
     # Enums from sfm_enums
     "ValueCategory",
     "InstitutionLayer",
