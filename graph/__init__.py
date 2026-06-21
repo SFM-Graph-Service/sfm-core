@@ -24,6 +24,12 @@ from graph.criteria_evaluation import (
     evaluate_against_criteria,
     format_evaluation_report,
 )
+from graph.doughnut_evaluation import (
+    DoughnutReport,
+    BoundaryEvaluation,
+    evaluate_doughnut,
+    build_embedded_economy_holarchy,
+)
 
 __all__ = [
     # Graph
@@ -44,4 +50,9 @@ __all__ = [
     "CriterionEvaluationResult",
     "evaluate_against_criteria",
     "format_evaluation_report",
+    # Doughnut Evaluation
+    "DoughnutReport",
+    "BoundaryEvaluation",
+    "evaluate_doughnut",
+    "build_embedded_economy_holarchy",
 ]
