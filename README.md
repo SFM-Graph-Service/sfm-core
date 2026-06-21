@@ -163,6 +163,39 @@ stats = service.get_statistics()
 print(f"Total nodes: {stats.total_nodes}, relationships: {stats.total_relationships}")
 ```
 
+### Framework Bridges Demo
+
+Bridge SFM with established frameworks (Doughnut Economics, Ostrom SES/IAD):
+
+```python
+from graph.doughnut_bridge import boundary_state_to_delivery
+from examples.framework_bridges.ostrom_ses_iad_example import build_ostrom_ses_iad_sfm
+
+# Doughnut Economics: Convert continuous indicators to SFM delivery weights
+# Example: CO2 emissions (ecological ceiling, overshoot polarity)
+co2_weight = boundary_state_to_delivery(
+    indicator_value=420,  # ppm CO2
+    threshold=350,        # safe planetary boundary
+    polarity="overshoot"
+)
+print(f"CO2 delivery weight: {co2_weight:.2f}")  # -0.20 (driving overshoot)
+
+# Example: Income access (social foundation, shortfall polarity)
+income_weight = boundary_state_to_delivery(
+    indicator_value=0.65,  # 65% have adequate income
+    threshold=0.95,        # 95% target
+    polarity="shortfall"
+)
+print(f"Income delivery weight: {income_weight:.2f}")  # -0.32 (shortfall)
+
+# Ostrom SES/IAD: Build complete worked example
+matrix, service = build_ostrom_ses_iad_sfm()
+print(f"Components: {len(matrix.components)}")  # 9 (actors, rules, resource system)
+print(f"Action situations: {len(matrix.get_non_empty_cells())}")  # 5+ delivery cells
+
+# See docs/framework_bridges.md for full methodology
+```
+
 ### REST API
 
 ```bash
@@ -598,6 +631,7 @@ Relationship: ~400 bytes (with all fields) + metadata
 ### Comprehensive Guides
 
 - **[Analysis Methods Guide](docs/ANALYSIS_METHODS_GUIDE.md)** (31.3KB) - Complete guide to all analysis methods with examples, interpretation guidelines, and best practices
+- **[Framework Bridges Guide](docs/framework_bridges.md)** - Methodological bridges to Doughnut Economics and Ostrom SES/IAD frameworks
 - **[Neo4j Integration Guide](docs/NEO4J_INTEGRATION_GUIDE.md)** (13.5KB) - Backend setup, migration from NetworkX, Cypher query examples
 - **[Scaling Guide](docs/SCALING_GUIDE.md)** (13.5KB) - Performance tuning, backend selection, troubleshooting
 - **[SFM Fidelity Analysis](SFM_FIDELITY_ANALYSIS.md)** - Assessment of implementation fidelity to Hayden's published methodology, known gaps, and improvement roadmap
@@ -607,6 +641,8 @@ Relationship: ~400 bytes (with all fields) + metadata
 - **`examples/rest_api_demo.py`** (9.9KB) - Complete REST API workflow demonstration
 - **`examples/neo4j_integration_demo.py`** (13.0KB) - Neo4j backend usage and migration
 - **`examples/backend_migration_demo.py`** (13.5KB) - NetworkX to Neo4j migration example
+- **`examples/framework_bridges/`** - Doughnut Economics and Ostrom SES/IAD bridge examples
+  - `ostrom_ses_iad_example.py` - Complete community forest management case study
 
 ### Hayden Case Studies
 
@@ -635,16 +671,42 @@ python examples/hayden_case_studies/compare_cases.py
 
 All case studies export to `.xlsx` format with three sheets: matrix view, cell descriptions (Hayden deliverable standard), and delivery details.
 
+### Framework Bridges
+
+Methodological bridges connecting SFM to established frameworks:
+
+- **[Framework Bridges Guide](docs/framework_bridges.md)** - Complete methodology documentation
+- **Doughnut Economics ↔ SFM** (`graph/doughnut_bridge.py`) - Convert continuous planetary/social boundaries to discrete delivery weights
+  - 12 social foundations + 9 ecological ceilings
+  - Linear scaling: distance from threshold → weight in [-1.0, +1.0]
+  - Polarity-aware: shortfall (social) vs overshoot (ecological)
+  - Validated with real-world examples (CO2, healthcare access, air pollution)
+- **Ostrom SES/IAD ↔ SFM** (`examples/framework_bridges/ostrom_ses_iad_example.py`) - Encode institutional analysis
+  - Actors → Nodes, Rules-in-Use → Nodes, Action Situations → Delivery Cells
+  - Complete worked example: community forest management
+  - Metadata tracking: ostrom_type, ostrom_role, ostrom_rule_type
+  - 4 actors, 4 rules, 1 resource system, 3 outcomes, 5 action situations
+
+**Research Contribution**: The mapping itself is a methodological contribution demonstrating how global sustainability frameworks and commons governance models can be operationalized at the institutional level through SFM analysis.
+
 ### API Documentation
 
 **Interactive Documentation** (when server running):
 - Swagger UI: http://localhost:8000/docs
 - ReDoc: http://localhost:8000/redoc
 
-**Test Suite**: 678 passing tests covering all components
+**Test Suite**: 778 passing tests covering all components
 ```bash
 pytest tests/ -v --cov
 ```
+
+**Test Coverage Highlights:**
+- Core graph operations: 150+ tests
+- Analysis methods: 100+ tests
+- Framework bridges: 31 tests (Doughnut + Ostrom)
+- Hayden case studies: 80+ tests
+- Import/export: 50+ tests
+- REST API: 60+ tests
 
 ---
 
@@ -684,24 +746,52 @@ sfm-core/
 
 ## Use Cases
 
-1. **Policy Impact Analysis** - Model policy instruments, institutional arrangements, and evaluate impacts
-2. **Institutional Economics Research** - Analyze institutional evolution, path dependency, ceremonial dominance
-3. **Environmental Regulation Modeling** - Clean Air Act case study with temporal evolution and uncertainty
-4. **Technology Systems Analysis** - Track technology readiness levels, innovation diffusion
-5. **Cultural and Value System Analysis** - Map value conflicts, belief systems, social capital
+1. **Policy Impact Analysis** - Model policy instruments, institutional arrangements, and evaluate impacts against normative criteria
+2. **Institutional Economics Research** - Analyze institutional evolution, path dependency, ceremonial dominance patterns
+3. **Environmental Regulation Modeling** - Clean Air Act case study with temporal evolution and uncertainty propagation
+4. **Technology Systems Analysis** - Track technology readiness levels, innovation diffusion, tool-skill-technology complexes
+5. **Cultural and Value System Analysis** - Map value conflicts, belief systems, social capital, ceremonial vs instrumental tensions
+6. **Sustainability Assessment** - Bridge to Doughnut Economics for planetary boundaries and social foundations analysis
+7. **Commons Governance** - Bridge to Ostrom SES/IAD for analyzing collective action, rules-in-use, and resource management
+8. **Cross-Framework Synthesis** - Integrate institutional economics (SFM), ecological economics (Doughnut), and commons governance (Ostrom)
 
 ---
 
 ## Contributing
 
-Contributions are welcome! Please:
+### Research Collaboration Welcome
 
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Run tests (`pytest tests/`)
-4. Commit changes (`git commit -m 'Add amazing feature'`)
-5. Push to branch (`git push origin feature/amazing-feature`)
-6. Open a Pull Request
+This is experimental research software implementing F. Gregory Hayden's Social Fabric Matrix methodology. We welcome:
+
+**Methodological Contributions:**
+- Validation of implementation fidelity to Hayden's published work
+- Additional case studies from institutional economics literature
+- Framework bridges to other methodologies (beyond Doughnut/Ostrom)
+- Critiques and improvements to current mapping approaches
+
+**Technical Contributions:**
+- Performance optimizations and scaling improvements
+- Additional backend implementations (graph databases, distributed systems)
+- Analysis method enhancements (new algorithms, query optimizations)
+- Data import/export adapters (additional formats, visualization tools)
+
+**Research Applications:**
+- Apply SFM Core to new policy domains or institutional systems
+- Comparative institutional analysis across cases
+- Integration with other modeling frameworks (ABM, system dynamics, etc.)
+- Empirical validation studies
+
+### How to Contribute
+
+1. **For Research Questions**: Open a [GitHub Discussion](https://github.com/SFM-Graph-Service/sfm-core/discussions) to discuss methodology, interpretation, or application questions
+2. **For Bug Reports**: Open a [GitHub Issue](https://github.com/SFM-Graph-Service/sfm-core/issues) with reproduction steps
+3. **For Code Contributions**:
+   - Fork the repository
+   - Create a feature branch (`git checkout -b feature/amazing-feature`)
+   - Run tests (`pytest tests/`)
+   - Commit changes (`git commit -m 'Add amazing feature'`)
+   - Push to branch (`git push origin feature/amazing-feature`)
+   - Open a Pull Request
 
 **Development Setup:**
 ```bash
@@ -709,6 +799,20 @@ pip install -r requirements.txt
 pip install -e .
 pytest tests/ --cov
 ```
+
+### Research Feedback Needed
+
+We are particularly interested in feedback on:
+
+1. **Fidelity to Hayden's Methodology**: Does the implementation accurately reflect SFM as described in Hayden's published work? See [SFM_FIDELITY_ANALYSIS.md](SFM_FIDELITY_ANALYSIS.md) for known gaps.
+
+2. **Framework Bridges Methodology**: Are the Doughnut Economics and Ostrom SES/IAD mappings methodologically sound? See [docs/framework_bridges.md](docs/framework_bridges.md) for current approach.
+
+3. **Case Study Validity**: Do the Hayden case study implementations (Clean Air Act, Corporate Directors, etc.) correctly represent the original research? See [examples/hayden_case_studies/](examples/hayden_case_studies/).
+
+4. **Research Applications**: What additional use cases or institutional domains would benefit from SFM modeling? What analysis methods are missing?
+
+**Contact**: Open a [GitHub Discussion](https://github.com/SFM-Graph-Service/sfm-core/discussions) or email the maintainers.
 
 ---
 
@@ -729,8 +833,20 @@ If you use SFM Core in your research, please cite both:
   title = {SFM Core: Social Fabric Matrix Graph Service},
   year = {2026},
   url = {https://github.com/SFM-Graph-Service/sfm-core},
-  version = {0.1.0},
+  version = {0.7.0},
   doi = {10.5281/zenodo.20418500}
+}
+```
+
+**For framework bridges specifically:**
+```bibtex
+@software{sfm_framework_bridges_2026,
+  author = {Dabbs, Garrick},
+  title = {Framework Bridges for Social Fabric Matrix: Doughnut Economics and Ostrom SES/IAD},
+  year = {2026},
+  url = {https://github.com/SFM-Graph-Service/sfm-core/tree/main/examples/framework_bridges},
+  howpublished = {SFM Core v0.7.0},
+  note = {Methodological bridges connecting SFM to Raworth's Doughnut Economics and Ostrom's SES/IAD frameworks}
 }
 ```
 
@@ -757,4 +873,4 @@ If you use SFM Core in your research, please cite both:
 
 ---
 
-**Status**: Experimental Research Software | **Version**: 0.1.0 | **Python**: 3.9+ | **Tests**: 678 passing ✓
+**Status**: Experimental Research Software | **Version**: 0.7.0 | **Python**: 3.9+ | **Tests**: 778 passing ✓
