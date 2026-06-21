@@ -19,6 +19,19 @@ from .mapping_config import MappingConfig
 from .validators import validate_csv_headers
 
 
+def _is_uri_like_source(value: str) -> bool:
+    """
+    Return True when a source string is URI-like (scheme:...), not a local file path.
+    Examples: oecd:GREEN_GROWTH, http://..., s3://bucket/key
+    """
+    if "://" in value:
+        return True
+    if ":" in value:
+        scheme = value.split(":", 1)[0]
+        return scheme.isalpha()
+    return False
+
+
 def _validate_safe_path(path: Path, base_dir: Optional[Path] = None) -> Path:
     """
     Validate path for security against path traversal attacks.
@@ -62,6 +75,12 @@ def _validate_safe_path(path: Path, base_dir: Optional[Path] = None) -> Path:
         raise ValueError(
             f"Path traversal detected: path contains '..' component: {path}. "
             "This is a security risk (CWE-22)."
+        )
+
+    # In non-strict mode, reject absolute paths to avoid arbitrary filesystem access.
+    if base_dir is None and path.is_absolute():
+        raise ValueError(
+            f"Absolute paths are not allowed without an allowed base directory: {path}"
         )
 
     # Resolve to absolute path to handle symlinks and relative paths
@@ -129,6 +148,9 @@ class CSVImportAdapter(BaseImportAdapter):
         if isinstance(source, dict):
             return False
 
+        if isinstance(source, str) and _is_uri_like_source(source):
+            return False
+
         path = Path(source) if isinstance(source, str) else source
 
         # Validate path before accessing filesystem
@@ -159,6 +181,8 @@ class CSVImportAdapter(BaseImportAdapter):
         """
         if isinstance(source, dict):
             raise TypeError(f"Expected a file path, got dict: {source}")
+        if isinstance(source, str) and _is_uri_like_source(source):
+            raise ValueError(f"Expected a local file path, got non-file source: {source}")
         path = Path(source) if isinstance(source, str) else source
 
         # Validate path for security (always blocks path traversal)
