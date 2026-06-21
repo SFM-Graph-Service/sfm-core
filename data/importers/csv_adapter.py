@@ -19,6 +19,28 @@ from .mapping_config import MappingConfig
 from .validators import validate_csv_headers
 
 
+def _is_uri_like_source(value: str) -> bool:
+    """
+    Return True when a source string looks like a non-local identifier/URI (scheme:... or scheme://...),
+    rather than a filesystem path.
+
+    Notes:
+    - Windows drive-letter paths (e.g. "C:\\tmp\\file.csv") are treated as local paths.
+    """
+    # Windows drive-letter paths: "C:\\...", "C:/...", or "C:relative"
+    if len(value) >= 2 and value[1] == ":" and value[0].isalpha():
+        return False
+
+    if "://" in value:
+        return True
+
+    if ":" in value:
+        scheme = value.split(":", 1)[0]
+        return scheme.isalpha()
+
+    return False
+
+
 def _validate_safe_path(path: Path, base_dir: Optional[Path] = None) -> Path:
     """
     Validate path for security against path traversal attacks.
@@ -129,6 +151,9 @@ class CSVImportAdapter(BaseImportAdapter):
         if isinstance(source, dict):
             return False
 
+        if isinstance(source, str) and _is_uri_like_source(source):
+            return False
+
         path = Path(source) if isinstance(source, str) else source
 
         # Validate path before accessing filesystem
@@ -159,6 +184,8 @@ class CSVImportAdapter(BaseImportAdapter):
         """
         if isinstance(source, dict):
             raise TypeError(f"Expected a file path, got dict: {source}")
+        if isinstance(source, str) and _is_uri_like_source(source):
+            raise ValueError(f"Expected a local file path, got non-file source: {source}")
         path = Path(source) if isinstance(source, str) else source
 
         # Validate path for security (always blocks path traversal)
