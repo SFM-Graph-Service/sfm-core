@@ -701,7 +701,7 @@ class SFMService:
 
         # Call the real query engine implementation
         logger.info("Building holarchy for institution %s", institution_id)
-        levels: Dict[str, List[Any]] = self.query_engine.query_holarchy_levels(institution_id)
+        levels: Dict[str, List[Node]] = self.query_engine.query_holarchy_levels(institution_id)
 
         # Convert Node objects to serialisable dicts and build layers list
         layers = []
