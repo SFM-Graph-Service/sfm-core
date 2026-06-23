@@ -5,9 +5,10 @@
 [![Security](https://github.com/SFM-Graph-Service/sfm-core/actions/workflows/security.yml/badge.svg)](https://github.com/SFM-Graph-Service/sfm-core/actions/workflows/security.yml)
 [![Performance](https://github.com/SFM-Graph-Service/sfm-core/actions/workflows/performance.yml/badge.svg)](https://github.com/SFM-Graph-Service/sfm-core/actions/workflows/performance.yml)
 [![Documentation](https://github.com/SFM-Graph-Service/sfm-core/actions/workflows/documentation.yml/badge.svg)](https://github.com/SFM-Graph-Service/sfm-core/actions/workflows/documentation.yml)
-[![DOI](https://img.shields.io/badge/DOI-10.5281%2Fzenodo.20418500-blue)](https://doi.org/10.5281/zenodo.20418500)
 [![PyPI](https://img.shields.io/pypi/v/sfm-core)](https://pypi.org/project/sfm-core/)
 [![Python](https://img.shields.io/pypi/pyversions/sfm-core)](https://pypi.org/project/sfm-core/)
+[![License](https://img.shields.io/badge/License-GPL--3.0-blue.svg)](https://github.com/SFM-Graph-Service/sfm-core/blob/main/LICENSE)
+[![DOI](https://img.shields.io/badge/DOI-10.5281%2Fzenodo.20418500-blue)](https://doi.org/10.5281/zenodo.20418500)
 
 An experimental Python framework implementing F. Gregory Hayden's Social Fabric Matrix (SFM) methodology for modeling, analyzing, and querying socio-economic systems through graph-based data structures.
 
