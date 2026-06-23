@@ -2230,7 +2230,7 @@ class SFMService:
                 raise ValueError("Cannot export empty graph")
 
             # Build NetworkX graph from repository
-            G = nx.MultiDiGraph()
+            G: nx.MultiDiGraph = nx.MultiDiGraph()
 
             # Add nodes with attributes
             for node in nodes:
