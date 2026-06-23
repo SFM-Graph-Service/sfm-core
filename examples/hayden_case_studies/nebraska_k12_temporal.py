@@ -385,7 +385,7 @@ def demonstrate_temporal_monitoring():
             for item in deliveries:
                 delivery = item["delivery"]
                 print(f"      • {delivery.delivery_content[:60]}...")
-                if delivery.quantity:
+                if delivery.quantity is not None:
                     print(f"        ${delivery.quantity:,.0f} {delivery.units}")
 
     # ========================
@@ -420,7 +420,7 @@ def demonstrate_temporal_monitoring():
         for item in result['deliveries_due']:
             delivery = item["delivery"]
             print(f"      • {delivery.delivery_content}")
-            if delivery.quantity:
+            if delivery.quantity is not None:
                 print(f"        ${delivery.quantity:,.0f}")
 
     # ========================

@@ -350,11 +350,13 @@ if not valid:
 - `quarterly` - Quarterly distributions
 - `annual` - Annual budgets, appropriations
 - `biennial` - Two-year legislative cycles
-- `event_triggered` - Conditional on events
-- `on_demand` - As needed
-- `legislative_cycle` - Synchronized to legislature
-- `fiscal_year` - July 1 - June 30
-- `academic_year` - August - May
+- `event_triggered` (or `event-triggered`) - Conditional on events
+- `on_demand` (or `on-demand`) - As needed
+- `legislative_cycle` (or `legislative-cycle`) - Synchronized to legislature
+- `fiscal_year` (or `fiscal-year`) - July 1 - June 30
+- `academic_year` (or `academic-year`) - August - May
+
+**Note**: Both underscore (`_`) and hyphen (`-`) forms are accepted for backward compatibility.
 
 **Advancing clocks with delivery checks:**
 

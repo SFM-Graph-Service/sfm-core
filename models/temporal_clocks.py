@@ -19,7 +19,6 @@ and prevent temporal misalignment in policy analysis.
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional
-from typing import List, Optional, Dict
 import uuid
 
 from models.base_nodes import Node
@@ -249,7 +248,12 @@ class TemporalClock(Node):
 
     def get_deliveries_due(self, matrix: Any) -> List[Dict]:
         """
-        Get deliveries synchronized to this clock that are due in current phase.
+        Get all deliveries synchronized to this clock.
+
+        Returns deliveries that have been explicitly synchronized via
+        synchronize_delivery_to_clock() and whose temporal_clock matches
+        this clock's name. Useful for identifying deliveries that should
+        be evaluated when the clock advances to a new phase.
 
         Args:
             matrix: SFMDeliveryMatrix to check for synchronized deliveries
@@ -267,7 +271,7 @@ class TemporalClock(Node):
         Example:
             >>> deliveries_due = clock.get_deliveries_due(matrix)
             >>> for item in deliveries_due:
-            ...     print(f"Due: {item['delivery'].delivery_content}")
+            ...     print(f"Synchronized: {item['delivery'].delivery_content}")
         """
         deliveries_due = []
 

@@ -1660,7 +1660,10 @@ class SFMService:
         if delivery.temporal_rate is None:
             return True
 
-        return delivery.temporal_rate in self.VALID_TEMPORAL_RATES
+        # Normalize hyphen/underscore for backward compatibility
+        # (existing code uses "event-triggered", new uses "event_triggered")
+        normalized_rate = delivery.temporal_rate.replace('-', '_')
+        return normalized_rate in self.VALID_TEMPORAL_RATES
 
     def check_delivery_thresholds(
         self,
@@ -1772,10 +1775,7 @@ class SFMService:
         # Update quantity
         delivery.quantity = new_quantity
 
-        # Update cell in repository
-        self.repository.update_node(cell)
-
-        # Check threshold immediately
+        # Check threshold immediately (before persisting)
         alerts = []
         if delivery.threshold is not None:
             triggered = False
@@ -1790,6 +1790,9 @@ class SFMService:
                     triggered = True
                     direction = "below"
 
+            # Always update last_threshold_check when threshold exists
+            delivery.last_threshold_check = datetime.now()
+
             if triggered:
                 alert = ThresholdAlert(
                     delivery=delivery,
@@ -1801,8 +1804,8 @@ class SFMService:
                 )
                 alerts.append(alert)
 
-                # Update last check time
-                delivery.last_threshold_check = datetime.now()
+        # Update cell in repository (after updating last_threshold_check)
+        self.repository.update_node(cell)
 
         logger.info(
             "Updated delivery quantity from %s to %s in cell (%s, %s)",
@@ -1972,7 +1975,7 @@ class SFMService:
         }
 
         # Check for deliveries due in new phase
-        if matrix:
+        if matrix is not None:
             deliveries_due = clock.get_deliveries_due(matrix)
             result["deliveries_due"] = deliveries_due
 
