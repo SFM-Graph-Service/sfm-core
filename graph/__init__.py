@@ -30,6 +30,11 @@ from graph.doughnut_evaluation import (
     evaluate_doughnut,
     build_embedded_economy_holarchy,
 )
+from graph.centrality import (
+    compute_centrality_metrics,
+    format_centrality_report,
+    identify_power_brokers,
+)
 
 __all__ = [
     # Graph
@@ -55,4 +60,8 @@ __all__ = [
     "BoundaryEvaluation",
     "evaluate_doughnut",
     "build_embedded_economy_holarchy",
+    # Centrality Analysis
+    "compute_centrality_metrics",
+    "format_centrality_report",
+    "identify_power_brokers",
 ]
