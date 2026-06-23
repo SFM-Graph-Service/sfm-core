@@ -22,9 +22,6 @@ Nebraska TEEOSA (Tax Equity and Educational Opportunities Support Act):
 - Districts receive varying amounts based on needs and resources
 """
 
-import uuid
-from datetime import timedelta
-
 from api.sfm_service import SFMService
 from models import Node
 from models.delivery_matrix import Delivery
@@ -437,6 +434,8 @@ def demonstrate_temporal_monitoring():
     state_dept_id = None
     for comp in [matrix.components[i] for i in range(len(matrix.components))]:
         node = service.get_node(comp)
+        if node is None:
+            continue
         if "Legislature" in node.label:
             legislature_id = comp
         elif "Department of Education" in node.label:

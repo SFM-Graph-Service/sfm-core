@@ -467,7 +467,6 @@ class SFMService:
     def create_node_with_geography(
         self,
         label: str,
-        node_type: str,
         description: str,
         geographic_scope: str,  # "federal", "state", "local", "regional"
         state: Optional[str] = None,
@@ -479,7 +478,6 @@ class SFMService:
 
         Args:
             label: Node label
-            node_type: Node type (e.g., "Institution", "Policy")
             description: Node description
             geographic_scope: "federal", "state", "local", "regional"
             state: State name (e.g., "California", "TX")
@@ -493,7 +491,6 @@ class SFMService:
             # Create California-specific air quality standard
             create_node_with_geography(
                 label="California Air Quality Standards",
-                node_type="Institution",
                 description="CARB emission standards stricter than federal",
                 geographic_scope="state",
                 state="California",
@@ -2119,7 +2116,6 @@ class SFMService:
 
         # Build snapshot for persistence
         from graph.sfm_persistence import SFMPersistenceManager
-        from pathlib import Path as PathLib
 
         manager = SFMPersistenceManager(base_path or "./sfm_data")
         filepath = manager.base_path / filename
@@ -2224,7 +2220,6 @@ class SFMService:
 
         # Initialize persistence manager
         from graph.sfm_persistence import SFMPersistenceManager
-        from pathlib import Path as PathLib
         import json
         import gzip
 
@@ -2269,7 +2264,7 @@ class SFMService:
         # Load nodes
         from graph.sfm_persistence import NodeSerializer
         nodes_loaded = 0
-        for node_type, nodes_data in snapshot_data.get('nodes_by_type', {}).items():
+        for _node_type, nodes_data in snapshot_data.get('nodes_by_type', {}).items():
             for node_data in nodes_data:
                 try:
                     node = NodeSerializer.dict_to_node(node_data)

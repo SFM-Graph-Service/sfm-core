@@ -18,6 +18,7 @@ and prevent temporal misalignment in policy analysis.
 
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
+from typing import Any, Dict, List, Optional
 from typing import List, Optional, Dict
 import uuid
 
@@ -271,7 +272,7 @@ class TemporalClock(Node):
         deliveries_due = []
 
         # Check all synchronized deliveries
-        for cell_key, delivery_refs in self.synchronized_deliveries.items():
+        for _cell_key, delivery_refs in self.synchronized_deliveries.items():
             for source_id, target_id, delivery_index in delivery_refs:
                 # Get cell from matrix
                 cell = matrix.get_cell(source_id, target_id)
