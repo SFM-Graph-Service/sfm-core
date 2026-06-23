@@ -65,6 +65,7 @@ from models.temporal_clocks import TemporalClock, TemporalPhase
 from graph.exporters import export_delivery_matrix_to_xlsx
 from graph.analysis_report import run_analysis_battery, format_report
 from graph.criteria_evaluation import evaluate_against_criteria, format_evaluation_report
+from graph.centrality import compute_centrality_metrics, format_centrality_report, identify_power_brokers
 from graph import Relationship
 
 
@@ -1061,6 +1062,21 @@ def main():
     criteria_results = evaluate_against_criteria(service)
     evaluation_text = format_evaluation_report(criteria_results, include_details=True)
     print(evaluation_text)
+
+    # Network centrality analysis
+    print("\n" + "=" * 80)
+    print("NETWORK CENTRALITY ANALYSIS")
+    print("=" * 80)
+    centrality = compute_centrality_metrics(matrix, service)
+    print(format_centrality_report(centrality, title="Clean Air Act Regulatory Network Centrality"))
+
+    brokers = identify_power_brokers(centrality)
+    if brokers:
+        print("\nCentral Regulatory Agencies (betweenness >= 0.10):")
+        for label, score in brokers:
+            print(f"  {label}: {score:.3f}")
+    else:
+        print("\nNo nodes exceed the 0.10 betweenness threshold.")
 
     # Export to XLSX
     output_path = Path(__file__).parent / "clean_air_act_1970.xlsx"

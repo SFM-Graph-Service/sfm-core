@@ -59,6 +59,7 @@ from models.delivery_matrix import Delivery
 from graph.exporters import export_delivery_matrix_to_xlsx
 from graph.exporters.system_dynamics_exporter import export_to_xmile
 from graph.analysis_report import run_analysis_battery, format_report
+from graph.centrality import compute_centrality_metrics, format_centrality_report, identify_power_brokers
 
 
 def build_nebraska_k12_matrix():
@@ -616,6 +617,21 @@ def main():
     report = run_analysis_battery(service)
     analysis_text = format_report(report)
     print(analysis_text)
+
+    # Network centrality analysis (Hoffman & Hayden 2007)
+    print("\n" + "=" * 70)
+    print("NETWORK CENTRALITY ANALYSIS (Hoffman & Hayden 2007)")
+    print("=" * 70)
+    centrality = compute_centrality_metrics(matrix, service)
+    print(format_centrality_report(centrality, title="Nebraska K-12 Education Finance Network Centrality"))
+
+    brokers = identify_power_brokers(centrality)
+    if brokers:
+        print("\nCentral Formula Components (betweenness >= 0.10):")
+        for label, score in brokers:
+            print(f"  {label}: {score:.3f}")
+    else:
+        print("\nNo nodes exceed the 0.10 betweenness threshold.")
 
     # Export to XLSX
     output_path = Path(__file__).parent / "nebraska_k12_finance.xlsx"

@@ -45,6 +45,7 @@ from models import Node
 from models.delivery_matrix import Delivery
 from graph.exporters import export_delivery_matrix_to_xlsx
 from graph.analysis_report import run_analysis_battery, format_report
+from graph.centrality import compute_centrality_metrics, format_centrality_report, identify_power_brokers
 
 
 def create_director_network_matrix():
@@ -493,6 +494,21 @@ def main():
 
     print(f"\nExported to: {output_path}")
     print(f"File size: {output_path.stat().st_size / 1024:.1f} KB")
+
+    # Network centrality analysis (Hayden, Wood & Kaya 2002)
+    print("\n" + "="*70)
+    print("NETWORK CENTRALITY ANALYSIS (Hayden, Wood & Kaya 2002)")
+    print("="*70)
+    centrality = compute_centrality_metrics(matrix, service)
+    print(format_centrality_report(centrality, title="Director Network Centrality"))
+
+    brokers = identify_power_brokers(centrality)
+    if brokers:
+        print("\nPower Brokers (betweenness >= 0.10):")
+        for label, score in brokers:
+            print(f"  {label}: {score:.3f}")
+    else:
+        print("\nNo nodes exceed the 0.10 betweenness threshold.")
 
     # Key findings (per Hayden, Wood & Kaya 2002)
     print("\n" + "="*70)
