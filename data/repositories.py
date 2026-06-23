@@ -218,7 +218,7 @@ class NetworkXSFMRepository(SFMRepository):
             return None
 
         # Return the node data stored in the graph
-        return self.graph.nodes[node_id].get("data")
+        return cast(Optional[Node], self.graph.nodes[node_id].get("data"))
 
     def update_node(self, node: Node) -> Node:
         """Update an existing node."""
@@ -368,7 +368,7 @@ class NetworkXSFMRepository(SFMRepository):
         # Search for the relationship in edges
         for _, _, key, data in self.graph.edges(data=True, keys=True):  # type: ignore[misc]
             if key == rel_id:
-                return data.get("data")  # type: ignore[return-value]
+                return cast(Optional[Relationship], data.get("data"))
 
         return None
 

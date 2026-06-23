@@ -299,7 +299,7 @@ class NetworkXSFMQueryEngine(SFMQueryEngine):  # pylint: disable=too-many-public
         else:
             centrality = nx.betweenness_centrality(self.nx_graph)
 
-        return centrality.get(node_id, 0.0)
+        return float(centrality.get(node_id, 0.0))
 
     def get_most_central_nodes(
         self,
