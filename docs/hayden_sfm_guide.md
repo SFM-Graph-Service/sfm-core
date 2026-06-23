@@ -261,12 +261,35 @@ Delivery(
 )
 ```
 
-**Temporal rate values:**
+**Temporal rate values** (full `VALID_TEMPORAL_RATES` list):
+- `"continuous"`: Always active (ongoing flow)
 - `"annual"`: Once per year
-- `"monthly"`: Twelve times per year
 - `"quarterly"`: Four times per year
-- `"continuous"`: Ongoing flow
-- `"event_triggered"`: Conditional on events
+- `"monthly"`: Twelve times per year
+- `"weekly"`: Once per week
+- `"daily"`: Once per day
+- `"event-triggered"`: On specific events
+- `"on-demand"`: When requested
+
+Use `validate_temporal_rate()` to check a delivery's rate against this list:
+
+```python
+from api.sfm_service import VALID_TEMPORAL_RATES, validate_temporal_rate
+
+delivery = Delivery(
+    delivery_type="money",
+    delivery_content="Annual grant",
+    temporal_rate="annual"
+)
+assert validate_temporal_rate(delivery)  # True — "annual" is valid
+
+bad_delivery = Delivery(
+    delivery_type="money",
+    delivery_content="Payment",
+    temporal_rate="biannual"  # Not in VALID_TEMPORAL_RATES
+)
+assert not validate_temporal_rate(bad_delivery)  # False
+```
 
 ### Threshold Monitoring
 
@@ -292,13 +315,63 @@ alerts = service.check_delivery_thresholds(matrix)
 
 for alert in alerts:
     print(f"THRESHOLD EXCEEDED: {alert.delivery.delivery_content}")
-    print(f"Current: {alert.current_value}, Threshold: {alert.threshold}")
+    print(f"  {alert.source_component_label} → {alert.target_component_label}")
+    print(f"  Current: {alert.current_value}, Threshold: {alert.threshold}")
+    print(f"  Matrix: {alert.matrix_id}")
+```
+
+### Updating Delivery Quantities
+
+Use `update_delivery_quantity()` to update a delivery's value and get an immediate threshold check:
+
+```python
+# Update CO2 emissions — returns alert if threshold crossed
+alert = service.update_delivery_quantity(
+    matrix,
+    source_id=industry_id,
+    target_id=atmosphere_id,
+    delivery_index=0,
+    new_quantity=550.0,         # New value exceeds 500 threshold
+    check_threshold=True        # Default — check on update
+)
+
+if alert:
+    print(f"⚠️  {alert.direction.upper()}: {alert.current_value} vs threshold {alert.threshold}")
+    # Trigger policy response...
+```
+
+### Filtering Deliveries by Temporal Rate
+
+Use `get_deliveries_by_temporal_rate()` for batch processing at period boundaries:
+
+```python
+# At fiscal year end, process all annual deliveries
+annual = service.get_deliveries_by_temporal_rate(matrix, "annual")
+for cell, delivery in annual:
+    print(f"{delivery.delivery_content}: {delivery.quantity} {delivery.units}")
+
+# Continuous deliveries never need batch triggering
+ongoing = service.get_deliveries_by_temporal_rate(matrix, "continuous")
+```
+
+### Advancing Clocks
+
+`advance_clock()` moves a clock to the next phase and returns threshold alerts for synchronized deliveries:
+
+```python
+# Nebraska legislative session ends → interim begins
+alerts = service.advance_clock(leg_clock, matrix)
+print(f"Clock advanced to: {leg_clock.current_phase}")
+
+for alert in alerts:
+    print(f"Delivery review required: {alert.delivery.delivery_content}")
 ```
 
 **Use cases:**
 - Environmental monitoring (pollution limits)
 - Budget tracking (spending caps)
 - Performance monitoring (outcome thresholds)
+- Legislative session transitions (appropriation reviews)
 
 ## Matrix Structure and API
 
@@ -788,6 +861,35 @@ synchronize_delivery_to_clock(
 check_delivery_thresholds(
     matrix: SFMDeliveryMatrix
 ) -> List[ThresholdAlert]
+
+update_delivery_quantity(
+    matrix: SFMDeliveryMatrix,
+    source_id: uuid.UUID,
+    target_id: uuid.UUID,
+    delivery_index: int,
+    new_quantity: float,
+    check_threshold: bool = True
+) -> Optional[ThresholdAlert]
+
+get_deliveries_by_temporal_rate(
+    matrix: SFMDeliveryMatrix,
+    temporal_rate: str
+) -> List[Tuple[SFMDeliveryCell, Delivery]]
+
+advance_clock(
+    clock: TemporalClock,
+    matrix: Optional[SFMDeliveryMatrix] = None
+) -> List[ThresholdAlert]
+```
+
+**Temporal Validation (module-level):**
+```python
+from api.sfm_service import VALID_TEMPORAL_RATES, validate_temporal_rate
+
+# List of all valid rates
+VALID_TEMPORAL_RATES: List[str]  # ["continuous", "annual", "quarterly", ...]
+
+validate_temporal_rate(delivery: Delivery) -> bool
 ```
 
 ### Export Functions

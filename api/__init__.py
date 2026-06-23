@@ -9,6 +9,9 @@ from api.sfm_service import (
     SFMServiceConfig,
     ServiceHealth,
     GraphStatistics,
+    ThresholdAlert,
+    VALID_TEMPORAL_RATES,
+    validate_temporal_rate,
 )
 
 __version__ = "0.7.0"
@@ -18,5 +21,8 @@ __all__ = [
     "SFMServiceConfig",
     "ServiceHealth",
     "GraphStatistics",
+    "ThresholdAlert",
+    "VALID_TEMPORAL_RATES",
+    "validate_temporal_rate",
     "__version__",
 ]
