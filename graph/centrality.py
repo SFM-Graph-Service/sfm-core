@@ -12,7 +12,7 @@ Reference:
     Journal of Economic Issues.
 """
 
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Tuple
 import uuid
 
 try:
@@ -60,17 +60,25 @@ def compute_centrality_metrics(
         G.add_node(component_id, label=label)
 
     # Add weighted edges from delivery cells
+    # Use inverted weight (distance) so more deliveries = shorter path
     for (source_id, target_id), cell in matrix.cells.items():
         delivery_count = len(cell.deliveries)
         if delivery_count > 0:
-            G.add_edge(source_id, target_id, weight=delivery_count)
+            # Store both strength and distance
+            G.add_edge(
+                source_id,
+                target_id,
+                weight=delivery_count,
+                distance=1.0 / delivery_count
+            )
 
     if G.number_of_nodes() == 0:
         return {"betweenness": {}, "degree": {}, "closeness": {}}
 
-    betweenness_by_id = nx.betweenness_centrality(G, weight="weight")
+    # Use distance for path-based centrality (inverted strength)
+    betweenness_by_id = nx.betweenness_centrality(G, weight="distance")
     degree_by_id = nx.degree_centrality(G)
-    closeness_by_id = nx.closeness_centrality(G)
+    closeness_by_id = nx.closeness_centrality(G, distance="distance")
 
     def _label_map(scores_by_id: Dict[uuid.UUID, float]) -> Dict[str, float]:
         result: Dict[str, float] = {}

@@ -22,8 +22,8 @@ def triangle_matrix():
     """
     Three-node directed triangle: A → B → C → A, plus A → C.
 
-    Node B sits on the A→C path only via B, making it a bridge.
-    Expected betweenness > 0 for B and C.
+    The direct A→C edge means B is not a required intermediary,
+    but B still has nonzero betweenness via the A→B→C path.
     Returns (matrix, service, node_labels_dict).
     """
     service = SFMService()
