@@ -326,6 +326,98 @@ class TestBetaQueryMethods(unittest.TestCase):
         self.assertEqual(paths[0][0].id, node1.id, "Cycle should start with source node")
         self.assertEqual(paths[0][-1].id, node1.id, "Cycle should end with source node")
 
+    def test_query_circular_causation_paths_two_node_cycle(self):
+        """Test that 2-node (mutual) cycles are detected by query_circular_causation_paths."""
+        from models.delivery_matrix import Delivery, SFMDeliveryCell, SFMDeliveryMatrix
+
+        nodeA = Node(label="NodeA", description="First node in mutual cycle")
+        nodeB = Node(label="NodeB", description="Second node in mutual cycle")
+        self.graph.add_node(nodeA)
+        self.graph.add_node(nodeB)
+
+        # Create mutual (2-node) cycle via explicit Relationship objects: A → B and B → A
+        self.graph.add_relationship(Relationship(
+            source_id=nodeA.id, target_id=nodeB.id, kind="influences"
+        ))
+        self.graph.add_relationship(Relationship(
+            source_id=nodeB.id, target_id=nodeA.id, kind="influences"
+        ))
+
+        engine = NetworkXSFMQueryEngine(self.graph)
+        paths_a = engine.query_circular_causation_paths(nodeA.id, max_depth=5)
+        paths_b = engine.query_circular_causation_paths(nodeB.id, max_depth=5)
+
+        self.assertGreater(len(paths_a), 0, "Should detect 2-node cycle from nodeA")
+        self.assertGreater(len(paths_b), 0, "Should detect 2-node cycle from nodeB")
+
+    def test_build_networkx_graph_includes_delivery_cell_edges(self):
+        """Test that SFMDeliveryCell nodes contribute edges to the NetworkX graph."""
+        from models.delivery_matrix import Delivery, SFMDeliveryCell, SFMDeliveryMatrix
+
+        src = Node(label="Source", description="Delivery source")
+        tgt = Node(label="Target", description="Delivery target")
+        self.graph.add_node(src)
+        self.graph.add_node(tgt)
+
+        # Create an SFMDeliveryCell (delivery matrix entry) instead of a Relationship
+        cell = SFMDeliveryCell(
+            label="Source→Target",
+            source_component_id=src.id,
+            target_component_id=tgt.id,
+            cell_description="Test delivery",
+        )
+        cell.add_delivery(Delivery(
+            delivery_type="information",
+            delivery_content="test",
+            certainty=0.8,
+        ))
+        self.graph.add_node(cell)
+
+        engine = NetworkXSFMQueryEngine(self.graph)
+
+        # The edge derived from the delivery cell should be present
+        self.assertTrue(
+            engine.nx_graph.has_edge(src.id, tgt.id),
+            "NetworkX graph should include edge derived from SFMDeliveryCell",
+        )
+
+    def test_circular_causation_via_delivery_matrix(self):
+        """Test that circular causation is detected when cycle is encoded as delivery cells."""
+        from models.delivery_matrix import Delivery, SFMDeliveryCell
+
+        epa = Node(label="EPA", description="Federal agency")
+        state = Node(label="State", description="State agency")
+        self.graph.add_node(epa)
+        self.graph.add_node(state)
+
+        # EPA → State delivery cell
+        cell_es = SFMDeliveryCell(
+            label="EPA→State",
+            source_component_id=epa.id,
+            target_component_id=state.id,
+            cell_description="EPA sets standards for state",
+        )
+        cell_es.add_delivery(Delivery(delivery_type="rule", delivery_content="NAAQS", certainty=1.0))
+        self.graph.add_node(cell_es)
+
+        # State → EPA delivery cell (creates the feedback loop)
+        cell_se = SFMDeliveryCell(
+            label="State→EPA",
+            source_component_id=state.id,
+            target_component_id=epa.id,
+            cell_description="State submits implementation plans to EPA",
+        )
+        cell_se.add_delivery(Delivery(delivery_type="information", delivery_content="SIP", certainty=0.95))
+        self.graph.add_node(cell_se)
+
+        engine = NetworkXSFMQueryEngine(self.graph)
+        paths = engine.query_circular_causation_paths(epa.id, max_depth=5)
+
+        self.assertGreater(
+            len(paths), 0,
+            "Should detect circular causation when cycle is encoded via SFMDeliveryCell nodes",
+        )
+
     def test_query_holarchy_levels(self):
         """Test institutional holarchy query."""
         # Create institution
