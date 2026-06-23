@@ -509,15 +509,13 @@ class NetworkXSFMQueryEngine(SFMQueryEngine):  # pylint: disable=too-many-public
         # Pre-compute cell-level scores per source component from SFMDeliveryCell nodes.
         # Cells store ceremonial_component / instrumental_component directly on the cell;
         # aggregate them to the source component node so the classifier can use them.
-        cell_scores: Dict[uuid.UUID, List[Tuple[float, float]]] = {}
+        cell_scores: Dict[uuid.UUID, List[Tuple[Optional[float], Optional[float]]]] = {}
         for n in self.graph:
             if isinstance(n, SFMDeliveryCell) and n.source_component_id is not None:
                 c = n.ceremonial_component
                 i = n.instrumental_component
                 if c is not None or i is not None:
-                    cell_scores.setdefault(n.source_component_id, []).append(
-                        (c if c is not None else 0.0, i if i is not None else 0.0)
-                    )
+                    cell_scores.setdefault(n.source_component_id, []).append((c, i))
 
         for node in self.graph:
             score_assigned = False
@@ -548,9 +546,14 @@ class NetworkXSFMQueryEngine(SFMQueryEngine):  # pylint: disable=too-many-public
             # source_component_id matches this node, then averages them.
             if not score_assigned and node.id in cell_scores:
                 pairs = cell_scores[node.id]
-                ceremonial_score = sum(p[0] for p in pairs) / len(pairs)
-                instrumental_score = sum(p[1] for p in pairs) / len(pairs)
-                score_assigned = True
+                # Average only non-None values per dimension to avoid None -> 0.0 bias
+                ceremonial_values = [p[0] for p in pairs if p[0] is not None]
+                instrumental_values = [p[1] for p in pairs if p[1] is not None]
+
+                if ceremonial_values or instrumental_values:
+                    ceremonial_score = sum(ceremonial_values) / len(ceremonial_values) if ceremonial_values else 0.0
+                    instrumental_score = sum(instrumental_values) / len(instrumental_values) if instrumental_values else 0.0
+                    score_assigned = True
 
             # Method 3: Type inference (NEW)
             if not score_assigned:
