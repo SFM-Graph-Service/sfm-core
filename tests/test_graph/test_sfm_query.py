@@ -379,6 +379,102 @@ class TestBetaQueryMethods(unittest.TestCase):
         self.assertIn("conflict_type", conflict)
 
 
+class TestCeremonialClassificationFromDeliveryCells(unittest.TestCase):
+    """Test ceremonial/instrumental classification via SFMDeliveryCell aggregation (Method 2.5)."""
+
+    def setUp(self):
+        """Set up graph with component nodes and SFMDeliveryCell data."""
+        from models.delivery_matrix import SFMDeliveryCell
+
+        self.graph = SFMGraph()
+
+        # Component nodes (plain Node objects, no scores directly attached)
+        self.ceremonial_component = Node(
+            label="Nebraska Citizens",
+            description="Community opposing LLRW facility"
+        )
+        self.instrumental_component = Node(
+            label="Environmental Groups",
+            description="Evidence-based safety monitors"
+        )
+        self.target_component = Node(
+            label="Nebraska (Host State)",
+            description="Host state"
+        )
+
+        for n in (self.ceremonial_component, self.instrumental_component, self.target_component):
+            self.graph.add_node(n)
+
+        # SFMDeliveryCell with high ceremonial score for Nebraska Citizens
+        ceremonial_cell = SFMDeliveryCell(
+            label="NE Citizens → Nebraska",
+            source_component_id=self.ceremonial_component.id,
+            target_component_id=self.target_component.id,
+            cell_description="NIMBY opposition and legal challenges",
+            ceremonial_component=0.9,
+            instrumental_component=0.1,
+        )
+
+        # SFMDeliveryCell with high instrumental score for Environmental Groups
+        instrumental_cell = SFMDeliveryCell(
+            label="Env Groups → Nebraska",
+            source_component_id=self.instrumental_component.id,
+            target_component_id=self.target_component.id,
+            cell_description="Technical safety analysis",
+            ceremonial_component=0.2,
+            instrumental_component=0.8,
+        )
+
+        for cell in (ceremonial_cell, instrumental_cell):
+            self.graph.add_node(cell)
+
+        self.engine = NetworkXSFMQueryEngine(self.graph)
+
+    def test_cell_based_ceremonial_classification(self):
+        """Component node with high cell ceremonial_component should be classified ceremonial."""
+        results = self.engine.query_ceremonial_vs_instrumental(threshold=0.5)
+
+        ceremonial_ids = [n.id for n in results["ceremonial"]]
+        self.assertIn(
+            self.ceremonial_component.id,
+            ceremonial_ids,
+            "Nebraska Citizens should be classified as ceremonial based on cell data"
+        )
+
+    def test_cell_based_instrumental_classification(self):
+        """Component node with high cell instrumental_component should be classified instrumental."""
+        results = self.engine.query_ceremonial_vs_instrumental(threshold=0.5)
+
+        instrumental_ids = [n.id for n in results["instrumental"]]
+        self.assertIn(
+            self.instrumental_component.id,
+            instrumental_ids,
+            "Environmental Groups should be classified as instrumental based on cell data"
+        )
+
+    def test_cell_aggregation_multiple_cells(self):
+        """Average of multiple cells for the same source should be used for classification."""
+        from models.delivery_matrix import SFMDeliveryCell
+
+        # Add a second ceremonial cell for the same source node
+        second_cell = SFMDeliveryCell(
+            label="NE Citizens → Nebraska (second)",
+            source_component_id=self.ceremonial_component.id,
+            target_component_id=self.target_component.id,
+            cell_description="State sovereignty assertion",
+            ceremonial_component=0.7,
+            instrumental_component=0.3,
+        )
+        self.graph.add_node(second_cell)
+
+        engine = NetworkXSFMQueryEngine(self.graph)
+        results = engine.query_ceremonial_vs_instrumental(threshold=0.5)
+
+        # Average: (0.9+0.7)/2 = 0.8 ceremonial → should still classify as ceremonial
+        ceremonial_ids = [n.id for n in results["ceremonial"]]
+        self.assertIn(self.ceremonial_component.id, ceremonial_ids)
+
+
 class TestSFMQueryFactory(unittest.TestCase):
     """Test query engine factory."""
 
