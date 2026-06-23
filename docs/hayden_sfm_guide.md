@@ -300,6 +300,161 @@ for alert in alerts:
 - Budget tracking (spending caps)
 - Performance monitoring (outcome thresholds)
 
+**Dynamic updates with threshold checking:**
+
+```python
+# Update delivery quantity with real-time threshold check
+alerts = service.update_delivery_quantity(
+    matrix,
+    source_id=power_plant_id,
+    target_id=atmosphere_id,
+    delivery_index=0,
+    new_quantity=600  # New emission level
+)
+
+if alerts:
+    print(f"⚠️ Threshold violated: {alerts[0].direction}")
+```
+
+### Service Layer Integration
+
+The SFM service provides high-level operations for temporal modeling:
+
+**Filtering deliveries by temporal rate:**
+
+```python
+# Find all annual deliveries
+annual_deliveries = service.get_deliveries_by_temporal_rate(matrix, "annual")
+
+for item in annual_deliveries:
+    delivery = item["delivery"]
+    print(f"{delivery.delivery_content}: ${delivery.quantity:,.0f}")
+```
+
+**Temporal rate validation:**
+
+```python
+# Valid rates per Hayden 1987/1993
+valid = service.validate_temporal_rate(delivery)
+
+if not valid:
+    print(f"Invalid temporal rate: {delivery.temporal_rate}")
+```
+
+**Standard temporal rates:**
+- `continuous` - Ongoing flows (pollution, data streams)
+- `real_time` - Immediate transactions
+- `daily` - Daily operations
+- `weekly` - Weekly cycles
+- `monthly` - Monthly payments, reports
+- `quarterly` - Quarterly distributions
+- `annual` - Annual budgets, appropriations
+- `biennial` - Two-year legislative cycles
+- `event_triggered` - Conditional on events
+- `on_demand` - As needed
+- `legislative_cycle` - Synchronized to legislature
+- `fiscal_year` - July 1 - June 30
+- `academic_year` - August - May
+
+**Advancing clocks with delivery checks:**
+
+```python
+# Advance clock to next phase and check deliveries
+result = service.advance_clock(legislative_clock, matrix)
+
+print(f"Advanced to: {result['new_phase']}")
+print(f"Deliveries due: {len(result['deliveries_due'])}")
+
+# Check for threshold violations in due deliveries
+if result['alerts']:
+    print(f"⚠️ {len(result['alerts'])} threshold violations")
+```
+
+### Complete Temporal Workflow Example
+
+```python
+from api.sfm_service import SFMService
+from models import Node
+from models.delivery_matrix import Delivery
+from models.temporal_clocks import create_legislative_clock
+from datetime import timedelta
+
+service = SFMService()
+
+# 1. Create components
+legislature = Node(label="Legislature")
+schools = Node(label="School Districts")
+
+service.create_node(legislature)
+service.create_node(schools)
+
+# 2. Create matrix
+matrix = service.create_delivery_matrix(
+    label="Education Finance",
+    components=[legislature.id, schools.id]
+)
+
+# 3. Create temporal clock
+leg_clock = create_legislative_clock("Nebraska", biennial=True)
+leg_clock = service.create_temporal_clock(
+    clock_name=leg_clock.clock_name,
+    label=leg_clock.label,
+    period_length=leg_clock.period_length,
+    phases=leg_clock.phases
+)
+leg_clock.current_phase = "first_session"
+
+# 4. Add delivery with temporal synchronization
+funding = Delivery(
+    delivery_type="money",
+    delivery_content="TEEOSA appropriation",
+    quantity=1_600_000_000,
+    units="USD per biennium",
+    temporal_rate="biennial",
+    temporal_clock="nebraska_legislative_cycle",
+    threshold=1_500_000_000,
+    threshold_direction="below"
+)
+
+service.add_delivery_to_matrix(
+    matrix, legislature.id, schools.id, funding,
+    cell_description="Legislature funds schools biennially"
+)
+
+# 5. Synchronize delivery to clock
+service.synchronize_delivery_to_clock(
+    leg_clock, legislature.id, schools.id, 0
+)
+
+# 6. Monitor thresholds
+alerts = service.check_delivery_thresholds(matrix)
+print(f"Initial threshold alerts: {len(alerts)}")
+
+# 7. Advance clock and check deliveries due
+result = service.advance_clock(leg_clock, matrix)
+print(f"Phase: {result['new_phase']}")
+print(f"Deliveries due: {len(result['deliveries_due'])}")
+
+# 8. Update quantity with threshold check
+alerts = service.update_delivery_quantity(
+    matrix, legislature.id, schools.id, 0, 1_400_000_000
+)
+
+if alerts:
+    print(f"⚠️ Funding below constitutional threshold!")
+```
+
+For a complete working example, see:
+- `examples/hayden_case_studies/nebraska_k12_temporal.py`
+
+This example demonstrates:
+- Three simultaneous temporal clocks (legislative, fiscal, academic)
+- Multiple delivery temporal rates
+- Threshold monitoring with real-time alerts
+- Clock phase advancement
+- Deliveries due checking
+- Dynamic quantity updates
+
 ## Matrix Structure and API
 
 ### Creating a Delivery Matrix
@@ -883,6 +1038,16 @@ This implementation is based on 40+ years of Hayden's published research:
    - Health care policy analysis
    - XLSX matrix export format
 
+10. **Hayden, F. G. (1987)**. "Tax Expenditure Incidence: Distributional Criteria and the Social Fabric Matrix." *Review of Social Economy*, 45(3), 267-286.
+   - Temporal modeling foundations
+   - Threshold monitoring concept
+   - Real-time delivery tracking
+
+11. **Hayden, F. G. (1993)**. "Institutionalist Policymaking." In *Institutional Economics: Theory, Method, Policy*, edited by M. Tool, 283-331. Springer.
+   - Polychronic time concept
+   - Multiple simultaneous temporal scales
+   - Graphical clocks for policy cycles
+
 ## Implementation Assessment
 
 **sfm-core** aims for high fidelity to Hayden's published methodology:
@@ -926,4 +1091,4 @@ methodology (https://github.com/yourusername/sfm-core).
 
 ---
 
-*Last updated: 2026-05-27*
+*Last updated: 2026-06-23*
