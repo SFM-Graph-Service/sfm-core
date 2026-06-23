@@ -18,6 +18,7 @@ from graph.sfm_graph import SFMGraph, Relationship
 from models.base_nodes import Node
 from models.complex_analysis import ConflictDetection
 from models.cultural_analysis import CeremonialInstrumentalClassification
+from models.delivery_matrix import SFMDeliveryCell
 from models.sfm_enums import FlowNature
 from models.system_analysis import InstitutionalHolarchy
 from models.policy_framework import PolicyInstrument
@@ -520,9 +521,11 @@ class NetworkXSFMQueryEngine(SFMQueryEngine):  # pylint: disable=too-many-public
     ) -> Dict[str, List[Node]]:
         """Query nodes classified by ceremonial vs instrumental characteristics.
 
-        Uses a 4-method cascade for classification:
+        Uses a 5-method cascade for classification:
         1. Beta model nodes (CeremonialInstrumentalClassification)
         2. Metadata scores (ceremonial_score, instrumental_score)
+        2.5. SFMDeliveryCell aggregation (ceremonial_component / instrumental_component
+             averaged across all cells whose source_component_id matches the node)
         3. Type-based inference (Institution → ceremonial, Technology → instrumental)
         4. Relationship-based inference (count ceremonial vs instrumental relationship kinds)
         """
@@ -532,6 +535,17 @@ class NetworkXSFMQueryEngine(SFMQueryEngine):  # pylint: disable=too-many-public
             "mixed": []
         }
         unclassified_count = 0
+
+        # Pre-compute cell-level scores per source component from SFMDeliveryCell nodes.
+        # Cells store ceremonial_component / instrumental_component directly on the cell;
+        # aggregate them to the source component node so the classifier can use them.
+        cell_scores: Dict[uuid.UUID, List[Tuple[Optional[float], Optional[float]]]] = {}
+        for n in self.graph:
+            if isinstance(n, SFMDeliveryCell) and n.source_component_id is not None:
+                c = n.ceremonial_component
+                i = n.instrumental_component
+                if c is not None or i is not None:
+                    cell_scores.setdefault(n.source_component_id, []).append((c, i))
 
         for node in self.graph:
             score_assigned = False
@@ -556,6 +570,20 @@ class NetworkXSFMQueryEngine(SFMQueryEngine):  # pylint: disable=too-many-public
                     except (ValueError, TypeError):
                         # Invalid metadata values, continue to next method
                         pass
+
+            # Method 2.5: SFMDeliveryCell scores aggregated to source component nodes.
+            # Reads ceremonial_component / instrumental_component from cells whose
+            # source_component_id matches this node, then averages them.
+            if not score_assigned and node.id in cell_scores:
+                pairs = cell_scores[node.id]
+                # Average only non-None values per dimension to avoid None -> 0.0 bias
+                ceremonial_values = [p[0] for p in pairs if p[0] is not None]
+                instrumental_values = [p[1] for p in pairs if p[1] is not None]
+
+                if ceremonial_values or instrumental_values:
+                    ceremonial_score = sum(ceremonial_values) / len(ceremonial_values) if ceremonial_values else 0.0
+                    instrumental_score = sum(instrumental_values) / len(instrumental_values) if instrumental_values else 0.0
+                    score_assigned = True
 
             # Method 3: Type inference (NEW)
             if not score_assigned:
