@@ -2162,7 +2162,7 @@ class SFMService:
         Export graph to external format for interoperability.
 
         Supported formats:
-            - "json": Custom JSON snapshot format
+            - "json": Custom JSON snapshot format (flat nodes list)
             - "graphml": GraphML format (for yEd, Cytoscape)
             - "gexf": GEXF format (for Gephi)
 
@@ -2192,27 +2192,68 @@ class SFMService:
 
         # Export based on format
         if export_format.lower() == "json":
-            # Build snapshot and write
-            snapshot_data = self._build_snapshot_dict()
+            # Build flat snapshot (different from save() format)
+            from datetime import datetime
+            from graph.sfm_persistence import NodeSerializer
+
+            all_nodes = self.list_nodes()
+            all_rels = self.list_relationships()
+
+            snapshot_data = {
+                "metadata": {
+                    "saved_at": datetime.now().isoformat(),
+                    "node_count": len(all_nodes),
+                    "relationship_count": len(all_rels),
+                    "version": 1
+                },
+                "nodes": [NodeSerializer.node_to_dict(node) for node in all_nodes],
+                "relationships": [
+                    {
+                        'id': str(rel.id),
+                        'source_id': str(rel.source_id),
+                        'target_id': str(rel.target_id),
+                        'kind': rel.kind if hasattr(rel, 'kind') else None,
+                        'weight': rel.weight if hasattr(rel, 'weight') else None,
+                    }
+                    for rel in all_rels
+                ]
+            }
 
             with open(path, 'w', encoding='utf-8') as f:
                 json.dump(snapshot_data, f, indent=2, default=self._json_serializer)
         elif export_format.lower() in ["graphml", "gexf"]:
-            # Convert to NetworkX first
-            from graph.converters import to_multidigraph
+            # Export to NetworkX format
+            import networkx as nx
 
-            # Build temp delivery matrix for conversion
-            # This is a workaround - we should ideally build directly from repository
             nodes = self.list_nodes()
             if not nodes:
                 raise ValueError("Cannot export empty graph")
 
-            # For now, write as JSON and recommend using save() instead
-            snapshot_data = self._build_snapshot_dict()
-            with open(path, 'w', encoding='utf-8') as f:
-                json.dump(snapshot_data, f, indent=2, default=self._json_serializer)
+            # Build NetworkX graph from repository
+            G = nx.MultiDiGraph()
 
-            logger.warning("%s format export not fully implemented, saved as JSON instead", export_format)
+            # Add nodes with attributes
+            for node in nodes:
+                G.add_node(
+                    str(node.id),
+                    label=node.label,
+                    node_type=type(node).__name__
+                )
+
+            # Add edges
+            for rel in self.list_relationships():
+                G.add_edge(
+                    str(rel.source_id),
+                    str(rel.target_id),
+                    key=str(rel.id),
+                    kind=rel.kind if hasattr(rel, 'kind') else None
+                )
+
+            # Export based on format
+            if export_format.lower() == "graphml":
+                nx.write_graphml(G, str(path))
+            else:  # gexf
+                nx.write_gexf(G, str(path))
         else:
             raise ValueError(f"Unsupported export format: {export_format}")
 
@@ -2234,7 +2275,7 @@ class SFMService:
 
     def import_snapshot(self, filepath: str) -> Dict[str, Any]:
         """
-        Import graph from JSON snapshot format.
+        Import graph from JSON snapshot format (flat nodes list).
 
         Args:
             filepath: Full path to JSON snapshot file
@@ -2247,20 +2288,56 @@ class SFMService:
             >>> metadata = service.import_snapshot("/tmp/my_network.json")
             >>> print(f"Imported {metadata['node_count']} nodes")
         """
-        from graph.sfm_persistence import SFMPersistenceManager
+        from pathlib import Path
+        import json
+        from graph.sfm_persistence import NodeSerializer, SFMPersistenceError
 
-        manager = SFMPersistenceManager()
+        path = Path(filepath)
+        if not path.exists():
+            raise SFMPersistenceError(f"File not found: {filepath}")
 
-        # Import snapshot
-        loaded_graph = manager.import_json_snapshot(filepath)
+        # Load JSON
+        with open(path, 'r', encoding='utf-8') as f:
+            snapshot_data = json.load(f)
 
-        # Replace current graph
-        self._repository._graph = loaded_graph
+        # Validate format
+        if "nodes" not in snapshot_data:
+            raise SFMPersistenceError("Invalid snapshot format: missing 'nodes' key")
+
+        # Clear current graph
+        self.unload()
+
+        # Import nodes
+        nodes_loaded = 0
+        for node_data in snapshot_data.get("nodes", []):
+            try:
+                node = NodeSerializer.dict_to_node(node_data)
+                self.repository.create_node(node)
+                nodes_loaded += 1
+            except Exception as e:
+                logger.warning("Failed to import node: %s", e)
+
+        # Import relationships
+        from graph.sfm_graph import Relationship
+        rels_loaded = 0
+        for rel_data in snapshot_data.get("relationships", []):
+            try:
+                rel = Relationship(
+                    id=uuid.UUID(rel_data['id']),
+                    source_id=uuid.UUID(rel_data['source_id']),
+                    target_id=uuid.UUID(rel_data['target_id']),
+                    kind=rel_data.get('kind', ''),
+                    weight=rel_data.get('weight'),
+                )
+                self.repository.create_relationship(rel)
+                rels_loaded += 1
+            except Exception as e:
+                logger.warning("Failed to import relationship: %s", e)
 
         result = {
             "filepath": filepath,
-            "node_count": len(list(self.repository.graph)),
-            "relationship_count": len(self.repository.graph.relationships)
+            "node_count": nodes_loaded,
+            "relationship_count": rels_loaded
         }
 
         logger.info("Imported snapshot: %s (%d nodes, %d relationships)",
