@@ -1,0 +1,5 @@
+# Git mailmap for consolidating contributor identities
+# Format: Proper Name <proper@email.xx> <commit@email.xx>
+
+Garrick Dabbs <gdabbs@redhat.com>
+Claude Sonnet 4.5 <noreply@anthropic.com>

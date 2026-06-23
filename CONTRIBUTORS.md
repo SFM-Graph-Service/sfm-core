@@ -1,22 +1,42 @@
 # Contributors
 
-## Author
+## Core Contributors
 
-**Garrick Dabbs** - Project creator and primary developer
-- Email: garrickdabbs@gmail.com
-- GitHub: [@garrickdabbs](https://github.com/garrickdabbs) (if applicable)
+### Garrick Dabbs
+**Role**: Project Creator, Primary Developer, and Researcher
+- Email: gdabbs@redhat.com
+- GitHub: @gdabbs
+- **Contributions**:
+  - Project architecture and design
+  - Research methodology and institutional economics domain expertise
+  - Hayden SFM implementation and fidelity analysis
+  - Framework bridges (Doughnut Economics, Ostrom SES/IAD)
+  - Case study development and validation
+  - All code review and quality assurance
+  - Project direction and research applications
+
+### Claude Sonnet 4.5
+**Role**: AI Development Assistant
+- Provider: Anthropic
+- **Contributions**:
+  - Code implementation assistance
+  - Documentation generation and technical writing
+  - Test suite development and test case design
+  - API design and implementation suggestions
+  - Performance optimization recommendations
+  - Architectural pattern recommendations
+
+**Attribution**: All commits include co-authorship:
+```
+Co-Authored-By: Garrick Dabbs <gdabbs@redhat.com>
+Co-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>
+```
 
 ## AI Assistance Disclosure
 
-This project was developed with extensive assistance from **Claude AI** (Anthropic), specifically Claude Sonnet 4.5. AI assistance was used throughout:
+This project was developed with extensive assistance from **Claude AI** (Anthropic), specifically Claude Sonnet 4.5. AI assistance was used throughout code development, documentation, and testing.
 
-- **Architectural Design**: Core system architecture, design patterns, module organization
-- **Code Implementation**: Substantial portions of the codebase, including models, graph operations, API endpoints
-- **Documentation**: README, guides, docstrings, code comments
-- **Testing**: Test suite structure and test case implementation
-- **Analysis**: SFM fidelity analysis, performance benchmarking
-
-**Human Oversight**: All AI-generated code and documentation was reviewed, validated, and iteratively refined by the human author. Design decisions, methodology interpretation, and project direction were human-driven.
+**Human Oversight**: All AI-generated code and documentation was reviewed, validated, and iteratively refined by Garrick Dabbs. Design decisions, methodology interpretation, and project direction were human-driven.
 
 **Verification**: Users should independently verify all outputs. Known limitations are documented in SFM_FIDELITY_ANALYSIS.md.
 
@@ -91,7 +111,7 @@ We are committed to providing a welcoming and harassment-free experience for eve
 - Other conduct which could reasonably be considered inappropriate in a professional setting
 
 **Enforcement:**
-Instances of unacceptable behavior may be reported by contacting the project maintainer at garrickdabbs@gmail.com. All complaints will be reviewed and investigated and will result in a response deemed necessary and appropriate to the circumstances.
+Instances of unacceptable behavior may be reported by contacting the project maintainer at gdabbs@redhat.com. All complaints will be reviewed and investigated and will result in a response deemed necessary and appropriate to the circumstances.
 
 **Attribution:**
 This Code of Conduct is adapted from the [Contributor Covenant](https://www.contributor-covenant.org/), version 1.4.
@@ -107,7 +127,8 @@ If you use SFM Core in your research, please cite both:
      title = {SFM Core: Social Fabric Matrix Graph Service},
      year = {2026},
      url = {https://github.com/SFM-Graph-Service/sfm-core},
-     version = {0.1.0}
+     version = {0.7.0},
+     doi = {10.5281/zenodo.20418500}
    }
    ```
 
@@ -140,8 +161,8 @@ This project is licensed under the GNU General Public License v3.0 (GPL-3.0). Se
 
 - **Usage Questions**: Open a [GitHub Discussion](https://github.com/SFM-Graph-Service/sfm-core/discussions)
 - **Bug Reports**: Open a [GitHub Issue](https://github.com/SFM-Graph-Service/sfm-core/issues)
-- **Security Issues**: Email garrickdabbs@gmail.com (do not open public issue)
-- **Academic Collaboration**: Email garrickdabbs@gmail.com
+- **Security Issues**: Email gdabbs@redhat.com (do not open public issue)
+- **Academic Collaboration**: Email gdabbs@redhat.com
 
 ---
 
