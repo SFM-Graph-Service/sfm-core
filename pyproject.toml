@@ -4,13 +4,13 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "sfm-core"
-version = "0.1.0"
+version = "0.7.0"
 description = "Social Fabric Matrix (SFM) graph service for institutional economics analysis"
 readme = "README.md"
 license = {text = "GPL-3.0"}
 requires-python = ">=3.9"
 authors = [
-    {name = "Garrick Dabbs", email = "garrickdabbs@gmail.com"}
+    {name = "Garrick Dabbs", email = "gdabbs@redhat.com"}
 ]
 keywords = [
     "social-fabric-matrix",

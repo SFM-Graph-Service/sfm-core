@@ -11,9 +11,12 @@ from api.sfm_service import (
     GraphStatistics,
 )
 
+__version__ = "0.7.0"
+
 __all__ = [
     "SFMService",
     "SFMServiceConfig",
     "ServiceHealth",
     "GraphStatistics",
+    "__version__",
 ]
