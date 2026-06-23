@@ -79,16 +79,9 @@ pip install -e .
 # Verify installation
 python -c "from api.sfm_service import SFMService; print('✓ Installation successful')"
 
-# Run validation script (recommended)
-./test_setup.sh
-
 # Run test suite
 pytest tests/
 ```
-
-**Validation Scripts:**
-- `./test_setup.sh` - Validate local installation
-- See [SETUP_GUIDE.md](SETUP_GUIDE.md) for troubleshooting
 
 ### Production Installation (Neo4j Backend)
 
@@ -695,7 +688,7 @@ Methodological bridges connecting SFM to established frameworks:
 - Swagger UI: http://localhost:8000/docs
 - ReDoc: http://localhost:8000/redoc
 
-**Test Suite**: 778 passing tests covering all components
+**Test Suite**: 800 passing tests covering all components
 ```bash
 pytest tests/ -v --cov
 ```
@@ -873,4 +866,4 @@ If you use SFM Core in your research, please cite both:
 
 ---
 
-**Status**: Experimental Research Software | **Version**: 0.7.0 | **Python**: 3.9+ | **Tests**: 778 passing ✓
+**Status**: Experimental Research Software | **Version**: 0.7.0 | **Python**: 3.9+ | **Tests**: 800 passing ✓

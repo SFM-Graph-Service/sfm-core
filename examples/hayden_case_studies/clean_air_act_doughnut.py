@@ -439,7 +439,7 @@ def main():
     print("\nMatrix Summary:")
     print(f"  Components: {summary['components']}")
     print(f"  Non-empty cells: {summary['non_empty_cells']}")
-    print(f"  Total deliveries: {summary['total deliveries']}")
+    print(f"  Total deliveries: {summary['total_deliveries']}")
 
     # =========================================================================
     # RUN SFM ANALYSIS BATTERY (Hayden Framework)

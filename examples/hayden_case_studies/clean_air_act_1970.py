@@ -1029,7 +1029,7 @@ def main():
     print("\nMatrix Summary:")
     print(f"  Components: {summary['components']}")
     print(f"  Non-empty cells: {summary['non_empty_cells']}")
-    print(f"  Total deliveries: {summary['total deliveries']}")
+    print(f"  Total deliveries: {summary['total_deliveries']}")
     print("\nDeliveries by type:")
     for dtype, count in summary['deliveries_by_type'].items():
         print(f"  {dtype}: {count}")
