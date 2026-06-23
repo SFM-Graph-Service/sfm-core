@@ -328,8 +328,6 @@ class TestBetaQueryMethods(unittest.TestCase):
 
     def test_query_circular_causation_paths_two_node_cycle(self):
         """Test that 2-node (mutual) cycles are detected by query_circular_causation_paths."""
-        from models.delivery_matrix import Delivery, SFMDeliveryCell, SFMDeliveryMatrix
-
         nodeA = Node(label="NodeA", description="First node in mutual cycle")
         nodeB = Node(label="NodeB", description="Second node in mutual cycle")
         self.graph.add_node(nodeA)
@@ -352,7 +350,7 @@ class TestBetaQueryMethods(unittest.TestCase):
 
     def test_build_networkx_graph_includes_delivery_cell_edges(self):
         """Test that SFMDeliveryCell nodes contribute edges to the NetworkX graph."""
-        from models.delivery_matrix import Delivery, SFMDeliveryCell, SFMDeliveryMatrix
+        from models.delivery_matrix import Delivery, SFMDeliveryCell
 
         src = Node(label="Source", description="Delivery source")
         tgt = Node(label="Target", description="Delivery target")

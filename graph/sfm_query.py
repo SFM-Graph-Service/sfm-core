@@ -261,6 +261,7 @@ class NetworkXSFMQueryEngine(SFMQueryEngine):  # pylint: disable=too-many-public
         for node in self.graph:
             if (
                 isinstance(node, SFMDeliveryCell)
+                and node.deliveries
                 and node.source_component_id is not None
                 and node.target_component_id is not None
                 and node.source_component_id in nx_graph
