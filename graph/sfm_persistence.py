@@ -197,6 +197,26 @@ class NodeSerializer:
         return NodeSerializer.NODE_TYPE_REGISTRY.get(node_type_name)
 
     @staticmethod
+    def _delivery_to_dict(delivery: Any) -> Dict[str, Any]:
+        """Serialize a Delivery dataclass to a plain dictionary."""
+        return {
+            'delivery_type': delivery.delivery_type,
+            'delivery_content': delivery.delivery_content,
+            'quantity': delivery.quantity,
+            'units': delivery.units,
+            'temporal_rate': delivery.temporal_rate,
+            'temporal_clock': delivery.temporal_clock,
+            'threshold': delivery.threshold,
+            'threshold_direction': delivery.threshold_direction,
+            'last_threshold_check': (
+                delivery.last_threshold_check.isoformat()
+                if delivery.last_threshold_check is not None else None
+            ),
+            'certainty': delivery.certainty,
+            'data_sources': list(delivery.data_sources),
+        }
+
+    @staticmethod
     def node_to_dict(node: Node) -> Dict[str, Any]:
         """
         Convert a Node to dictionary representation.
@@ -213,8 +233,22 @@ class NodeSerializer:
         # Add all attributes from the node's __dict__
         for key, value in node.__dict__.items():
             if key not in result and not key.startswith('_'):
+                # Special handling for SFMDeliveryMatrix.cells:
+                # The dict has Tuple[UUID, UUID] keys which are not JSON-serialisable.
+                if key == 'cells' and hasattr(node, 'components'):
+                    serialized_cells: Dict[str, Any] = {}
+                    for (src_id, tgt_id), cell in value.items():
+                        cell_key = f"{src_id}:{tgt_id}"
+                        serialized_cells[cell_key] = NodeSerializer.node_to_dict(cell)
+                    result[key] = serialized_cells
+                # Special handling for SFMDeliveryMatrix.components (List[UUID]):
+                elif key == 'components' and isinstance(value, list):
+                    result[key] = [str(v) if isinstance(v, uuid.UUID) else v for v in value]
+                # Special handling for SFMDeliveryCell.deliveries (List[Delivery]):
+                elif key == 'deliveries' and isinstance(value, list):
+                    result[key] = [NodeSerializer._delivery_to_dict(d) for d in value]
                 # Handle special types
-                if isinstance(value, uuid.UUID):
+                elif isinstance(value, uuid.UUID):
                     result[key] = str(value)
                 elif isinstance(value, datetime):
                     result[key] = value.isoformat()
@@ -249,10 +283,55 @@ class NodeSerializer:
         if 'id' in data:
             data['id'] = uuid.UUID(data['id'])
 
-        # Create node instance
+        # Remove 'type' from data as it's not a constructor parameter
+        node_data = {k: v for k, v in data.items() if k != 'type'}
+
+        # Special handling for SFMDeliveryMatrix: reconstruct cells dict with tuple keys
+        if node_type_name == 'SFMDeliveryMatrix':
+            try:
+                cells_data = node_data.pop('cells', {})
+                components_raw = node_data.pop('components', [])
+                components = [
+                    uuid.UUID(c) if isinstance(c, str) else c
+                    for c in components_raw
+                ]
+                matrix = node_class(components=components, **node_data)
+                for cell_key, cell_dict in cells_data.items():
+                    src_str, tgt_str = cell_key.split(':', 1)
+                    src_id = uuid.UUID(src_str)
+                    tgt_id = uuid.UUID(tgt_str)
+                    cell = NodeSerializer.dict_to_node(cell_dict)
+                    matrix.cells[(src_id, tgt_id)] = cell
+                return cast(Node, matrix)
+            except Exception as e:
+                raise SFMSerializationError(
+                    f"Failed to create SFMDeliveryMatrix: {str(e)}"
+                ) from e
+
+        # Special handling for SFMDeliveryCell: reconstruct Delivery objects and UUID fields
+        if node_type_name == 'SFMDeliveryCell':
+            try:
+                deliveries_data = node_data.pop('deliveries', [])
+                for uuid_field in ('source_component_id', 'target_component_id'):
+                    if uuid_field in node_data and isinstance(node_data[uuid_field], str):
+                        node_data[uuid_field] = uuid.UUID(node_data[uuid_field])
+                deliveries = []
+                for d_dict in deliveries_data:
+                    raw = dict(d_dict)
+                    if raw.get('last_threshold_check'):
+                        raw['last_threshold_check'] = datetime.fromisoformat(
+                            raw['last_threshold_check']
+                        )
+                    deliveries.append(Delivery(**raw))
+                node_data['deliveries'] = deliveries
+                return cast(Node, node_class(**node_data))
+            except Exception as e:
+                raise SFMSerializationError(
+                    f"Failed to create SFMDeliveryCell: {str(e)}"
+                ) from e
+
+        # Create node instance (standard path)
         try:
-            # Remove 'type' from data as it's not a constructor parameter
-            node_data = {k: v for k, v in data.items() if k != 'type'}
             node = cast(Node, node_class(**node_data))
             return node
         except Exception as e:
