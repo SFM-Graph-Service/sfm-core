@@ -18,7 +18,7 @@ and prevent temporal misalignment in policy analysis.
 
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
-from typing import List, Optional, Dict
+from typing import Any, Dict, List, Optional
 import uuid
 
 from models.base_nodes import Node
@@ -245,6 +245,62 @@ class TemporalClock(Node):
             current_date = end_date
 
         return schedule
+
+    def get_deliveries_due(self, matrix: Any) -> List[Dict]:
+        """
+        Get all deliveries synchronized to this clock.
+
+        Returns deliveries that have been explicitly synchronized via
+        synchronize_delivery_to_clock() and whose temporal_clock matches
+        this clock's name. Useful for identifying deliveries that should
+        be evaluated when the clock advances to a new phase.
+
+        Args:
+            matrix: SFMDeliveryMatrix to check for synchronized deliveries
+
+        Returns:
+            List of dicts with delivery info: {
+                "delivery": Delivery object,
+                "cell": SFMDeliveryCell,
+                "source_id": UUID,
+                "target_id": UUID,
+                "delivery_index": int,
+                "clock_name": str
+            }
+
+        Example:
+            >>> deliveries_due = clock.get_deliveries_due(matrix)
+            >>> for item in deliveries_due:
+            ...     print(f"Synchronized: {item['delivery'].delivery_content}")
+        """
+        deliveries_due = []
+
+        # Check all synchronized deliveries
+        for _cell_key, delivery_refs in self.synchronized_deliveries.items():
+            for source_id, target_id, delivery_index in delivery_refs:
+                # Get cell from matrix
+                cell = matrix.get_cell(source_id, target_id)
+                if cell is None:
+                    continue
+
+                # Get delivery
+                if delivery_index >= len(cell.deliveries):
+                    continue
+
+                delivery = cell.deliveries[delivery_index]
+
+                # Check if delivery's temporal_clock matches this clock
+                if delivery.temporal_clock == self.clock_name:
+                    deliveries_due.append({
+                        "delivery": delivery,
+                        "cell": cell,
+                        "source_id": source_id,
+                        "target_id": target_id,
+                        "delivery_index": delivery_index,
+                        "clock_name": self.clock_name
+                    })
+
+        return deliveries_due
 
 
 # Predefined clock templates for common use cases

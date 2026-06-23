@@ -467,7 +467,6 @@ class SFMService:
     def create_node_with_geography(
         self,
         label: str,
-        node_type: str,
         description: str,
         geographic_scope: str,  # "federal", "state", "local", "regional"
         state: Optional[str] = None,
@@ -479,7 +478,6 @@ class SFMService:
 
         Args:
             label: Node label
-            node_type: Node type (e.g., "Institution", "Policy")
             description: Node description
             geographic_scope: "federal", "state", "local", "regional"
             state: State name (e.g., "California", "TX")
@@ -493,7 +491,6 @@ class SFMService:
             # Create California-specific air quality standard
             create_node_with_geography(
                 label="California Air Quality Standards",
-                node_type="Institution",
                 description="CARB emission standards stricter than federal",
                 geographic_scope="state",
                 state="California",
@@ -1628,6 +1625,46 @@ class SFMService:
     # Temporal Modeling & Threshold Monitoring
     # ========================================
 
+    # Valid temporal rates per Hayden 1987/1993
+    VALID_TEMPORAL_RATES = [
+        "continuous",
+        "real_time",
+        "daily",
+        "weekly",
+        "monthly",
+        "quarterly",
+        "annual",
+        "biennial",
+        "event_triggered",
+        "on_demand",
+        "legislative_cycle",
+        "fiscal_year",
+        "academic_year",
+    ]
+
+    def validate_temporal_rate(self, delivery: Any) -> bool:
+        """
+        Validate delivery temporal rate.
+
+        Args:
+            delivery: Delivery instance to validate
+
+        Returns:
+            True if valid or None, False if invalid
+
+        Example:
+            >>> delivery = Delivery(delivery_type="money", delivery_content="Payment", temporal_rate="annual")
+            >>> service.validate_temporal_rate(delivery)
+            True
+        """
+        if delivery.temporal_rate is None:
+            return True
+
+        # Normalize hyphen/underscore for backward compatibility
+        # (existing code uses "event-triggered", new uses "event_triggered")
+        normalized_rate = delivery.temporal_rate.replace('-', '_')
+        return normalized_rate in self.VALID_TEMPORAL_RATES
+
     def check_delivery_thresholds(
         self,
         matrix: Any  # SFMDeliveryMatrix
@@ -1686,6 +1723,144 @@ class SFMService:
                     delivery.last_threshold_check = datetime.now()
 
         return alerts
+
+    def update_delivery_quantity(
+        self,
+        matrix: Any,  # SFMDeliveryMatrix
+        source_id: uuid.UUID,
+        target_id: uuid.UUID,
+        delivery_index: int,
+        new_quantity: float
+    ) -> List['ThresholdAlert']:
+        """
+        Update delivery quantity and check for threshold violations.
+
+        Updates the quantity and immediately checks if threshold crossed.
+        Implements real-time monitoring per Hayden 1987/1993.
+
+        Args:
+            matrix: SFMDeliveryMatrix containing delivery
+            source_id: Source component UUID
+            target_id: Target component UUID
+            delivery_index: Index of delivery in cell's delivery list
+            new_quantity: New quantity value
+
+        Returns:
+            List of ThresholdAlert objects (may be empty)
+
+        Raises:
+            ValueError: If cell or delivery not found
+
+        Example:
+            >>> alerts = service.update_delivery_quantity(
+            ...     matrix, source_id, target_id, 0, 550_000_000
+            ... )
+            >>> if alerts:
+            ...     print(f"Threshold violated: {alerts[0].direction}")
+        """
+        from datetime import datetime
+
+        cell = matrix.get_cell(source_id, target_id)
+        if cell is None:
+            raise ValueError(f"Cell ({source_id}, {target_id}) not found in matrix")
+
+        if delivery_index >= len(cell.deliveries):
+            raise ValueError(
+                f"Delivery index {delivery_index} out of range (cell has {len(cell.deliveries)} deliveries)"
+            )
+
+        delivery = cell.deliveries[delivery_index]
+        old_quantity = delivery.quantity
+
+        # Update quantity
+        delivery.quantity = new_quantity
+
+        # Check threshold immediately (before persisting)
+        alerts = []
+        if delivery.threshold is not None:
+            triggered = False
+            direction = ""
+
+            if delivery.threshold_direction == "above":
+                if new_quantity > delivery.threshold:
+                    triggered = True
+                    direction = "exceeded"
+            elif delivery.threshold_direction == "below":
+                if new_quantity < delivery.threshold:
+                    triggered = True
+                    direction = "below"
+
+            # Always update last_threshold_check when threshold exists
+            delivery.last_threshold_check = datetime.now()
+
+            if triggered:
+                alert = ThresholdAlert(
+                    delivery=delivery,
+                    cell=cell,
+                    current_value=new_quantity,
+                    threshold=delivery.threshold,
+                    direction=direction,
+                    timestamp=datetime.now()
+                )
+                alerts.append(alert)
+
+        # Update cell in repository (after updating last_threshold_check)
+        self.repository.update_node(cell)
+
+        logger.info(
+            "Updated delivery quantity from %s to %s in cell (%s, %s)",
+            old_quantity, new_quantity, source_id, target_id
+        )
+
+        return alerts
+
+    def get_deliveries_by_temporal_rate(
+        self,
+        matrix: Any,  # SFMDeliveryMatrix
+        temporal_rate: str
+    ) -> List[Dict[str, Any]]:
+        """
+        Filter deliveries by temporal rate.
+
+        Finds all deliveries with specified temporal rate across matrix.
+
+        Args:
+            matrix: SFMDeliveryMatrix to search
+            temporal_rate: Temporal rate to filter by (e.g., "annual", "monthly")
+
+        Returns:
+            List of dicts with delivery info: {
+                "delivery": Delivery object,
+                "cell": SFMDeliveryCell,
+                "source_id": UUID,
+                "target_id": UUID,
+                "delivery_index": int
+            }
+
+        Example:
+            >>> annual_deliveries = service.get_deliveries_by_temporal_rate(matrix, "annual")
+            >>> for item in annual_deliveries:
+            ...     print(f"{item['delivery'].delivery_content}: {item['delivery'].quantity}")
+        """
+        results = []
+
+        for (source_id, target_id), cell in matrix.cells.items():
+            for idx, delivery in enumerate(cell.deliveries):
+                if delivery.temporal_rate == temporal_rate:
+                    results.append({
+                        "delivery": delivery,
+                        "cell": cell,
+                        "source_id": source_id,
+                        "target_id": target_id,
+                        "delivery_index": idx
+                    })
+
+        logger.info(
+            "Found %d deliveries with temporal_rate='%s'",
+            len(results), temporal_rate
+        )
+
+        return results
 
     def create_temporal_clock(
         self,
@@ -1758,6 +1933,87 @@ class SFMService:
         """
         clock.synchronize_delivery(source_id, target_id, delivery_index)
         self.repository.update_node(clock)
+
+    def advance_clock(
+        self,
+        clock: Any,  # TemporalClock
+        matrix: Optional[Any] = None  # SFMDeliveryMatrix
+    ) -> Dict[str, Any]:
+        """
+        Advance clock to next phase and check for due deliveries.
+
+        Args:
+            clock: TemporalClock to advance
+            matrix: Optional SFMDeliveryMatrix to check for due deliveries
+
+        Returns:
+            Dictionary with:
+                - new_phase: Name of new phase
+                - previous_phase: Name of previous phase
+                - deliveries_due: List of deliveries due in new phase (if matrix provided)
+                - alerts: List of threshold alerts for due deliveries
+
+        Example:
+            >>> result = service.advance_clock(clock, matrix)
+            >>> print(f"Advanced to {result['new_phase']}")
+            >>> if result['deliveries_due']:
+            ...     print(f"{len(result['deliveries_due'])} deliveries now due")
+        """
+        from datetime import datetime
+
+        previous_phase = clock.current_phase
+        new_phase = clock.advance_phase()
+
+        # Update clock in repository
+        self.repository.update_node(clock)
+
+        result = {
+            "new_phase": new_phase,
+            "previous_phase": previous_phase,
+            "deliveries_due": [],
+            "alerts": []
+        }
+
+        # Check for deliveries due in new phase
+        if matrix is not None:
+            deliveries_due = clock.get_deliveries_due(matrix)
+            result["deliveries_due"] = deliveries_due
+
+            # Check thresholds for due deliveries
+            for delivery_info in deliveries_due:
+                delivery = delivery_info["delivery"]
+                cell = delivery_info["cell"]
+
+                if delivery.threshold is not None and delivery.quantity is not None:
+                    triggered = False
+                    direction = ""
+
+                    if delivery.threshold_direction == "above":
+                        if delivery.quantity > delivery.threshold:
+                            triggered = True
+                            direction = "exceeded"
+                    elif delivery.threshold_direction == "below":
+                        if delivery.quantity < delivery.threshold:
+                            triggered = True
+                            direction = "below"
+
+                    if triggered:
+                        alert = ThresholdAlert(
+                            delivery=delivery,
+                            cell=cell,
+                            current_value=delivery.quantity,
+                            threshold=delivery.threshold,
+                            direction=direction,
+                            timestamp=datetime.now()
+                        )
+                        result["alerts"].append(alert)
+
+        logger.info(
+            "Advanced clock '%s' from %s to %s (%d deliveries due)",
+            clock.clock_name, previous_phase, new_phase, len(result["deliveries_due"])
+        )
+
+        return result
 
     # =========================================================================
     # Private Helper Methods for Persistence
@@ -1863,7 +2119,6 @@ class SFMService:
 
         # Build snapshot for persistence
         from graph.sfm_persistence import SFMPersistenceManager
-        from pathlib import Path as PathLib
 
         manager = SFMPersistenceManager(base_path or "./sfm_data")
         filepath = manager.base_path / filename
@@ -1968,7 +2223,6 @@ class SFMService:
 
         # Initialize persistence manager
         from graph.sfm_persistence import SFMPersistenceManager
-        from pathlib import Path as PathLib
         import json
         import gzip
 
@@ -2013,7 +2267,7 @@ class SFMService:
         # Load nodes
         from graph.sfm_persistence import NodeSerializer
         nodes_loaded = 0
-        for node_type, nodes_data in snapshot_data.get('nodes_by_type', {}).items():
+        for _node_type, nodes_data in snapshot_data.get('nodes_by_type', {}).items():
             for node_data in nodes_data:
                 try:
                     node = NodeSerializer.dict_to_node(node_data)
