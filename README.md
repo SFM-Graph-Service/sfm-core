@@ -220,6 +220,60 @@ curl -X POST http://localhost:8000/api/v1/query/temporal-evolution \
   }'
 ```
 
+### Visualize Case Studies
+
+All case studies can be visualized using built-in NetworkX converters:
+
+```python
+from examples.hayden_case_studies.director_networks import create_director_network_matrix
+from graph.converters import to_multidigraph
+from graph.centrality import compute_centrality_metrics
+import networkx as nx
+import matplotlib.pyplot as plt
+
+# Load case study
+matrix, service = create_director_network_matrix()
+
+# Convert to NetworkX graph
+G = to_multidigraph(matrix, service)
+
+# Visualize with matplotlib
+plt.figure(figsize=(12, 8))
+pos = nx.spring_layout(G, k=0.5, iterations=50)
+
+# Draw network
+nx.draw_networkx_nodes(G, pos, node_size=1000, node_color='lightblue', alpha=0.9)
+nx.draw_networkx_edges(G, pos, edge_color='gray', alpha=0.6, arrows=True, width=2)
+nx.draw_networkx_labels(G, pos, {n: G.nodes[n]['label'] for n in G.nodes()}, 
+                       font_size=10, font_weight='bold')
+
+plt.title("Director Networks: Corporate Power Structure")
+plt.axis('off')
+plt.savefig('director_networks.png', dpi=300, bbox_inches='tight')
+plt.show()
+
+# Compute and display centrality metrics
+centrality = compute_centrality_metrics(matrix, service)
+print("\nTop 3 Power Brokers (Betweenness Centrality):")
+sorted_betweenness = sorted(centrality['betweenness'].items(), 
+                            key=lambda x: x[1], reverse=True)
+for label, score in sorted_betweenness[:3]:
+    print(f"  {label}: {score:.3f}")
+```
+
+**Export Formats:**
+- **NetworkX Graph**: GEXF, GraphML (for Gephi, yEd)
+- **System Dynamics**: XMILE (for Stella, Vensim, isee Exchange)
+- **Spreadsheet**: Excel with matrix view + delivery details
+- **High-Res**: PNG, PDF, SVG for publications
+
+See [docs/VISUALIZATION_GUIDE.md](docs/VISUALIZATION_GUIDE.md) for complete examples including:
+- Node sizing by centrality metrics
+- Edge coloring by delivery type
+- Interactive Plotly visualizations
+- Circular causation highlighting
+- Hierarchical layouts
+
 ---
 
 ## Architecture Overview
