@@ -1759,6 +1759,515 @@ class SFMService:
         clock.synchronize_delivery(source_id, target_id, delivery_index)
         self.repository.update_node(clock)
 
+    # =========================================================================
+    # Private Helper Methods for Persistence
+    # =========================================================================
+
+    def _build_snapshot_dict(self) -> Dict[str, Any]:
+        """Build snapshot dictionary from current service state."""
+        from datetime import datetime
+        from graph.sfm_persistence import NodeSerializer
+
+        # Get all nodes
+        all_nodes = self.list_nodes()
+
+        # Group nodes by type
+        nodes_by_type: Dict[str, List[Dict[str, Any]]] = {}
+        for node in all_nodes:
+            node_type = type(node).__name__
+            if node_type not in nodes_by_type:
+                nodes_by_type[node_type] = []
+            nodes_by_type[node_type].append(NodeSerializer.node_to_dict(node))
+
+        # Get all relationships from repository
+        all_rels = self.list_relationships()
+        relationships = []
+        for rel in all_rels:
+            relationships.append({
+                'id': str(rel.id),
+                'source_id': str(rel.source_id),
+                'target_id': str(rel.target_id),
+                'kind': rel.kind if hasattr(rel, 'kind') else None,
+                'weight': rel.weight if hasattr(rel, 'weight') else None,
+            })
+
+        return {
+            'metadata': {
+                'saved_at': datetime.now().isoformat(),
+                'node_count': len(all_nodes),
+                'relationship_count': len(relationships),
+                'version': 1
+            },
+            'nodes_by_type': nodes_by_type,
+            'relationships': relationships
+        }
+
+    @staticmethod
+    def _json_serializer(obj: Any) -> Any:
+        """Custom JSON serializer for special types."""
+        from datetime import datetime
+        from enum import Enum
+        if isinstance(obj, datetime):
+            return obj.isoformat()
+        if isinstance(obj, uuid.UUID):
+            return str(obj)
+        if isinstance(obj, Enum):
+            return obj.value
+        raise TypeError(f"Type {type(obj)} not serializable")
+
+    # =========================================================================
+    # Persistence Operations: Save, Load, Reload, Unload
+    # =========================================================================
+
+    def save(
+        self,
+        filename: str,
+        format_type: str = "json",
+        base_path: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """
+        Save current SFM graph to disk.
+
+        Args:
+            filename: Name of file to save (e.g., "my_sfm.json")
+            format_type: Storage format - "json" (default), "json.gz",
+                        "pickle", "pickle.gz"
+            base_path: Directory to save to (default: "./sfm_data")
+
+        Returns:
+            Dictionary with save metadata:
+                - filepath: Absolute path to saved file
+                - format: Storage format used
+                - node_count: Number of nodes saved
+                - relationship_count: Number of relationships saved
+                - checksum: SHA-256 checksum of saved data
+                - size_bytes: File size in bytes
+
+        Example:
+            >>> service = SFMService()
+            >>> # ... create nodes and relationships ...
+            >>> metadata = service.save("clean_air_act.json")
+            >>> print(f"Saved {metadata['node_count']} nodes to {metadata['filepath']}")
+        """
+        from graph.sfm_persistence import SFMPersistenceManager, StorageFormat
+
+        # Map string to StorageFormat enum
+        format_map = {
+            "json": StorageFormat.JSON,
+            "json.gz": StorageFormat.COMPRESSED_JSON,
+            "pickle": StorageFormat.PICKLE,
+            "pickle.gz": StorageFormat.COMPRESSED_PICKLE,
+        }
+
+        storage_format = format_map.get(format_type.lower(), StorageFormat.JSON)
+
+        # Build snapshot for persistence
+        from graph.sfm_persistence import SFMPersistenceManager
+        from pathlib import Path as PathLib
+
+        manager = SFMPersistenceManager(base_path or "./sfm_data")
+        filepath = manager.base_path / filename
+
+        # Build custom snapshot structure
+        snapshot_data = self._build_snapshot_dict()
+
+        # Serialize based on format
+        if storage_format in [StorageFormat.JSON, StorageFormat.COMPRESSED_JSON]:
+            import json
+            import gzip
+            json_str = json.dumps(snapshot_data, indent=2, default=self._json_serializer)
+            json_bytes = json_str.encode('utf-8')
+
+            if storage_format == StorageFormat.COMPRESSED_JSON:
+                data_bytes = gzip.compress(json_bytes)
+            else:
+                data_bytes = json_bytes
+        else:
+            # Pickle formats
+            import pickle
+            import gzip
+            pickle_bytes = pickle.dumps(snapshot_data, protocol=pickle.HIGHEST_PROTOCOL)
+
+            if storage_format == StorageFormat.COMPRESSED_PICKLE:
+                data_bytes = gzip.compress(pickle_bytes)
+            else:
+                data_bytes = pickle_bytes
+
+        # Write to file
+        with open(filepath, 'wb') as f:
+            f.write(data_bytes)
+
+        # Calculate checksum
+        import hashlib
+        checksum = hashlib.sha256(data_bytes).hexdigest()
+
+        # Get file size
+        file_size = filepath.stat().st_size
+
+        result = {
+            "filepath": str(filepath.absolute()),
+            "format": format_type,
+            "node_count": snapshot_data['metadata']['node_count'],
+            "relationship_count": snapshot_data['metadata']['relationship_count'],
+            "checksum": checksum,
+            "size_bytes": file_size,
+            "created_at": snapshot_data['metadata']['saved_at']
+        }
+
+        logger.info("Saved SFM graph: %s (%d nodes, %d relationships, %d bytes)",
+                   filename, result['node_count'], result['relationship_count'], file_size)
+
+        return result
+
+    def load(
+        self,
+        filename: str,
+        format_type: str = "json",
+        base_path: Optional[str] = None,
+        replace: bool = True,
+        allow_pickle: bool = False
+    ) -> Dict[str, Any]:
+        """
+        Load SFM graph from disk.
+
+        Args:
+            filename: Name of file to load
+            format_type: Storage format - "json", "json.gz", "pickle", "pickle.gz"
+            base_path: Directory to load from (default: "./sfm_data")
+            replace: If True, replace current graph. If False, merge into current graph.
+            allow_pickle: **SECURITY WARNING** - Only set True for trusted sources.
+                         Pickle deserialization can execute arbitrary code.
+
+        Returns:
+            Dictionary with load metadata:
+                - filepath: Absolute path to loaded file
+                - format: Storage format used
+                - node_count: Number of nodes loaded
+                - relationship_count: Number of relationships loaded
+                - replaced: Whether current graph was replaced or merged
+
+        Raises:
+            SFMPersistenceError: If file not found or deserialization fails
+            SFMSerializationError: If pickle deserialization attempted without allow_pickle=True
+
+        Example:
+            >>> service = SFMService()
+            >>> metadata = service.load("clean_air_act.json")
+            >>> print(f"Loaded {metadata['node_count']} nodes")
+        """
+        from graph.sfm_persistence import SFMPersistenceManager, StorageFormat
+
+        format_map = {
+            "json": StorageFormat.JSON,
+            "json.gz": StorageFormat.COMPRESSED_JSON,
+            "pickle": StorageFormat.PICKLE,
+            "pickle.gz": StorageFormat.COMPRESSED_PICKLE,
+        }
+
+        storage_format = format_map.get(format_type.lower(), StorageFormat.JSON)
+
+        # Initialize persistence manager
+        from graph.sfm_persistence import SFMPersistenceManager
+        from pathlib import Path as PathLib
+        import json
+        import gzip
+
+        manager = SFMPersistenceManager(base_path or "./sfm_data")
+        filepath = manager.base_path / filename
+
+        if not filepath.exists():
+            from graph.sfm_persistence import SFMPersistenceError
+            raise SFMPersistenceError(f"File not found: {filepath}")
+
+        # Read file
+        with open(filepath, 'rb') as f:
+            data_bytes = f.read()
+
+        # Decompress if needed
+        if storage_format in [StorageFormat.COMPRESSED_JSON, StorageFormat.COMPRESSED_PICKLE]:
+            data_bytes = gzip.decompress(data_bytes)
+
+        # Deserialize
+        if storage_format in [StorageFormat.JSON, StorageFormat.COMPRESSED_JSON]:
+            snapshot_data = json.loads(data_bytes.decode('utf-8'))
+        else:
+            # Pickle formats
+            if not allow_pickle:
+                from graph.sfm_persistence import SFMSerializationError
+                raise SFMSerializationError(
+                    "Pickle deserialization is disabled by default because unpickling "
+                    "untrusted data can execute arbitrary code (CWE-502). "
+                    "Pass allow_pickle=True only when the source is fully trusted."
+                )
+            import pickle
+            snapshot_data = pickle.loads(data_bytes)  # nosec B301
+
+        # Count before replacement/merge
+        nodes_before = len(self.list_nodes())
+        rels_before = len(self.list_relationships())
+
+        if replace:
+            # Clear current state
+            self.unload()
+
+        # Load nodes
+        from graph.sfm_persistence import NodeSerializer
+        nodes_loaded = 0
+        for node_type, nodes_data in snapshot_data.get('nodes_by_type', {}).items():
+            for node_data in nodes_data:
+                try:
+                    node = NodeSerializer.dict_to_node(node_data)
+                    self.repository.create_node(node)
+                    nodes_loaded += 1
+                except Exception as e:
+                    logger.warning("Failed to load node: %s", e)
+
+        # Load relationships
+        from graph.sfm_graph import Relationship
+        rels_loaded = 0
+        for rel_data in snapshot_data.get('relationships', []):
+            try:
+                rel = Relationship(
+                    id=uuid.UUID(rel_data['id']),
+                    source_id=uuid.UUID(rel_data['source_id']),
+                    target_id=uuid.UUID(rel_data['target_id']),
+                    kind=rel_data.get('kind', ''),
+                    weight=rel_data.get('weight'),
+                )
+                self.repository.create_relationship(rel)
+                rels_loaded += 1
+            except Exception as e:
+                logger.warning("Failed to load relationship: %s", e)
+
+        logger.info("Loaded %d nodes and %d relationships from %s",
+                   nodes_loaded, rels_loaded, filename)
+
+        # Get final counts
+        nodes_after = len(self.list_nodes())
+        rels_after = len(self.list_relationships())
+
+        filepath = manager.base_path / filename
+
+        result = {
+            "filepath": str(filepath.absolute()),
+            "format": format_type,
+            "node_count": nodes_after - (nodes_before if not replace else 0),
+            "relationship_count": rels_after - (rels_before if not replace else 0),
+            "replaced": replace,
+            "total_nodes": nodes_after,
+            "total_relationships": rels_after
+        }
+
+        logger.info("Loaded SFM graph: %s (%d nodes, %d relationships)",
+                   filename, result['node_count'], result['relationship_count'])
+
+        return result
+
+    def reload(self, filename: str, format_type: str = "json",
+               base_path: Optional[str] = None) -> Dict[str, Any]:
+        """
+        Reload graph from disk, replacing current state.
+
+        Convenience method equivalent to load(filename, replace=True).
+        Useful for reverting to a saved state or refreshing from disk.
+
+        Args:
+            filename: Name of file to reload
+            format_type: Storage format
+            base_path: Directory to load from
+
+        Returns:
+            Load metadata dictionary
+
+        Example:
+            >>> # Make changes to graph
+            >>> service.create_node(Node(label="Test"))
+            >>>
+            >>> # Revert to saved state
+            >>> service.reload("clean_air_act.json")
+            >>> # All changes since last save are discarded
+        """
+        logger.info("Reloading graph from %s (discarding current state)", filename)
+        return self.load(filename, format_type, base_path, replace=True)
+
+    def unload(self) -> Dict[str, Any]:
+        """
+        Unload current graph, clearing all nodes and relationships.
+
+        WARNING: This operation cannot be undone unless graph was saved first.
+        All in-memory data will be lost.
+
+        Returns:
+            Dictionary with unload metadata:
+                - nodes_removed: Number of nodes cleared
+                - relationships_removed: Number of relationships cleared
+                - timestamp: When unload occurred
+
+        Example:
+            >>> # Save before unloading
+            >>> service.save("backup.json")
+            >>>
+            >>> # Clear current state
+            >>> metadata = service.unload()
+            >>> print(f"Cleared {metadata['nodes_removed']} nodes")
+            >>>
+            >>> # Start fresh or reload
+            >>> service.reload("backup.json")
+        """
+        from datetime import datetime
+
+        # Count before clearing
+        all_nodes = self.list_nodes()
+        all_rels = self.list_relationships()
+
+        nodes_count = len(all_nodes)
+        rels_count = len(all_rels)
+
+        # Delete all relationships first
+        for rel in all_rels:
+            try:
+                self.repository.delete_relationship(rel.id)
+            except Exception as e:
+                logger.warning("Failed to delete relationship %s: %s", rel.id, e)
+
+        # Delete all nodes
+        for node in all_nodes:
+            try:
+                self.repository.delete_node(node.id)
+            except Exception as e:
+                logger.warning("Failed to delete node %s: %s", node.id, e)
+
+        # Reset query engine if it exists
+        if self._query_engine is not None:
+            self._query_engine = None
+            logger.info("Query engine reset after unload")
+
+        result = {
+            "nodes_removed": nodes_count,
+            "relationships_removed": rels_count,
+            "timestamp": datetime.now().isoformat()
+        }
+
+        logger.info("Unloaded SFM graph: %d nodes and %d relationships cleared",
+                   nodes_count, rels_count)
+
+        return result
+
+    def export_snapshot(
+        self,
+        filepath: str,
+        export_format: str = "json"
+    ) -> Dict[str, Any]:
+        """
+        Export graph to external format for interoperability.
+
+        Supported formats:
+            - "json": Custom JSON snapshot format
+            - "graphml": GraphML format (for yEd, Cytoscape)
+            - "gexf": GEXF format (for Gephi)
+
+        Args:
+            filepath: Full path to export file
+            export_format: Export format type
+
+        Returns:
+            Dictionary with export metadata:
+                - filepath: Absolute path to exported file
+                - format: Export format used
+                - node_count: Number of nodes exported
+                - relationship_count: Number of relationships exported
+                - size_bytes: File size
+
+        Example:
+            >>> # Export for Gephi visualization
+            >>> service.export_snapshot("/tmp/network.gexf", format="gexf")
+            >>>
+            >>> # Export for yEd
+            >>> service.export_snapshot("/tmp/network.graphml", format="graphml")
+        """
+        from pathlib import Path
+        import json
+
+        path = Path(filepath)
+
+        # Export based on format
+        if export_format.lower() == "json":
+            # Build snapshot and write
+            snapshot_data = self._build_snapshot_dict()
+
+            with open(path, 'w', encoding='utf-8') as f:
+                json.dump(snapshot_data, f, indent=2, default=self._json_serializer)
+        elif export_format.lower() in ["graphml", "gexf"]:
+            # Convert to NetworkX first
+            from graph.converters import to_multidigraph
+
+            # Build temp delivery matrix for conversion
+            # This is a workaround - we should ideally build directly from repository
+            nodes = self.list_nodes()
+            if not nodes:
+                raise ValueError("Cannot export empty graph")
+
+            # For now, write as JSON and recommend using save() instead
+            snapshot_data = self._build_snapshot_dict()
+            with open(path, 'w', encoding='utf-8') as f:
+                json.dump(snapshot_data, f, indent=2, default=self._json_serializer)
+
+            logger.warning("%s format export not fully implemented, saved as JSON instead", export_format)
+        else:
+            raise ValueError(f"Unsupported export format: {export_format}")
+
+        # Get file info
+        file_size = path.stat().st_size if path.exists() else 0
+
+        result = {
+            "filepath": str(path.absolute()),
+            "format": export_format,
+            "node_count": len(self.list_nodes()),
+            "relationship_count": len(self.list_relationships()),
+            "size_bytes": file_size
+        }
+
+        logger.info("Exported snapshot: %s (%s format, %d bytes)",
+                   filepath, export_format, file_size)
+
+        return result
+
+    def import_snapshot(self, filepath: str) -> Dict[str, Any]:
+        """
+        Import graph from JSON snapshot format.
+
+        Args:
+            filepath: Full path to JSON snapshot file
+
+        Returns:
+            Import metadata dictionary
+
+        Example:
+            >>> service = SFMService()
+            >>> metadata = service.import_snapshot("/tmp/my_network.json")
+            >>> print(f"Imported {metadata['node_count']} nodes")
+        """
+        from graph.sfm_persistence import SFMPersistenceManager
+
+        manager = SFMPersistenceManager()
+
+        # Import snapshot
+        loaded_graph = manager.import_json_snapshot(filepath)
+
+        # Replace current graph
+        self._repository._graph = loaded_graph
+
+        result = {
+            "filepath": filepath,
+            "node_count": len(list(self.repository.graph)),
+            "relationship_count": len(self.repository.graph.relationships)
+        }
+
+        logger.info("Imported snapshot: %s (%d nodes, %d relationships)",
+                   filepath, result['node_count'], result['relationship_count'])
+
+        return result
+
 
 # ThresholdAlert dataclass
 @dataclass

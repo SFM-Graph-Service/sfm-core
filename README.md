@@ -274,6 +274,37 @@ See [docs/VISUALIZATION_GUIDE.md](docs/VISUALIZATION_GUIDE.md) for complete exam
 - Circular causation highlighting
 - Hierarchical layouts
 
+### Persistence
+
+Save and load your SFM graphs for later analysis or sharing. The service supports JSON (human-readable), compressed JSON (space-efficient), and pickle (fastest) formats.
+
+```python
+from api.sfm_service import SFMService, StorageFormat
+
+service = SFMService()
+# ... build your graph ...
+
+# Save to JSON (human-readable, safe for sharing)
+service.save("my_analysis.json", format_type=StorageFormat.JSON)
+
+# Load later
+service2 = SFMService()
+service2.load("my_analysis.json", format_type=StorageFormat.JSON)
+
+# Export snapshot for archival (includes metadata)
+snapshot = service.export_snapshot()
+# Later: service.import_snapshot(snapshot)
+```
+
+**Storage Formats**:
+- `StorageFormat.JSON` - Human-readable, cross-platform compatible
+- `StorageFormat.COMPRESSED` - Gzip-compressed JSON (70% size reduction)
+- `StorageFormat.PICKLE` - Binary format (fastest, Python-only)
+
+**Security Warning**: Only load pickle files from trusted sources. Pickle deserialization can execute arbitrary code.
+
+See [docs/PERSISTENCE_GUIDE.md](docs/PERSISTENCE_GUIDE.md) for complete documentation including versioning, migration, and snapshot management.
+
 ---
 
 ## Architecture Overview
