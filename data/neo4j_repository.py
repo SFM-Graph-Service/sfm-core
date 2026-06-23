@@ -10,7 +10,7 @@ provides efficient graph operations using Cypher queries.
 import uuid
 import json
 from datetime import datetime
-from typing import Optional, List, Type, Any, Dict
+from typing import Optional, List, Type, Any, Dict, cast
 from enum import Enum
 
 try:
@@ -318,7 +318,7 @@ class Neo4jSFMRepository(SFMRepository):
         """
         with self._driver.session() as session:
             result = session.execute_read(self._read_node_tx, node_id)
-            return result
+            return cast(Optional[Node], result)
 
     @staticmethod
     def _read_node_tx(tx: ManagedTransaction, node_id: uuid.UUID) -> Optional[Node]:
@@ -410,7 +410,7 @@ class Neo4jSFMRepository(SFMRepository):
             True if the node was deleted, False if not found
         """
         with self._driver.session() as session:
-            return session.execute_write(self._delete_node_tx, node_id)
+            return cast(bool, session.execute_write(self._delete_node_tx, node_id))
 
     @staticmethod
     def _delete_node_tx(tx: ManagedTransaction, node_id: uuid.UUID) -> bool:
@@ -434,7 +434,7 @@ class Neo4jSFMRepository(SFMRepository):
             List of Node instances
         """
         with self._driver.session() as session:
-            return session.execute_read(self._list_nodes_tx, node_type)
+            return cast(List[Node], session.execute_read(self._list_nodes_tx, node_type))
 
     @staticmethod
     def _list_nodes_tx(tx: ManagedTransaction, node_type: Optional[Type[Node]] = None) -> List[Node]:
@@ -548,7 +548,7 @@ class Neo4jSFMRepository(SFMRepository):
             The Relationship instance or None if not found
         """
         with self._driver.session() as session:
-            return session.execute_read(self._read_relationship_tx, rel_id)
+            return cast(Optional[Relationship], session.execute_read(self._read_relationship_tx, rel_id))
 
     @staticmethod
     def _read_relationship_tx(tx: ManagedTransaction, rel_id: uuid.UUID) -> Optional[Relationship]:
@@ -627,7 +627,7 @@ class Neo4jSFMRepository(SFMRepository):
             True if the relationship was deleted, False if not found
         """
         with self._driver.session() as session:
-            return session.execute_write(self._delete_relationship_tx, rel_id)
+            return cast(bool, session.execute_write(self._delete_relationship_tx, rel_id))
 
     @staticmethod
     def _delete_relationship_tx(tx: ManagedTransaction, rel_id: uuid.UUID) -> bool:
@@ -651,7 +651,7 @@ class Neo4jSFMRepository(SFMRepository):
             List of Relationship instances
         """
         with self._driver.session() as session:
-            return session.execute_read(self._list_relationships_tx, kind)
+            return cast(List[Relationship], session.execute_read(self._list_relationships_tx, kind))
 
     @staticmethod
     def _list_relationships_tx(tx: ManagedTransaction, kind: Optional[RelationshipKind] = None) -> List[Relationship]:
@@ -702,9 +702,9 @@ class Neo4jSFMRepository(SFMRepository):
             List of matching Relationship instances
         """
         with self._driver.session() as session:
-            return session.execute_read(
+            return cast(List[Relationship], session.execute_read(
                 self._find_relationships_tx, source_id, target_id, kind
-            )
+            ))
 
     @staticmethod
     def _find_relationships_tx(
@@ -841,9 +841,9 @@ class Neo4jSFMRepository(SFMRepository):
             ...     print(f"{record['label']}: {record['type']}")
         """
         with self._driver.session() as session:
-            return session.execute_read(
+            return cast(List[Dict[str, Any]], session.execute_read(
                 self._execute_query_tx, query, parameters or {}
-            )
+            ))
 
     @staticmethod
     def _execute_query_tx(
