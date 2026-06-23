@@ -83,12 +83,12 @@ Contributions are welcome! Please see our [Contributing Guidelines](#contributio
 7. Open a pull request with description of changes
 
 **What We're Looking For:**
-- Bug fixes
+- Bug fixes (see [open issues](https://github.com/SFM-Graph-Service/sfm-core/issues))
 - Documentation improvements
 - Performance optimizations
 - New analysis methods
 - Additional case study examples
-- Improved Hayden methodology fidelity (see SFM_FIDELITY_ANALYSIS.md)
+- Improved Hayden methodology fidelity
 
 ### Code of Conduct
 

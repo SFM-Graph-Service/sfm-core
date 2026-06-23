@@ -634,7 +634,6 @@ Relationship: ~400 bytes (with all fields) + metadata
 - **[Framework Bridges Guide](docs/framework_bridges.md)** - Methodological bridges to Doughnut Economics and Ostrom SES/IAD frameworks
 - **[Neo4j Integration Guide](docs/NEO4J_INTEGRATION_GUIDE.md)** (13.5KB) - Backend setup, migration from NetworkX, Cypher query examples
 - **[Scaling Guide](docs/SCALING_GUIDE.md)** (13.5KB) - Performance tuning, backend selection, troubleshooting
-- **[SFM Fidelity Analysis](SFM_FIDELITY_ANALYSIS.md)** - Assessment of implementation fidelity to Hayden's published methodology, known gaps, and improvement roadmap
 
 ### Example Scripts
 
@@ -804,7 +803,7 @@ pytest tests/ --cov
 
 We are particularly interested in feedback on:
 
-1. **Fidelity to Hayden's Methodology**: Does the implementation accurately reflect SFM as described in Hayden's published work? See [SFM_FIDELITY_ANALYSIS.md](SFM_FIDELITY_ANALYSIS.md) for known gaps.
+1. **Fidelity to Hayden's Methodology**: Does the implementation accurately reflect SFM as described in Hayden's published work? Known limitations are documented in [GitHub Issues](https://github.com/SFM-Graph-Service/sfm-core/issues).
 
 2. **Framework Bridges Methodology**: Are the Doughnut Economics and Ostrom SES/IAD mappings methodologically sound? See [docs/framework_bridges.md](docs/framework_bridges.md) for current approach.
 

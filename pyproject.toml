@@ -90,7 +90,6 @@ Documentation = "https://github.com/SFM-Graph-Service/sfm-core/tree/main/docs"
 Repository = "https://github.com/SFM-Graph-Service/sfm-core"
 Issues = "https://github.com/SFM-Graph-Service/sfm-core/issues"
 Changelog = "https://github.com/SFM-Graph-Service/sfm-core/blob/main/CHANGELOG.md"
-"Fidelity Analysis" = "https://github.com/SFM-Graph-Service/sfm-core/blob/main/SFM_FIDELITY_ANALYSIS.md"
 
 [tool.setuptools.packages.find]
 where = ["."]
