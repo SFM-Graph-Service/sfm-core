@@ -657,6 +657,7 @@ Convert between matrix and directed graph representations:
 
 ```python
 from graph.converters import to_multidigraph, from_multidigraph
+from models.delivery_matrix import SFMDeliveryMatrix
 import networkx as nx
 
 # Matrix → MultiDiGraph
@@ -672,11 +673,44 @@ for src, tgt, key, data in G.edges(data=True, keys=True):
     print(f"{src} --[{key}]--> {tgt}: {data['delivery_content']}")
 
 # MultiDiGraph → Matrix (reconstruction)
+reconstructed = SFMDeliveryMatrix.from_multidigraph(G, service, matrix_label="Reconstructed")
+# OR using the standalone function
 reconstructed = from_multidigraph(G, service, matrix_label="Reconstructed")
 
 # Verify roundtrip
 assert len(reconstructed.components) == len(matrix.components)
 ```
+
+### Graph Analysis
+
+Analyze delivery matrices using NetworkX graph algorithms:
+
+```python
+# Run graph analysis on a delivery matrix
+analysis = service.analyze_matrix_as_graph(matrix)
+
+print(f"Network density: {analysis['density']:.3f}")
+print(f"Strongly connected components: {analysis['strongly_connected_components']}")
+
+# Detect circular causation loops
+for cycle in analysis['cycles']:
+    labels = [service.get_node(n).label for n in cycle]
+    print(f"  Loop: {' → '.join(labels)}")
+
+# Find power brokers (high betweenness centrality)
+for node_id, score in sorted(
+    analysis['centrality'].items(), key=lambda x: x[1], reverse=True
+)[:3]:
+    print(f"  {service.get_node(node_id).label}: {score:.3f}")
+```
+
+**Returns:**
+- `node_count` — number of components
+- `edge_count` — total number of deliveries
+- `density` — graph density (0.0–1.0)
+- `strongly_connected_components` — count of SCCs
+- `cycles` — circular causation paths (first 10)
+- `centrality` — betweenness centrality per component
 
 **Use cases:**
 - Network analysis (centrality, clustering, feedback loops)
@@ -899,6 +933,7 @@ Square N×N Hayden-compliant delivery matrix.
 - `get_component_incoming_cells(component_id) -> List[SFMDeliveryCell]` - Incoming deliveries
 - `validate_structure() -> List[str]` - Validate per Hayden requirements
 - `to_multidigraph(service) -> nx.MultiDiGraph` - Convert to graph
+- `from_multidigraph(G, service, matrix_label, matrix_description) -> SFMDeliveryMatrix` - Reconstruct from graph (static method)
 - `get_summary() -> dict` - Get summary statistics
 
 ### Service Layer
@@ -923,6 +958,12 @@ add_delivery_to_matrix(
     delivery: Delivery,
     cell_description: str
 ) -> SFMDeliveryCell
+
+analyze_matrix_as_graph(
+    matrix: SFMDeliveryMatrix
+) -> Dict[str, Any]
+# Returns: node_count, edge_count, density, strongly_connected_components,
+#          cycles (first 10), centrality (betweenness per component)
 ```
 
 **Temporal Operations:**

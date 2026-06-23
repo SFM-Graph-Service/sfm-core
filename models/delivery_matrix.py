@@ -366,6 +366,40 @@ class SFMDeliveryMatrix(Node):
         from graph.converters import to_multidigraph
         return to_multidigraph(self, service)
 
+    @staticmethod
+    def from_multidigraph(
+        G: Any,
+        service: Any,
+        matrix_label: Optional[str] = None,
+        matrix_description: Optional[str] = None
+    ) -> 'SFMDeliveryMatrix':
+        """
+        Reconstruct delivery matrix from NetworkX MultiDiGraph.
+
+        Convenience method that delegates to graph.converters.from_multidigraph().
+        Groups edges by (source, target) into cells with multiple deliveries.
+
+        Args:
+            G: NetworkX MultiDiGraph with deliveries as edges
+            service: SFMService instance
+            matrix_label: Optional label (uses graph attribute if not provided)
+            matrix_description: Optional description (uses graph attribute if not provided)
+
+        Returns:
+            SFMDeliveryMatrix reconstructed from graph
+
+        Example:
+            >>> matrix = SFMDeliveryMatrix.from_multidigraph(G, service, matrix_label="Reconstructed")
+            >>> len(matrix.components)
+            5
+        """
+        from graph.converters import from_multidigraph
+        return from_multidigraph(
+            G, service,
+            matrix_label=matrix_label,
+            matrix_description=matrix_description
+        )
+
     def get_summary(self) -> dict:
         """
         Get summary statistics for this matrix.
