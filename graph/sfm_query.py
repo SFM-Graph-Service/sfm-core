@@ -236,6 +236,8 @@ class NetworkXSFMQueryEngine(SFMQueryEngine):  # pylint: disable=too-many-public
 
     def _build_networkx_graph(self) -> nx.MultiDiGraph:
         """Convert SFMGraph to NetworkX graph for analysis."""
+        from models.delivery_matrix import SFMDeliveryCell
+
         nx_graph: nx.MultiDiGraph = nx.MultiDiGraph()
 
         # Add all nodes
@@ -252,6 +254,34 @@ class NetworkXSFMQueryEngine(SFMQueryEngine):  # pylint: disable=too-many-public
                 kind=rel.kind,
                 weight=rel.weight or 1.0,
             )
+
+        # Also add edges derived from SFMDeliveryCell nodes so that delivery
+        # matrix entries participate in graph traversal (circular causation,
+        # cycle detection, centrality, etc.).
+        for node in self.graph:
+            if (
+                isinstance(node, SFMDeliveryCell)
+                and node.deliveries
+                and node.source_component_id is not None
+                and node.target_component_id is not None
+                and node.source_component_id in nx_graph
+                and node.target_component_id in nx_graph
+            ):
+                # Derive edge weight from average delivery certainty when available
+                certainties = [
+                    d.certainty
+                    for d in node.deliveries
+                    if d.certainty is not None
+                ]
+                weight = sum(certainties) / len(certainties) if certainties else 1.0
+                nx_graph.add_edge(
+                    node.source_component_id,
+                    node.target_component_id,
+                    key=node.id,
+                    data=node,
+                    kind="delivery",
+                    weight=weight,
+                )
 
         return nx_graph
 
@@ -591,7 +621,7 @@ class NetworkXSFMQueryEngine(SFMQueryEngine):  # pylint: disable=too-many-public
 
             # Explore neighbors
             for neighbor in self.nx_graph.neighbors(current):
-                if neighbor not in path or (neighbor == source_id and len(path) > 2):
+                if neighbor not in path or (neighbor == source_id and len(path) >= 2):
                     dfs_paths(neighbor, path + [neighbor], depth + 1)
 
         # Start DFS from source
