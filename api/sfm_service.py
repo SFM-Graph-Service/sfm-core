@@ -13,7 +13,7 @@ Key Features:
 
 import logging
 import uuid
-from typing import Dict, List, Optional, Any, Type, TypeVar, Union, cast
+from typing import Dict, List, Optional, Any, Type, TypeVar, Union, TYPE_CHECKING, cast
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -29,6 +29,10 @@ from data.repositories import (
     SFMRepositoryFactory,
 )
 from graph.sfm_graph import Relationship
+
+if TYPE_CHECKING:
+    from graph.version_control import SFMVersionController
+    from graph.version_storage import GraphVersion
 
 # Setup logging
 logger = logging.getLogger(__name__)
@@ -95,6 +99,7 @@ class SFMService:
 
         # Query engine will be initialized in Phase 2 Step 2
         self._query_engine: Optional[Any] = None
+        self._version_controller: Optional["SFMVersionController"] = None
 
         logger.info("SFM Service initialized with storage type: %s", self.config.storage_type)
 
@@ -2280,6 +2285,64 @@ class SFMService:
     # Persistence Operations: Save, Load, Reload, Unload
     # =========================================================================
 
+    def _get_version_controller(self) -> "SFMVersionController":
+        """Lazily initialize version-control backend."""
+        if self._version_controller is None:
+            from graph.version_control import SFMVersionController
+
+            self._version_controller = SFMVersionController(root_path=".sfm_versions")
+        return self._version_controller
+
+    def _load_snapshot_data(
+        self,
+        snapshot_data: Dict[str, Any],
+        replace: bool = True,
+    ) -> Dict[str, Any]:
+        """Load snapshot dictionary into repository."""
+        nodes_before = len(self.list_nodes())
+        rels_before = len(self.list_relationships())
+
+        if replace:
+            self.unload()
+
+        from graph.sfm_persistence import NodeSerializer
+        nodes_loaded = 0
+        for _node_type, nodes_data in snapshot_data.get('nodes_by_type', {}).items():
+            for node_data in nodes_data:
+                try:
+                    node = NodeSerializer.dict_to_node(node_data)
+                    self.repository.create_node(node)
+                    nodes_loaded += 1
+                except Exception as e:
+                    logger.warning("Failed to load node: %s", e)
+
+        rels_loaded = 0
+        for rel_data in snapshot_data.get('relationships', []):
+            try:
+                rel = Relationship(
+                    id=uuid.UUID(rel_data['id']),
+                    source_id=uuid.UUID(rel_data['source_id']),
+                    target_id=uuid.UUID(rel_data['target_id']),
+                    kind=rel_data.get('kind', ''),
+                    weight=rel_data.get('weight'),
+                )
+                self.repository.create_relationship(rel)
+                rels_loaded += 1
+            except Exception as e:
+                logger.warning("Failed to load relationship: %s", e)
+
+        nodes_after = len(self.list_nodes())
+        rels_after = len(self.list_relationships())
+        return {
+            "node_count": nodes_after - (nodes_before if not replace else 0),
+            "relationship_count": rels_after - (rels_before if not replace else 0),
+            "replaced": replace,
+            "total_nodes": nodes_after,
+            "total_relationships": rels_after,
+            "nodes_loaded": nodes_loaded,
+            "relationships_loaded": rels_loaded,
+        }
+
     def save(
         self,
         filename: str,
@@ -2541,60 +2604,24 @@ class SFMService:
             import pickle
             snapshot_data = pickle.loads(data_bytes)  # nosec B301
 
-        # Count before replacement/merge
-        nodes_before = len(self.list_nodes())
-        rels_before = len(self.list_relationships())
-
-        if replace:
-            # Clear current state
-            self.unload()
-
-        # Load nodes
-        from graph.sfm_persistence import NodeSerializer
-        nodes_loaded = 0
-        for _node_type, nodes_data in snapshot_data.get('nodes_by_type', {}).items():
-            for node_data in nodes_data:
-                try:
-                    node = NodeSerializer.dict_to_node(node_data)
-                    self.repository.create_node(node)
-                    nodes_loaded += 1
-                except Exception as e:
-                    logger.warning("Failed to load node: %s", e)
-
-        # Load relationships
-        from graph.sfm_graph import Relationship
-        rels_loaded = 0
-        for rel_data in snapshot_data.get('relationships', []):
-            try:
-                rel = Relationship(
-                    id=uuid.UUID(rel_data['id']),
-                    source_id=uuid.UUID(rel_data['source_id']),
-                    target_id=uuid.UUID(rel_data['target_id']),
-                    kind=rel_data.get('kind', ''),
-                    weight=rel_data.get('weight'),
-                )
-                self.repository.create_relationship(rel)
-                rels_loaded += 1
-            except Exception as e:
-                logger.warning("Failed to load relationship: %s", e)
-
-        logger.info("Loaded %d nodes and %d relationships from %s",
-                   nodes_loaded, rels_loaded, filename)
-
-        # Get final counts
-        nodes_after = len(self.list_nodes())
-        rels_after = len(self.list_relationships())
+        load_result = self._load_snapshot_data(snapshot_data, replace=replace)
+        logger.info(
+            "Loaded %d nodes and %d relationships from %s",
+            load_result["nodes_loaded"],
+            load_result["relationships_loaded"],
+            filename,
+        )
 
         filepath = manager.base_path / filename
 
         result = {
             "filepath": str(filepath.absolute()),
             "format": format_type,
-            "node_count": nodes_after - (nodes_before if not replace else 0),
-            "relationship_count": rels_after - (rels_before if not replace else 0),
-            "replaced": replace,
-            "total_nodes": nodes_after,
-            "total_relationships": rels_after
+            "node_count": load_result["node_count"],
+            "relationship_count": load_result["relationship_count"],
+            "replaced": load_result["replaced"],
+            "total_nodes": load_result["total_nodes"],
+            "total_relationships": load_result["total_relationships"],
         }
 
         logger.info("Loaded SFM graph: %s (%d nodes, %d relationships)",
@@ -2963,6 +2990,81 @@ class SFMService:
                    filepath, result['node_count'], result['relationship_count'])
 
         return result
+
+    # =========================================================================
+    # Versioned Persistence Operations
+    # =========================================================================
+
+    def commit(
+        self,
+        message: str,
+        tags: Optional[List[str]] = None
+    ) -> "GraphVersion":
+        """Create a new version of the current graph."""
+        controller = self._get_version_controller()
+        snapshot_data = self._build_snapshot_dict()
+        return controller.commit_snapshot(snapshot_data, message=message, tags=tags)
+
+    def checkout(self, version_ref: str) -> "GraphVersion":
+        """Load a specific version, replacing current graph."""
+        controller = self._get_version_controller()
+        version, snapshot_data = controller.get_version_snapshot(version_ref)
+        controller.checkout(version_ref)
+        self._load_snapshot_data(snapshot_data, replace=True)
+        return version
+
+    def list_versions(
+        self,
+        branch: str = "main",
+        limit: int = 20
+    ) -> List[Any]:
+        """List version history for specified branch."""
+        controller = self._get_version_controller()
+        versions: List[Any] = controller.list_versions(branch=branch, limit=limit)
+        return versions
+
+    def diff_versions(
+        self,
+        version1: str,
+        version2: str
+    ) -> Dict[str, Any]:
+        """Compare two graph versions."""
+        controller = self._get_version_controller()
+        diff: Dict[str, Any] = controller.diff_versions(version1, version2)
+        return diff
+
+    def create_branch(
+        self,
+        branch_name: str,
+        from_version: Optional[str] = None
+    ) -> str:
+        """Create and switch to a branch."""
+        controller = self._get_version_controller()
+        branch: str = controller.create_branch(branch_name, from_version=from_version)
+        return branch
+
+    def merge_branch(
+        self,
+        branch_name: str,
+        strategy: str = "manual"
+    ) -> Dict[str, Any]:
+        """Merge branch into current branch."""
+        controller = self._get_version_controller()
+        result = controller.merge_branch(branch_name=branch_name, strategy=strategy)
+        merged_version_id = result.get("merged_version_id")
+        if merged_version_id:
+            _, snapshot_data = controller.get_version_snapshot(merged_version_id)
+            self._load_snapshot_data(snapshot_data, replace=True)
+        return result
+
+    def show_history(
+        self,
+        format: str = "text"
+    ) -> str:
+        """Show version history in text, json, or graphml format."""
+        controller = self._get_version_controller()
+        history: str = controller.show_history(format=format)
+        return history
 
 
 # ThresholdAlert dataclass
