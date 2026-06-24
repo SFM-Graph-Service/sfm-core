@@ -31,3 +31,15 @@ performance_benchmark.py
 # Analysis output files (regenerated on each run)
 core_analysis_data.json
 core_analysis_report.md
+
+# Validation and test reports (generated during development/CI)
+STRESS_TEST_*.md
+STRESS_TEST_*.txt
+*_validation_report.txt
+*_VERIFICATION.md
+*_FINDINGS*.md
+VALIDATION_SUMMARY.md
+CORRECTIONS_COMPLETE.md
+
+# Temporary test files
+test_stress_comprehensive.py
