@@ -27,7 +27,7 @@ class SFMVersionController:
 
     @staticmethod
     def _normalize_snapshot(snapshot_data: Dict[str, Any]) -> Dict[str, Any]:
-        normalized = json.loads(json.dumps(snapshot_data))
+        normalized: Dict[str, Any] = json.loads(json.dumps(snapshot_data))
 
         metadata = normalized.get("metadata", {})
         if isinstance(metadata, dict):
@@ -59,7 +59,8 @@ class SFMVersionController:
 
     @staticmethod
     def _deserialize_snapshot(snapshot_blob: bytes) -> Dict[str, Any]:
-        return json.loads(gzip.decompress(snapshot_blob).decode("utf-8"))
+        result: Dict[str, Any] = json.loads(gzip.decompress(snapshot_blob).decode("utf-8"))
+        return result
 
     @staticmethod
     def _snapshot_stats(snapshot_data: Dict[str, Any]) -> Dict[str, int]:
@@ -331,7 +332,7 @@ class SFMVersionController:
             )
 
         if format == "graphml":
-            graph = nx.DiGraph()
+            graph: nx.DiGraph = nx.DiGraph()
             for version in versions:
                 version_id = str(version.version_id)
                 graph.add_node(version_id, message=version.message)

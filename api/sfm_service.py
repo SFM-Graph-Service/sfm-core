@@ -13,7 +13,7 @@ Key Features:
 
 import logging
 import uuid
-from typing import Dict, List, Optional, Any, Type, TypeVar, Union
+from typing import Dict, List, Optional, Any, Type, TypeVar, Union, TYPE_CHECKING
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -29,6 +29,9 @@ from data.repositories import (
     SFMRepositoryFactory,
 )
 from graph.sfm_graph import Relationship
+
+if TYPE_CHECKING:
+    from graph.version_storage import GraphVersion
 
 # Setup logging
 logger = logging.getLogger(__name__)
@@ -2689,10 +2692,11 @@ class SFMService:
         self,
         branch: str = "main",
         limit: int = 20
-    ) -> List["GraphVersion"]:
+    ) -> List[Any]:
         """List version history for specified branch."""
         controller = self._get_version_controller()
-        return controller.list_versions(branch=branch, limit=limit)
+        versions: List[Any] = controller.list_versions(branch=branch, limit=limit)
+        return versions
 
     def diff_versions(
         self,
@@ -2701,7 +2705,8 @@ class SFMService:
     ) -> Dict[str, Any]:
         """Compare two graph versions."""
         controller = self._get_version_controller()
-        return controller.diff_versions(version1, version2)
+        diff: Dict[str, Any] = controller.diff_versions(version1, version2)
+        return diff
 
     def create_branch(
         self,
@@ -2710,7 +2715,8 @@ class SFMService:
     ) -> str:
         """Create and switch to a branch."""
         controller = self._get_version_controller()
-        return controller.create_branch(branch_name, from_version=from_version)
+        branch: str = controller.create_branch(branch_name, from_version=from_version)
+        return branch
 
     def merge_branch(
         self,
@@ -2732,7 +2738,8 @@ class SFMService:
     ) -> str:
         """Show version history in text, json, or graphml format."""
         controller = self._get_version_controller()
-        return controller.show_history(format=format)
+        history: str = controller.show_history(format=format)
+        return history
 
 
 # ThresholdAlert dataclass

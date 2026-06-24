@@ -147,7 +147,7 @@ class VersionStorage:
             return []
 
         result: List[GraphVersion] = []
-        current = head
+        current: Optional[uuid.UUID] = head
         while current and len(result) < limit:
             version = self.get_version(current)
             if version is None:
