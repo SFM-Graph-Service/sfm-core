@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "sfm-core"
-version = "0.8.1"
+version = "0.8.2"
 description = "Social Fabric Matrix (SFM) graph service for institutional economics analysis"
 readme = "README.md"
 license = {text = "GPL-3.0"}

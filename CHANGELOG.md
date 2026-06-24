@@ -9,6 +9,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 No unreleased changes at this time.
 
+## [0.8.2] - 2026-06-23
+
+**Documentation restructure and CI test fixes**
+
+This patch release restructures documentation to emphasize general institutional analysis use cases and fixes test failures from v0.8.1.
+
+### Changed
+
+**Documentation**
+- Restructured README to focus on general institutional analysis and policy modeling
+- Positioned Hayden case studies as worked examples rather than primary focus
+- Emphasized research applications: policy impact analysis, sustainability assessment, technology systems
+- Highlighted multi-framework integration capabilities (Doughnut Economics, Ostrom SES/IAD)
+- Clarified that framework supports broad institutional analysis beyond published case studies
+
+**Use Case Messaging**
+- Lead with: Policy Impact Analysis, Institutional Economics Research, Multi-Framework Synthesis
+- Technology Systems Analysis, Sustainability Assessment as key applications
+- Hayden case studies presented as implementation references demonstrating methodology
+
+### Fixed
+
+**Test Suite**
+- Fixed `test_export_to_xmile_nebraska_case_study` to expect 13 stocks (13×13 matrix)
+- Skipped `test_export_to_xmile_creates_flows_for_quantified_deliveries` (faithful Nebraska implementation uses TEEOSA rules, not quantified flows)
+- Fixed type checking issues with optional text fields in SD export tests
+- All tests passing: 991 passed, 1 skipped
+
+### Notes
+
+This release maintains 100% backward compatibility with v0.8.1. No API changes, model changes, or breaking changes.
+
 ## [0.8.1] - 2026-06-23
 
 **Major fidelity improvements and TEEOSA formula implementation**

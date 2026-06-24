@@ -475,4 +475,4 @@ GPL-3.0 License - See LICENSE file for details
 
 **AI Assistance Disclosure**: Claude AI was used extensively in code development, documentation, and architectural design. All outputs should be independently verified for research applications.
 
-**Status**: Experimental Research Software | **Version**: 0.8.1 | **Python**: 3.9+ | **Tests**: 990 passing ✓
+**Status**: Experimental Research Software | **Version**: 0.8.2 | **Python**: 3.9+ | **Tests**: 991 passing ✓
