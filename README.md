@@ -288,8 +288,10 @@ curl http://localhost:8000/docs  # Swagger UI
 **Export Formats:**
 - **Excel**: Matrix view + cell descriptions + delivery details
 - **System Dynamics**: XMILE format for Stella/Vensim
-- **NetworkX**: GEXF, GraphML for Gephi/yEd
-- **Visualization**: PNG, PDF, SVG
+- **NetworkX**: GEXF, GraphML for external visualization tools (Gephi, yEd)
+- **JSON**: Full graph state with metadata
+
+> **Note**: sfm-core is a backend library focused on institutional analysis and graph operations. For visualization and frontend applications, see the separate [sfm-visualization](https://github.com/SFM-Graph-Service/sfm-visualization) project (coming soon).
 
 **Persistence:**
 ```python
@@ -475,4 +477,4 @@ GPL-3.0 License - See LICENSE file for details
 
 **AI Assistance Disclosure**: Claude AI was used extensively in code development, documentation, and architectural design. All outputs should be independently verified for research applications.
 
-**Status**: Experimental Research Software | **Version**: 0.8.2 | **Python**: 3.9+ | **Tests**: 991 passing ✓
+**Status**: Experimental Research Software | **Version**: 0.9.0 | **Python**: 3.9+ | **Tests**: 991 passing ✓

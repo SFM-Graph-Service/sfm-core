@@ -588,17 +588,14 @@ evolution = service._query_engine.query_temporal_evolution(
     time_step=timedelta(days=365*5)
 )
 
-# Plot evolution
-import matplotlib.pyplot as plt
-
+# Analyze evolution
 dates = [s['date'] for s in evolution]
 avg_weights = [s['avg_weight'] for s in evolution]
 
-plt.plot(dates, avg_weights)
-plt.title("Clean Air Act: Relationship Strength Evolution")
-plt.xlabel("Year")
-plt.ylabel("Average Weight")
-plt.show()
+# Export for visualization (see separate sfm-visualization project)
+# or use the data directly
+for date, weight in zip(dates, avg_weights):
+    print(f"{date.year}: {weight:.2f}")
 
 # Interpret
 print("1970: Auto industry influence at peak (0.9)")

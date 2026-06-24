@@ -9,6 +9,46 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 No unreleased changes at this time.
 
+## [0.9.0] - 2026-06-24
+
+**Backend library focus: Removed visualization dependencies**
+
+This release positions sfm-core as a pure backend library for institutional analysis and graph operations. Visualization and frontend features are being moved to a separate `sfm-visualization` project.
+
+### Removed
+
+**Visualization Dependencies**
+- Removed `visualization` optional dependency group (matplotlib, pyvis)
+- Removed `docs/VISUALIZATION_GUIDE.md` (will be in separate visualization project)
+- Updated `all` dependency group to exclude visualization packages
+
+**Documentation**
+- Removed matplotlib plotting examples from `docs/ANALYSIS_METHODS_GUIDE.md`
+- Removed visualization installation instructions from `docs/QUICKSTART.md`
+- Updated README export formats section to focus on data export (Excel, XMILE, GEXF/GraphML)
+
+### Changed
+
+**Project Positioning**
+- Clarified sfm-core as backend library focused on institutional analysis, graph operations, and data export
+- Added note in README pointing to upcoming `sfm-visualization` project for frontend/visualization features
+- Emphasized data export formats (GEXF, GraphML) for use with external visualization tools (Gephi, yEd)
+
+### Notes
+
+**BREAKING CHANGE**: The `visualization` optional dependency group has been removed. Users who previously installed `sfm-core[visualization]` should:
+1. Continue using sfm-core for backend analysis and data export
+2. Watch for the upcoming `sfm-visualization` project for frontend/visualization features
+3. Use external tools (Gephi, yEd) with GEXF/GraphML exports in the meantime
+
+**Rationale**: Separating visualization from the core library allows:
+- Cleaner dependency management (backend vs frontend)
+- Independent development and versioning of visualization features
+- Easier maintenance and testing
+- Better separation of concerns
+
+All core functionality (analysis methods, graph operations, export formats) remains unchanged.
+
 ## [0.8.2] - 2026-06-23
 
 **Documentation restructure and CI test fixes**

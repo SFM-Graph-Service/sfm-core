@@ -9,9 +9,9 @@
 pip install sfm-core
 
 # Or install with optional dependencies
-pip install sfm-core[neo4j,visualization]  # Production backend + visualization
-pip install sfm-core[dev]                   # Development tools
-pip install sfm-core[all]                   # Everything
+pip install sfm-core[neo4j]  # Production backend
+pip install sfm-core[dev]    # Development tools
+pip install sfm-core[all]    # All optional dependencies
 ```
 
 **Requirements:** Python 3.9 or higher
