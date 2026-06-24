@@ -342,6 +342,7 @@ Query scans (in-memory)     2.2M-4.7M items/sec
 - **[Framework Bridges Guide](docs/framework_bridges.md)** - Doughnut Economics and Ostrom SES/IAD integration
 - **[Neo4j Integration Guide](docs/NEO4J_INTEGRATION_GUIDE.md)** - Production backend setup
 - **[Scaling Guide](docs/SCALING_GUIDE.md)** - Performance tuning and optimization
+- **[Visualization Project](docs/VISUALIZATION_PROJECT.md)** - Frontend/visualization separation and migration guide
 
 ### API Documentation
 
