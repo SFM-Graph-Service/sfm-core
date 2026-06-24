@@ -13,7 +13,7 @@ Key Features:
 
 import logging
 import uuid
-from typing import Dict, List, Optional, Any, Type, TypeVar, Union
+from typing import Dict, List, Optional, Any, Type, TypeVar, Union, cast
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -2060,6 +2060,176 @@ class SFMService:
     # Private Helper Methods for Persistence
     # =========================================================================
 
+    def _clear_change_tracker(self) -> None:
+        """Reset repository change tracking after synchronization with disk."""
+        change_tracker = getattr(self.repository, "change_tracker", None)
+        if change_tracker is not None:
+            change_tracker.clear()
+
+    @staticmethod
+    def _relationship_to_dict(rel: Relationship) -> Dict[str, Any]:
+        """Serialize a relationship for snapshot or delta persistence."""
+        return {
+            'id': str(rel.id),
+            'source_id': str(rel.source_id),
+            'target_id': str(rel.target_id),
+            'kind': rel.kind if hasattr(rel, 'kind') else None,
+            'weight': rel.weight if hasattr(rel, 'weight') else None,
+        }
+
+    @staticmethod
+    def _resolve_incremental_paths(
+        filename: str,
+        base_path: Optional[str] = None
+    ) -> Dict[str, Path]:
+        """Resolve base snapshot and delta naming for incremental persistence."""
+        from graph.sfm_persistence import SFMPersistenceManager
+
+        manager = SFMPersistenceManager(base_path or "./sfm_data")
+        requested_path = Path(filename)
+        logical_suffix = requested_path.suffix or ".json"
+        logical_name = requested_path.stem if requested_path.suffix else requested_path.name
+        base_snapshot = manager.base_path / f"{logical_name}_base{logical_suffix}"
+
+        return {
+            "storage_root": manager.base_path,
+            "requested_file": manager.base_path / requested_path.name,
+            "base_snapshot": base_snapshot,
+            "delta_pattern_root": manager.base_path / f"{logical_name}_delta_",
+        }
+
+    @staticmethod
+    def _discover_delta_files(delta_pattern_root: Path) -> List[Path]:
+        """Find incremental delta files in application order."""
+        import re
+
+        pattern = re.compile(rf"{re.escape(delta_pattern_root.name)}(\d+)\.json$")
+        delta_files = []
+        for candidate in delta_pattern_root.parent.glob(f"{delta_pattern_root.name}*.json"):
+            match = pattern.match(candidate.name)
+            if match:
+                delta_files.append((int(match.group(1)), candidate))
+        return [path for _, path in sorted(delta_files, key=lambda item: item[0])]
+
+    @staticmethod
+    def _read_json_file(filepath: Path) -> Dict[str, Any]:
+        """Read JSON data from disk."""
+        import json
+
+        with open(filepath, 'r', encoding='utf-8') as handle:
+            return cast(Dict[str, Any], json.load(handle))
+
+    @staticmethod
+    def _write_json_file(filepath: Path, payload: Dict[str, Any]) -> int:
+        """Write JSON data to disk and return resulting file size."""
+        import json
+
+        filepath.parent.mkdir(parents=True, exist_ok=True)
+        json_payload = json.dumps(payload, indent=2, default=SFMService._json_serializer)
+        filepath.write_text(json_payload, encoding='utf-8')
+        return filepath.stat().st_size
+
+    def _build_delta_payload(self, base_snapshot_name: str) -> Dict[str, Any]:
+        """Build a JSON-serializable delta payload from tracked repository changes."""
+        from datetime import datetime, timezone
+        from graph.sfm_persistence import NodeSerializer
+
+        change_tracker = getattr(self.repository, "change_tracker", None)
+        if change_tracker is None:
+            raise RuntimeError("Repository does not support incremental persistence")
+
+        def serialize_nodes(node_ids: Any) -> List[Dict[str, Any]]:
+            serialized = []
+            for node_id in sorted(node_ids, key=str):
+                node = self.repository.read_node(node_id)
+                if node is not None:
+                    serialized.append(NodeSerializer.node_to_dict(node))
+            return serialized
+
+        def serialize_relationships(relationship_ids: Any) -> List[Dict[str, Any]]:
+            serialized = []
+            for relationship_id in sorted(relationship_ids, key=str):
+                relationship = self.repository.read_relationship(relationship_id)
+                if relationship is not None:
+                    serialized.append(self._relationship_to_dict(relationship))
+            return serialized
+
+        return {
+            "metadata": {
+                "delta_version": 1,
+                "base_snapshot": base_snapshot_name,
+                "delta_timestamp": datetime.now(timezone.utc).isoformat(),
+                "changes_summary": change_tracker.summary(),
+            },
+            "changes": {
+                "nodes_added": serialize_nodes(change_tracker.added_nodes),
+                "nodes_modified": serialize_nodes(change_tracker.modified_nodes),
+                "nodes_deleted": [str(node_id) for node_id in sorted(change_tracker.deleted_nodes, key=str)],
+                "relationships_added": serialize_relationships(change_tracker.added_relationships),
+                "relationships_modified": serialize_relationships(change_tracker.modified_relationships),
+                "relationships_deleted": [
+                    str(rel_id) for rel_id in sorted(change_tracker.deleted_relationships, key=str)
+                ],
+            },
+        }
+
+    def _apply_delta_payload(self, delta_payload: Dict[str, Any]) -> None:
+        """Apply a delta payload onto the current in-memory graph."""
+        from graph.sfm_graph import Relationship
+        from graph.sfm_persistence import NodeSerializer
+
+        changes = delta_payload.get("changes", {})
+
+        for relationship_id in changes.get("relationships_deleted", []):
+            self.repository.delete_relationship(uuid.UUID(relationship_id))
+
+        for node_id in changes.get("nodes_deleted", []):
+            self.repository.delete_node(uuid.UUID(node_id))
+
+        for node_data in changes.get("nodes_added", []):
+            node = NodeSerializer.dict_to_node(node_data)
+            existing_node = self.repository.read_node(node.id)
+            if existing_node is None:
+                self.repository.create_node(node)
+            else:
+                self.repository.update_node(node)
+
+        for node_data in changes.get("nodes_modified", []):
+            node = NodeSerializer.dict_to_node(node_data)
+            existing_node = self.repository.read_node(node.id)
+            if existing_node is None:
+                self.repository.create_node(node)
+            else:
+                self.repository.update_node(node)
+
+        for rel_data in changes.get("relationships_added", []):
+            relationship = Relationship(
+                id=uuid.UUID(rel_data['id']),
+                source_id=uuid.UUID(rel_data['source_id']),
+                target_id=uuid.UUID(rel_data['target_id']),
+                kind=rel_data.get('kind', ''),
+                weight=rel_data.get('weight'),
+            )
+            existing_relationship = self.repository.read_relationship(relationship.id)
+            if existing_relationship is None:
+                self.repository.create_relationship(relationship)
+            else:
+                self.repository.update_relationship(relationship)
+
+        for rel_data in changes.get("relationships_modified", []):
+            relationship = Relationship(
+                id=uuid.UUID(rel_data['id']),
+                source_id=uuid.UUID(rel_data['source_id']),
+                target_id=uuid.UUID(rel_data['target_id']),
+                kind=rel_data.get('kind', ''),
+                weight=rel_data.get('weight'),
+            )
+            existing_relationship = self.repository.read_relationship(relationship.id)
+            if existing_relationship is None:
+                self.repository.create_relationship(relationship)
+            else:
+                self.repository.update_relationship(relationship)
+
     def _build_snapshot_dict(self) -> Dict[str, Any]:
         """Build snapshot dictionary from current service state."""
         from datetime import datetime
@@ -2080,13 +2250,7 @@ class SFMService:
         all_rels = self.list_relationships()
         relationships = []
         for rel in all_rels:
-            relationships.append({
-                'id': str(rel.id),
-                'source_id': str(rel.source_id),
-                'target_id': str(rel.target_id),
-                'kind': rel.kind if hasattr(rel, 'kind') else None,
-                'weight': rel.weight if hasattr(rel, 'weight') else None,
-            })
+            relationships.append(self._relationship_to_dict(rel))
 
         return {
             'metadata': {
@@ -2212,6 +2376,86 @@ class SFMService:
 
         logger.info("Saved SFM graph: %s (%d nodes, %d relationships, %d bytes)",
                    filename, result['node_count'], result['relationship_count'], file_size)
+
+        self._clear_change_tracker()
+        return result
+
+    def save_incremental(
+        self,
+        filename: str,
+        base_path: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """
+        Save only changes since the last successful persistence operation.
+
+        When no canonical base snapshot exists yet, the requested filename is used
+        as the base snapshot if present; otherwise a new ``*_base.json`` snapshot
+        is created and no delta file is emitted on that first call.
+        """
+        from graph.sfm_persistence import SFMPersistenceError
+
+        change_tracker = getattr(self.repository, "change_tracker", None)
+        if change_tracker is None:
+            raise SFMPersistenceError("Repository does not support incremental persistence")
+
+        paths = self._resolve_incremental_paths(filename, base_path)
+        requested_file = paths["requested_file"]
+        base_snapshot = paths["base_snapshot"]
+        delta_pattern_root = paths["delta_pattern_root"]
+
+        if not base_snapshot.exists() and not requested_file.exists():
+            initial_summary = change_tracker.summary()
+            base_result = self.save(base_snapshot.name, base_path=base_path)
+            base_result.update(
+                {
+                    "mode": "base_snapshot",
+                    "base_snapshot": base_snapshot.name,
+                    "delta_created": False,
+                    "changes_summary": initial_summary,
+                }
+            )
+            return base_result
+
+        if not change_tracker.has_changes():
+            active_base = base_snapshot if base_snapshot.exists() else requested_file
+            return {
+                "filepath": str(active_base.absolute()),
+                "base_snapshot": active_base.name,
+                "delta_created": False,
+                "changes_summary": change_tracker.summary(),
+                "message": "No changes to persist incrementally",
+            }
+
+        active_base = base_snapshot if base_snapshot.exists() else requested_file
+        delta_files = self._discover_delta_files(delta_pattern_root)
+        next_index = len(delta_files) + 1
+        delta_file = delta_pattern_root.parent / f"{delta_pattern_root.name}{next_index:03d}.json"
+        delta_payload = self._build_delta_payload(active_base.name)
+        file_size = self._write_json_file(delta_file, delta_payload)
+        changes_summary = delta_payload["metadata"]["changes_summary"]
+
+        self._clear_change_tracker()
+
+        result = {
+            "filepath": str(delta_file.absolute()),
+            "base_snapshot": active_base.name,
+            "delta_created": True,
+            "delta_index": next_index,
+            "changes_summary": changes_summary,
+            "size_bytes": file_size,
+            "created_at": delta_payload["metadata"]["delta_timestamp"],
+        }
+
+        logger.info(
+            "Saved incremental delta: %s (nodes +%d/~%d/-%d, rels +%d/~%d/-%d)",
+            delta_file.name,
+            changes_summary["nodes_added"],
+            changes_summary["nodes_modified"],
+            changes_summary["nodes_deleted"],
+            changes_summary["relationships_added"],
+            changes_summary["relationships_modified"],
+            changes_summary["relationships_deleted"],
+        )
 
         return result
 
@@ -2356,6 +2600,86 @@ class SFMService:
         logger.info("Loaded SFM graph: %s (%d nodes, %d relationships)",
                    filename, result['node_count'], result['relationship_count'])
 
+        self._clear_change_tracker()
+        return result
+
+    def load_with_deltas(
+        self,
+        filename: str,
+        base_path: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """Load a base snapshot and replay all matching delta files."""
+        from graph.sfm_persistence import SFMPersistenceError
+
+        paths = self._resolve_incremental_paths(filename, base_path)
+        requested_file = paths["requested_file"]
+        base_snapshot = paths["base_snapshot"]
+        delta_pattern_root = paths["delta_pattern_root"]
+
+        active_base = base_snapshot if base_snapshot.exists() else requested_file
+        if not active_base.exists():
+            raise SFMPersistenceError(f"File not found: {active_base}")
+
+        load_result = self.load(active_base.name, base_path=base_path, replace=True)
+        delta_files = self._discover_delta_files(delta_pattern_root)
+
+        for delta_file in delta_files:
+            self._apply_delta_payload(self._read_json_file(delta_file))
+
+        self._clear_change_tracker()
+
+        result = {
+            "filepath": str(active_base.absolute()),
+            "base_snapshot": active_base.name,
+            "delta_files_applied": [delta_file.name for delta_file in delta_files],
+            "deltas_applied": len(delta_files),
+            "total_nodes": len(self.list_nodes()),
+            "total_relationships": len(self.list_relationships()),
+            "replaced": True,
+            "node_count": len(self.list_nodes()),
+            "relationship_count": len(self.list_relationships()),
+        }
+
+        logger.info(
+            "Loaded graph with %d delta files applied from base %s",
+            result["deltas_applied"],
+            active_base.name,
+        )
+
+        return result
+
+    def compact(
+        self,
+        filename: str,
+        base_path: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """Compact a base snapshot and its deltas into a single snapshot."""
+        paths = self._resolve_incremental_paths(filename, base_path)
+        requested_file = paths["requested_file"]
+        base_snapshot = paths["base_snapshot"]
+        delta_pattern_root = paths["delta_pattern_root"]
+
+        active_base = base_snapshot if base_snapshot.exists() else requested_file
+        delta_files = self._discover_delta_files(delta_pattern_root)
+
+        temp_service = SFMService(config=self.config)
+        temp_service.load_with_deltas(filename, base_path=base_path)
+        save_result = temp_service.save(active_base.name, base_path=base_path)
+
+        for delta_file in delta_files:
+            delta_file.unlink()
+
+        result = {
+            "filepath": save_result["filepath"],
+            "base_snapshot": active_base.name,
+            "compacted_deltas": len(delta_files),
+            "deleted_delta_files": [delta_file.name for delta_file in delta_files],
+            "node_count": save_result["node_count"],
+            "relationship_count": save_result["relationship_count"],
+            "size_bytes": save_result["size_bytes"],
+        }
+
+        logger.info("Compacted %d delta files into %s", len(delta_files), active_base.name)
         return result
 
     def reload(self, filename: str, format_type: str = "json",

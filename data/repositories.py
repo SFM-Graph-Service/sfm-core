@@ -23,6 +23,7 @@ from models.exceptions import (
 
 # Import actual classes from graph module
 from graph.sfm_graph import Relationship, SFMGraph
+from graph.change_tracker import ChangeTracker
 
 T = TypeVar("T", bound=Node)
 
@@ -150,6 +151,7 @@ class NetworkXSFMRepository(SFMRepository):
     def __init__(self):
         """Initialize the repository with an empty NetworkX graph."""
         self.graph: nx.MultiDiGraph[uuid.UUID] = nx.MultiDiGraph()
+        self.change_tracker = ChangeTracker()
 
     def create_node(self, node: Node) -> Node:
         """Create a new node in the repository. Supports all Beta node types."""
@@ -164,6 +166,7 @@ class NetworkXSFMRepository(SFMRepository):
 
         # Add node to graph with its full data
         self.graph.add_node(node_id, data=node)  # type: ignore[misc]
+        self.change_tracker.mark_node_added(node_id)
         return node
 
     def create_nodes_bulk(self, nodes: List[Node]) -> List[Node]:
@@ -209,6 +212,7 @@ class NetworkXSFMRepository(SFMRepository):
         # Add all nodes
         for node in nodes:
             self.graph.add_node(node.id, data=node)  # type: ignore[misc]
+            self.change_tracker.mark_node_added(node.id)
 
         return nodes
 
@@ -230,6 +234,7 @@ class NetworkXSFMRepository(SFMRepository):
 
         # Update node data in the graph
         self.graph.nodes[node.id]["data"] = node
+        self.change_tracker.mark_node_modified(node.id)
         return node
 
     def delete_node(self, node_id: uuid.UUID) -> bool:
@@ -237,8 +242,20 @@ class NetworkXSFMRepository(SFMRepository):
         if node_id not in self.graph:
             return False
 
+        incident_relationship_ids = {
+            cast(uuid.UUID, key)
+            for _, _, key in self.graph.out_edges(node_id, keys=True)  # type: ignore[misc]
+        }
+        incident_relationship_ids.update(
+            cast(uuid.UUID, key)
+            for _, _, key in self.graph.in_edges(node_id, keys=True)  # type: ignore[misc]
+        )
+        for relationship_id in incident_relationship_ids:
+            self.change_tracker.mark_relationship_deleted(relationship_id)
+
         # Remove the node from the graph
         self.graph.remove_node(node_id)
+        self.change_tracker.mark_node_deleted(node_id)
         return True
 
     def list_nodes(self, node_type: Optional[Type[Node]] = None) -> List[Node]:
@@ -292,6 +309,7 @@ class NetworkXSFMRepository(SFMRepository):
 
         # Add relationship to graph as an edge with its data
         self.graph.add_edge(source_id, target_id, key=rel_id, data=rel)  # type: ignore[misc]
+        self.change_tracker.mark_relationship_added(rel_id)
         return rel
 
     def create_relationships_bulk(self, relationships: List[Relationship]) -> List[Relationship]:
@@ -360,6 +378,7 @@ class NetworkXSFMRepository(SFMRepository):
         # Add all relationships
         for rel in relationships:
             self.graph.add_edge(rel.source_id, rel.target_id, key=rel.id, data=rel)  # type: ignore[misc]
+            self.change_tracker.mark_relationship_added(rel.id)
 
         return relationships
 
@@ -381,6 +400,7 @@ class NetworkXSFMRepository(SFMRepository):
             if key == rel_id:
                 # Update the relationship data
                 self.graph[u][v][key]["data"] = rel  # type: ignore[misc]
+                self.change_tracker.mark_relationship_modified(rel.id)
                 return rel
 
         raise SFMNotFoundError(
@@ -395,6 +415,7 @@ class NetworkXSFMRepository(SFMRepository):
             if key == rel_id:
                 # Remove the edge
                 self.graph.remove_edge(u, v, key=key)  # type: ignore[misc]
+                self.change_tracker.mark_relationship_deleted(rel_id)
                 return True
 
         return False
@@ -468,9 +489,12 @@ class NetworkXSFMRepository(SFMRepository):
         for rel in graph.relationships.values():
             self.create_relationship(rel)
 
+        self.change_tracker.clear()
+
     def clear(self) -> None:
         """Clear all data from the repository."""
         self.graph.clear()
+        self.change_tracker.clear()
 
 
 # Type-safe repository for specific node types
