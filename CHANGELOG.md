@@ -9,6 +9,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 No unreleased changes at this time.
 
+## [0.9.1] - 2026-06-24
+
+**Documentation updates and synthetic dataset**
+
+This patch release updates documentation to reflect the live sfm-visualization project and adds a comprehensive synthetic dataset for demonstration purposes.
+
+### Added
+
+**Synthetic Dataset** (`examples/synthetic_data/`)
+- 1,056-node climate policy network (National Climate Policy Network 2025-2035)
+- 6,363 relationships across 21 types
+- 25 institutional categories (federal/state/local agencies, corporations, NGOs, etc.)
+- Realistic metadata with temporal validity, confidence intervals, geographic scope
+- Complete documentation and validation suite
+- Example analysis queries demonstrating 8 common use cases
+
+### Changed
+
+**Documentation Updates**
+- Updated README and VISUALIZATION_PROJECT.md to reflect sfm-visualization as live (not "coming soon")
+- Added current features list for sfm-visualization v1.0.0 (Next.js, React Flow, 5 components)
+- Updated installation and deployment instructions
+- Revised roadmap to show completed initial release
+- All references point to https://github.com/SFM-Graph-Service/sfm-visualization
+
+### Notes
+
+No functional changes to sfm-core library. All 991 tests continue passing. This is purely a documentation and example data release.
+
+**Visualization Project**: For interactive institutional analysis visualization, see [sfm-visualization](https://github.com/SFM-Graph-Service/sfm-visualization) featuring network graphs, matrix heatmaps, temporal timelines, and Docker deployment.
+
 ## [0.9.0] - 2026-06-24
 
 **Backend library focus: Removed visualization dependencies**

@@ -291,7 +291,7 @@ curl http://localhost:8000/docs  # Swagger UI
 - **NetworkX**: GEXF, GraphML for external visualization tools (Gephi, yEd)
 - **JSON**: Full graph state with metadata
 
-> **Note**: sfm-core is a backend library focused on institutional analysis and graph operations. For visualization and frontend applications, see the separate [sfm-visualization](https://github.com/SFM-Graph-Service/sfm-visualization) project (coming soon).
+> **Note**: sfm-core is a backend library focused on institutional analysis and graph operations. For interactive visualization and frontend applications, see [sfm-visualization](https://github.com/SFM-Graph-Service/sfm-visualization) - a modern React/Next.js frontend with network graphs, matrix heatmaps, and temporal animations.
 
 **Persistence:**
 ```python
@@ -442,7 +442,7 @@ If you use this framework in your research, please cite:
   title = {SFM Core: Social Fabric Matrix Graph Service},
   year = {2026},
   url = {https://github.com/SFM-Graph-Service/sfm-core},
-  version = {0.9.0},
+  version = {0.9.1},
   doi = {10.5281/zenodo.20418500}
 }
 ```
@@ -478,4 +478,4 @@ GPL-3.0 License - See LICENSE file for details
 
 **AI Assistance Disclosure**: Claude AI was used extensively in code development, documentation, and architectural design. All outputs should be independently verified for research applications.
 
-**Status**: Experimental Research Software | **Version**: 0.9.0 | **Python**: 3.9+ | **Tests**: 991 passing ✓
+**Status**: Experimental Research Software | **Version**: 0.9.1 | **Python**: 3.9+ | **Tests**: 991 passing ✓

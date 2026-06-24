@@ -2,7 +2,7 @@
 
 ## Overview
 
-This document outlines the separation of visualization features from sfm-core and the planned sfm-visualization project.
+This document outlines the separation of visualization features from sfm-core and describes the sfm-visualization project.
 
 ## Rationale
 
@@ -61,39 +61,37 @@ sfm-core provides comprehensive data export for use with external visualization 
   - Use with: Custom visualization tools, web apps
   - Export: `service.save("graph.json", format_type=StorageFormat.JSON)`
 
-## Planned sfm-visualization Project
+## sfm-visualization Project
 
-**Repository**: https://github.com/SFM-Graph-Service/sfm-visualization (coming soon)
+**Repository**: https://github.com/SFM-Graph-Service/sfm-visualization  
+**Status**: ✅ Live and ready for deployment  
+**Technology**: Next.js 14 + TypeScript + React Flow + Plotly.js
 
-**Planned Features:**
+### Current Features (v1.0.0)
 
-### Interactive Visualizations
-- **Network diagrams**: Interactive node-link graphs with zoom/pan
-- **Matrix heat maps**: Delivery strength visualization
-- **Temporal evolution**: Animated institutional change over time
-- **Hierarchical layouts**: Institutional holarchy visualization
-- **Circular causation**: Feedback loop highlighting
+**Interactive Visualization Components:**
+- ✅ **NetworkVisualization**: React Flow network graphs with 4 layout algorithms (force-directed, hierarchical, circular, grid)
+- ✅ **MatrixHeatmap**: N×N delivery matrix heat maps with hover tooltips
+- ✅ **TemporalTimeline**: Animated institutional evolution with Plotly.js charts and play/pause controls
+- ✅ **AnalysisPanel**: Metrics dashboard showing ceremonial/instrumental ratios, circular causation, conflicts
+- ✅ **CaseStudySelector**: Load Hayden case studies or upload custom JSON data
 
-### Visualization Technologies
-- **matplotlib**: Static publication-quality figures
-- **plotly**: Interactive web-based visualizations
-- **dash**: Full dashboard applications
-- **D3.js integration**: Advanced custom visualizations
-- **NetworkX layout algorithms**: Spring, hierarchical, circular
+**Visualization Technologies:**
+- **React Flow 11+**: Interactive network diagrams with zoom/pan
+- **Plotly.js 2.30+**: Time series charts and analytics
+- **Tailwind CSS**: Modern, responsive styling
+- **TypeScript**: Full type safety
 
-### Dashboard Features
-- Real-time analysis updates
-- Multi-graph comparison views
-- Ceremonial vs instrumental classification overlays
-- Centrality metric visualization (node sizing by betweenness)
-- Edge coloring by delivery type
-- Interactive filtering and exploration
+**Deployment Features:**
+- Docker containerization with multi-stage builds
+- docker-compose.yml orchestrates sfm-core + frontend
+- Configurable backend URL via environment variables
+- Works locally (`npm run dev`) or any cloud container platform
 
-### Example Applications
-- Policy impact visualization dashboards
-- Institutional network explorers
-- Temporal evolution animations
-- Comparative case study viewers
+**Sample Data Included:**
+- 3 Hayden case studies (Clean Air Act, Nebraska K-12, Healthcare Reform)
+- Synthetic 1000+ node climate policy network
+- Complete TypeScript interfaces for SFM data structures
 
 ## Migration Guide for Users
 
@@ -136,27 +134,36 @@ export_to_gexf(service, "output.gexf")
 # Open output.gexf in Gephi for visualization
 ```
 
-### Future with sfm-visualization
+### With sfm-visualization (Current)
 ```bash
-pip install sfm-core sfm-visualization
+# Install backend
+pip install sfm-core
+
+# Clone and run frontend
+git clone https://github.com/SFM-Graph-Service/sfm-visualization.git
+cd sfm-visualization/frontend
+npm install
+npm run dev
+# Access at http://localhost:3000
 ```
 
-```python
-from api.sfm_service import SFMService
-from sfm_visualization import NetworkVisualizer
-
-service = SFMService()
-# ... build graph ...
-
-# One-line visualization
-viz = NetworkVisualizer(service)
-viz.show_interactive()  # Interactive plotly dashboard
-viz.save_figure("network.png")  # Publication figure
+Or use Docker Compose:
+```bash
+cd sfm-visualization
+docker-compose up
+# Frontend: http://localhost:3000
+# Backend: http://localhost:8000
 ```
+
+Load data via the web interface:
+1. Start sfm-core backend
+2. Navigate to http://localhost:3000/example
+3. Select Hayden case study or upload JSON
+4. Interact with network graphs, matrices, and timelines
 
 ## External Visualization Tools
 
-While the sfm-visualization project is in development, use these external tools:
+You can also use these external tools with GEXF/GraphML export:
 
 ### Gephi (Recommended)
 - **Download**: https://gephi.org/
@@ -181,28 +188,37 @@ While the sfm-visualization project is in development, use these external tools:
 - **Features**: Dynamic simulation, stock-flow diagrams
 - **Best for**: Temporal modeling, feedback loops
 
-## Timeline
+## Version History
 
-- **v0.9.0 (June 2026)**: Visualization removed from sfm-core
-- **Q3 2026**: Initial sfm-visualization project release
-  - Basic matplotlib/plotly integration
-  - Network diagram generator
-  - Matrix heat map visualization
+- ✅ **v0.9.0 (June 2026)**: Visualization removed from sfm-core
+- ✅ **v1.0.0 (June 2026)**: Initial sfm-visualization release
+  - Next.js 14 frontend with 5 visualization components
+  - React Flow network diagrams with 4 layout algorithms
+  - Plotly.js charts and temporal timelines
+  - Docker containerization
+  - Sample Hayden case studies
   
-- **Q4 2026**: Dashboard features
-  - Interactive dash application
-  - Multi-graph comparison
-  - Real-time analysis updates
+**Roadmap:**
+- **Q3 2026**: Enhanced features
+  - Export to PNG/SVG/PDF
+  - User authentication
+  - Data persistence/caching
+  
+- **Q4 2026**: Advanced analytics
+  - Custom visualization layouts
+  - Collaborative features (sharing, annotations)
+  - Performance optimizations for 10K+ nodes
 
-- **2027**: Advanced features
-  - Temporal animation
+- **2027**: Enterprise features
   - 3D network visualization
-  - Custom layout algorithms
+  - Mobile responsive design
+  - WCAG accessibility compliance
 
 ## Contributing
 
-Interested in helping build sfm-visualization? Watch the repository and join discussions:
-- **GitHub**: https://github.com/SFM-Graph-Service/sfm-visualization/discussions (coming soon)
+Interested in contributing to sfm-visualization? 
+- **GitHub**: https://github.com/SFM-Graph-Service/sfm-visualization
+- **Issues**: https://github.com/SFM-Graph-Service/sfm-visualization/issues
 - **Issues**: Feature requests and bug reports welcome
 
 ## Questions?
@@ -214,4 +230,4 @@ For questions about:
 
 ---
 
-**Last Updated**: 2026-06-24 | **sfm-core Version**: 0.9.0
+**Last Updated**: 2026-06-24 | **sfm-core Version**: 0.9.1 | **sfm-visualization**: v1.0.0
