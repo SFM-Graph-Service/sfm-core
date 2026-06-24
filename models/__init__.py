@@ -70,6 +70,13 @@ from models.network_analysis import (
     MatrixDeliveryNetwork,
 )
 
+# Hayden-compliant delivery matrix
+from models.delivery_matrix import (
+    Delivery,
+    SFMDeliveryCell,
+    SFMDeliveryMatrix,
+)
+
 # Complex analysis
 from models.complex_analysis import (
     DigraphAnalysis,
@@ -234,6 +241,10 @@ __all__ = [
     "CrossImpactAnalysis",
     "DeliveryRelationship",
     "MatrixDeliveryNetwork",
+    # Hayden-compliant delivery matrix
+    "Delivery",
+    "SFMDeliveryCell",
+    "SFMDeliveryMatrix",
     # Complex analysis
     "DigraphAnalysis",
     "CircularCausationProcess",
