@@ -6,6 +6,8 @@ Tests cover:
 - MultiDiGraph to matrix reconstruction
 - Adjacency dictionary conversions
 - Delivery summary statistics
+- SFMDeliveryMatrix.from_multidigraph() convenience method
+- SFMService.analyze_matrix_as_graph() graph analysis
 """
 
 import uuid
@@ -15,7 +17,7 @@ import networkx as nx
 
 from api.sfm_service import SFMService
 from models import Node
-from models.delivery_matrix import Delivery
+from models.delivery_matrix import Delivery, SFMDeliveryMatrix
 from graph.converters import (
     to_multidigraph,
     from_multidigraph,
@@ -378,3 +380,274 @@ class TestDeliverySummary:
 
         assert summary['total_deliveries'] == 3
         assert summary['components'] == 3
+
+
+class TestFromMultidigraphClassMethod:
+    """Test SFMDeliveryMatrix.from_multidigraph() class method."""
+
+    def setup_method(self):
+        """Setup test service."""
+        self.service = SFMService()
+
+    def test_from_multidigraph_returns_matrix(self):
+        """Test that from_multidigraph returns an SFMDeliveryMatrix instance."""
+        G = nx.MultiDiGraph()
+        comp_a = uuid.uuid4()
+        comp_b = uuid.uuid4()
+        G.add_node(comp_a, label="A")
+        G.add_node(comp_b, label="B")
+        G.add_edge(comp_a, comp_b, key="money", delivery_content="Funding",
+                   cell_description="A funds B")
+
+        matrix = SFMDeliveryMatrix.from_multidigraph(G, self.service)
+
+        assert isinstance(matrix, SFMDeliveryMatrix)
+
+    def test_from_multidigraph_components(self):
+        """Test from_multidigraph reconstructs all components."""
+        G = nx.MultiDiGraph()
+        comp_a = uuid.uuid4()
+        comp_b = uuid.uuid4()
+        comp_c = uuid.uuid4()
+        G.add_node(comp_a, label="A")
+        G.add_node(comp_b, label="B")
+        G.add_node(comp_c, label="C")
+
+        matrix = SFMDeliveryMatrix.from_multidigraph(G, self.service)
+
+        assert len(matrix.components) == 3
+        assert comp_a in matrix.components
+        assert comp_b in matrix.components
+        assert comp_c in matrix.components
+
+    def test_from_multidigraph_with_label(self):
+        """Test from_multidigraph uses provided matrix_label."""
+        G = nx.MultiDiGraph()
+        comp_a = uuid.uuid4()
+        G.add_node(comp_a, label="A")
+
+        matrix = SFMDeliveryMatrix.from_multidigraph(
+            G, self.service, matrix_label="My Label"
+        )
+
+        assert matrix.label == "My Label"
+
+    def test_from_multidigraph_uses_graph_label_attribute(self):
+        """Test from_multidigraph falls back to graph attribute for label."""
+        G = nx.MultiDiGraph()
+        G.graph['matrix_label'] = "Graph Attribute Label"
+        comp_a = uuid.uuid4()
+        G.add_node(comp_a, label="A")
+
+        matrix = SFMDeliveryMatrix.from_multidigraph(G, self.service)
+
+        assert matrix.label == "Graph Attribute Label"
+
+    def test_from_multidigraph_preserves_deliveries(self):
+        """Test from_multidigraph reconstructs deliveries correctly."""
+        G = nx.MultiDiGraph()
+        comp_a = uuid.uuid4()
+        comp_b = uuid.uuid4()
+        G.add_node(comp_a, label="A")
+        G.add_node(comp_b, label="B")
+        G.add_edge(comp_a, comp_b, key="money",
+                   delivery_content="Annual appropriation",
+                   quantity=500_000, units="USD/year",
+                   cell_description="A funds B")
+        G.add_edge(comp_a, comp_b, key="rule",
+                   delivery_content="Regulations",
+                   cell_description="A funds B")
+
+        matrix = SFMDeliveryMatrix.from_multidigraph(G, self.service)
+
+        cell = matrix.get_cell(comp_a, comp_b)
+        assert cell is not None
+        assert len(cell.deliveries) == 2
+        money = [d for d in cell.deliveries if d.delivery_type == "money"][0]
+        assert money.quantity == 500_000
+        assert money.units == "USD/year"
+
+    def test_from_multidigraph_roundtrip_via_class_method(self):
+        """Test matrix → graph → matrix roundtrip using class method."""
+        comp_a = Node(label="Component A")
+        comp_b = Node(label="Component B")
+        self.service.create_node(comp_a)
+        self.service.create_node(comp_b)
+
+        original = self.service.create_delivery_matrix(
+            label="Original Matrix",
+            components=[comp_a.id, comp_b.id]
+        )
+        delivery = Delivery(
+            delivery_type="information",
+            delivery_content="Policy reports",
+            quantity=12,
+            units="reports/year"
+        )
+        self.service.add_delivery_to_matrix(
+            original, comp_a.id, comp_b.id, delivery,
+            cell_description="A sends reports to B"
+        )
+
+        # Convert to graph then back using class method
+        G = original.to_multidigraph(self.service)
+        reconstructed = SFMDeliveryMatrix.from_multidigraph(
+            G, self.service, matrix_label="Roundtrip"
+        )
+
+        assert len(reconstructed.components) == 2
+        cell = reconstructed.get_cell(comp_a.id, comp_b.id)
+        assert cell is not None
+        assert len(cell.deliveries) == 1
+        assert cell.deliveries[0].delivery_type == "information"
+        assert cell.deliveries[0].quantity == 12
+
+    def test_from_multidigraph_empty_graph(self):
+        """Test from_multidigraph with empty graph produces empty matrix."""
+        G = nx.MultiDiGraph()
+
+        matrix = SFMDeliveryMatrix.from_multidigraph(G, self.service)
+
+        assert isinstance(matrix, SFMDeliveryMatrix)
+        assert len(matrix.components) == 0
+        assert len(matrix.cells) == 0
+
+    def test_from_multidigraph_single_component(self):
+        """Test from_multidigraph with single component (no edges)."""
+        G = nx.MultiDiGraph()
+        comp_a = uuid.uuid4()
+        G.add_node(comp_a, label="Lone Component")
+
+        matrix = SFMDeliveryMatrix.from_multidigraph(G, self.service)
+
+        assert len(matrix.components) == 1
+        assert comp_a in matrix.components
+        assert len(matrix.cells) == 0
+
+
+class TestAnalyzeMatrixAsGraph:
+    """Test SFMService.analyze_matrix_as_graph() method."""
+
+    def setup_method(self):
+        """Setup test service and matrix with deliveries."""
+        self.service = SFMService()
+
+        self.comp_a = Node(label="Legislature")
+        self.comp_b = Node(label="Agency")
+        self.comp_c = Node(label="Community")
+
+        self.service.create_node(self.comp_a)
+        self.service.create_node(self.comp_b)
+        self.service.create_node(self.comp_c)
+
+        self.matrix = self.service.create_delivery_matrix(
+            label="Policy Matrix",
+            components=[self.comp_a.id, self.comp_b.id, self.comp_c.id]
+        )
+
+        self.service.add_delivery_to_matrix(
+            self.matrix, self.comp_a.id, self.comp_b.id,
+            Delivery(delivery_type="money", delivery_content="Budget appropriation",
+                     quantity=10_000_000),
+            cell_description="Legislature funds Agency"
+        )
+
+        self.service.add_delivery_to_matrix(
+            self.matrix, self.comp_b.id, self.comp_c.id,
+            Delivery(delivery_type="rule", delivery_content="Program guidelines"),
+            cell_description="Agency regulates Community"
+        )
+
+        self.service.add_delivery_to_matrix(
+            self.matrix, self.comp_c.id, self.comp_a.id,
+            Delivery(delivery_type="information", delivery_content="Feedback reports"),
+            cell_description="Community informs Legislature"
+        )
+
+    def test_analyze_returns_dict(self):
+        """Test analyze_matrix_as_graph returns a dictionary."""
+        result = self.service.analyze_matrix_as_graph(self.matrix)
+
+        assert isinstance(result, dict)
+
+    def test_analyze_node_count(self):
+        """Test node_count matches number of components."""
+        result = self.service.analyze_matrix_as_graph(self.matrix)
+
+        assert result['node_count'] == 3
+
+    def test_analyze_edge_count(self):
+        """Test edge_count matches total deliveries."""
+        result = self.service.analyze_matrix_as_graph(self.matrix)
+
+        assert result['edge_count'] == 3
+
+    def test_analyze_density(self):
+        """Test density is a float between 0 and 1."""
+        result = self.service.analyze_matrix_as_graph(self.matrix)
+
+        assert isinstance(result['density'], float)
+        assert 0.0 <= result['density'] <= 1.0
+
+    def test_analyze_strongly_connected_components(self):
+        """Test strongly_connected_components is a positive integer."""
+        result = self.service.analyze_matrix_as_graph(self.matrix)
+
+        assert isinstance(result['strongly_connected_components'], int)
+        assert result['strongly_connected_components'] >= 1
+
+    def test_analyze_detects_cycle(self):
+        """Test cycles list contains the A→B→C→A cycle."""
+        result = self.service.analyze_matrix_as_graph(self.matrix)
+
+        assert isinstance(result['cycles'], list)
+        # With A→B→C→A, there should be at least one cycle
+        assert len(result['cycles']) >= 1
+
+    def test_analyze_cycles_capped_at_ten(self):
+        """Test cycles list is capped at 10 entries."""
+        result = self.service.analyze_matrix_as_graph(self.matrix)
+
+        assert len(result['cycles']) <= 10
+
+    def test_analyze_centrality_keys(self):
+        """Test centrality contains entries for each component."""
+        result = self.service.analyze_matrix_as_graph(self.matrix)
+
+        centrality = result['centrality']
+        assert isinstance(centrality, dict)
+        assert self.comp_a.id in centrality
+        assert self.comp_b.id in centrality
+        assert self.comp_c.id in centrality
+
+    def test_analyze_centrality_values(self):
+        """Test centrality values are floats between 0 and 1."""
+        result = self.service.analyze_matrix_as_graph(self.matrix)
+
+        for score in result['centrality'].values():
+            assert isinstance(score, float)
+            assert 0.0 <= score <= 1.0
+
+    def test_analyze_empty_matrix(self):
+        """Test analyze_matrix_as_graph works on empty matrix."""
+        empty_matrix = self.service.create_delivery_matrix(
+            label="Empty",
+            components=[self.comp_a.id, self.comp_b.id]
+        )
+        result = self.service.analyze_matrix_as_graph(empty_matrix)
+
+        assert result['node_count'] == 2
+        assert result['edge_count'] == 0
+        assert result['density'] == 0.0
+        assert result['cycles'] == []
+
+    def test_analyze_all_keys_present(self):
+        """Test result contains all expected keys."""
+        result = self.service.analyze_matrix_as_graph(self.matrix)
+
+        expected_keys = {
+            'node_count', 'edge_count', 'density',
+            'strongly_connected_components', 'cycles', 'centrality'
+        }
+        assert expected_keys.issubset(result.keys())
+

@@ -1621,6 +1621,47 @@ class SFMService:
 
         return errors
 
+    def analyze_matrix_as_graph(self, matrix: Any) -> Dict[str, Any]:
+        """
+        Analyze delivery matrix using graph algorithms.
+
+        Converts matrix to NetworkX MultiDiGraph, runs graph analysis,
+        and returns metrics useful for policy analysis.
+
+        Args:
+            matrix: SFMDeliveryMatrix to analyze
+
+        Returns:
+            Dictionary containing:
+            - node_count: Number of components
+            - edge_count: Number of deliveries
+            - density: Graph density (0.0-1.0)
+            - strongly_connected_components: Count of SCCs
+            - cycles: List of circular causation paths (first 10)
+            - centrality: Betweenness centrality per component
+
+        Example:
+            >>> analysis = service.analyze_matrix_as_graph(matrix)
+            >>> print(f"Network density: {analysis['density']:.3f}")
+            >>> print(f"SCCs: {analysis['strongly_connected_components']}")
+            >>> for cycle in analysis['cycles']:
+            ...     labels = [service.get_node(n).label for n in cycle]
+            ...     print(f"  Loop: {' → '.join(labels)}")
+        """
+        import networkx as nx
+        from graph.converters import to_multidigraph
+
+        G = to_multidigraph(matrix, self)
+
+        return {
+            'node_count': G.number_of_nodes(),
+            'edge_count': G.number_of_edges(),
+            'density': nx.density(G),
+            'strongly_connected_components': nx.number_strongly_connected_components(G),
+            'cycles': list(nx.simple_cycles(G))[:10],
+            'centrality': nx.betweenness_centrality(G)
+        }
+
     # ========================================
     # Temporal Modeling & Threshold Monitoring
     # ========================================
