@@ -748,6 +748,49 @@ print("Migrated from compressed to standard JSON")
 
 ---
 
+## Versioned Persistence (Time Travel + Branching)
+
+Versioned persistence stores graph snapshots in `./.sfm_versions/` with:
+
+- SQLite metadata index (`versions.db`)
+- Content-addressed snapshot objects (`objects/<sha256>`)
+- Branch, tag, and `HEAD` refs (`refs/`)
+
+```python
+from api.sfm_service import SFMService
+from models import Node
+
+service = SFMService()
+service.create_node(Node(label="Baseline"))
+service.commit("Initial baseline", tags=["baseline"])
+
+service.create_branch("hypothesis-1")
+service.create_node(Node(label="Alternative institution"))
+service.commit("Test alternative structure")
+
+service.checkout("baseline")   # tag checkout
+service.checkout("HEAD~1")     # time-travel checkout
+
+history = service.list_versions(branch="main", limit=10)
+diff = service.diff_versions("baseline", "hypothesis-1")
+print(diff["nodes_added"])
+
+service.merge_branch("hypothesis-1", strategy="manual")
+print(service.show_history(format="text"))
+```
+
+### Versioned API Methods
+
+- `commit(message, tags=None)`
+- `checkout(version_ref)`
+- `list_versions(branch="main", limit=20)`
+- `diff_versions(version1, version2)`
+- `create_branch(branch_name, from_version=None)`
+- `merge_branch(branch_name, strategy="manual")`
+- `show_history(format="text")`
+
+---
+
 ## API Reference
 
 ### SFMService Persistence Methods
