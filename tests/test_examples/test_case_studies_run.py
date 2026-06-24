@@ -11,7 +11,7 @@ import unittest
 
 from examples.hayden_case_studies import clean_air_act_1970
 from examples.hayden_case_studies import director_networks
-from examples.hayden_case_studies import nebraska_k12_finance
+from examples.hayden_case_studies import nebraska_k12
 from examples.hayden_case_studies import radioactive_waste
 from graph.analysis_report import run_analysis_battery, AnalysisReport
 
@@ -102,8 +102,12 @@ class TestNebraskaK12CaseStudy(unittest.TestCase):
 
     def test_nebraska_k12_matrix_builds_and_analyzes(self):
         """Nebraska K-12 matrix builder should complete and produce valid analysis report."""
+        # Import service
+        from api.sfm_service import SFMService
+        service = SFMService()
+
         # Build matrix
-        matrix, service = nebraska_k12_finance.build_nebraska_k12_matrix()
+        matrix, components = nebraska_k12.create_nebraska_k12_matrix(service)
 
         # Verify matrix created
         self.assertIsNotNone(matrix)

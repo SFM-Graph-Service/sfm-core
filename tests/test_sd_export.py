@@ -6,15 +6,15 @@ per issue #26 requirements.
 """
 
 import xml.etree.ElementTree as ET
-from examples.hayden_case_studies.nebraska_k12_finance import (
-    build_nebraska_k12_matrix,
-)
+from examples.hayden_case_studies import nebraska_k12
 from graph.exporters.system_dynamics_exporter import export_to_xmile
+from api.sfm_service import SFMService
 
 
 def test_export_to_xmile_creates_file(tmp_path):
     """Test that export creates an XMILE file."""
-    matrix, service = build_nebraska_k12_matrix()
+    service = SFMService()
+    matrix, _ = nebraska_k12.create_nebraska_k12_matrix(service)
 
     output_file = tmp_path / "test_export.xmile"
     export_to_xmile(
@@ -30,7 +30,8 @@ def test_export_to_xmile_creates_file(tmp_path):
 
 def test_export_to_xmile_valid_xml(tmp_path):
     """Test that exported file is valid XML."""
-    matrix, service = build_nebraska_k12_matrix()
+    service = SFMService()
+    matrix, _ = nebraska_k12.create_nebraska_k12_matrix(SFMService())
 
     output_file = tmp_path / "test_export.xmile"
     export_to_xmile(
@@ -50,7 +51,8 @@ def test_export_to_xmile_valid_xml(tmp_path):
 
 def test_export_to_xmile_has_required_structure(tmp_path):
     """Test that XMILE has required structure per OASIS standard."""
-    matrix, service = build_nebraska_k12_matrix()
+    service = SFMService()
+    matrix, _ = nebraska_k12.create_nebraska_k12_matrix(SFMService())
 
     output_file = tmp_path / "test_export.xmile"
     export_to_xmile(
@@ -83,7 +85,8 @@ def test_export_to_xmile_has_required_structure(tmp_path):
 
 def test_export_to_xmile_creates_stocks_for_components(tmp_path):
     """Test that SFM components become SD stocks."""
-    matrix, service = build_nebraska_k12_matrix()
+    service = SFMService()
+    matrix, _ = nebraska_k12.create_nebraska_k12_matrix(SFMService())
 
     output_file = tmp_path / "test_export.xmile"
     export_to_xmile(
@@ -109,7 +112,8 @@ def test_export_to_xmile_creates_stocks_for_components(tmp_path):
 
 def test_export_to_xmile_creates_flows_for_quantified_deliveries(tmp_path):
     """Test that deliveries with quantities become SD flows."""
-    matrix, service = build_nebraska_k12_matrix()
+    service = SFMService()
+    matrix, _ = nebraska_k12.create_nebraska_k12_matrix(SFMService())
 
     output_file = tmp_path / "test_export.xmile"
     export_to_xmile(
@@ -136,7 +140,8 @@ def test_export_to_xmile_creates_flows_for_quantified_deliveries(tmp_path):
 
 def test_export_to_xmile_header_contains_metadata(tmp_path):
     """Test that XMILE header contains model metadata."""
-    matrix, service = build_nebraska_k12_matrix()
+    service = SFMService()
+    matrix, _ = nebraska_k12.create_nebraska_k12_matrix(SFMService())
 
     model_name = "Nebraska K-12 Test"
     model_description = "Test TEEOSA model"
@@ -165,7 +170,8 @@ def test_export_to_xmile_header_contains_metadata(tmp_path):
 
 def test_export_to_xmile_sim_specs_has_time_parameters(tmp_path):
     """Test that sim_specs contains time simulation parameters."""
-    matrix, service = build_nebraska_k12_matrix()
+    service = SFMService()
+    matrix, _ = nebraska_k12.create_nebraska_k12_matrix(SFMService())
 
     output_file = tmp_path / "test_export.xmile"
     export_to_xmile(
@@ -203,7 +209,8 @@ def test_export_to_xmile_nebraska_case_study(tmp_path):
     This validates the SFM → System Dynamics handoff per Hoffman & Hayden (2007).
     """
     # Create Nebraska K-12 matrix
-    matrix, service = build_nebraska_k12_matrix()
+    service = SFMService()
+    matrix, _ = nebraska_k12.create_nebraska_k12_matrix(SFMService())
 
     assert matrix is not None
     assert service is not None
@@ -249,7 +256,7 @@ def test_export_to_xmile_nebraska_case_study(tmp_path):
     stocks = root.findall(".//{http://docs.oasis-open.org/xmile/ns/XMILE/v1.0}stock")
     assert len(stocks) > 0
 
-    # Nebraska K-12 matrix has 10 components per build_nebraska_k12_matrix()
+    # Nebraska K-12 matrix has 10 components per nebraska_k12.create_nebraska_k12_matrix(SFMService())
     # Should have 10 stocks (one per component)
     assert len(stocks) == 10
 

@@ -19,8 +19,15 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 from examples.hayden_case_studies.clean_air_act_1970 import create_clean_air_act_matrix
 from examples.hayden_case_studies.director_networks import create_director_network_matrix
 from examples.hayden_case_studies.radioactive_waste import create_llrw_matrix
-from examples.hayden_case_studies.nebraska_k12_finance import build_nebraska_k12_matrix
+from examples.hayden_case_studies import nebraska_k12
 from graph.analysis_report import run_analysis_battery
+from api.sfm_service import SFMService
+
+def build_nebraska_k12_wrapper():
+    """Wrapper for compare_cases compatibility."""
+    service = SFMService()
+    matrix, _ = nebraska_k12.create_nebraska_k12_matrix(service)
+    return matrix, service
 
 
 def analyze_case_study(name: str, builder_func: Callable[[], Any]) -> Dict[str, Any]:
@@ -233,7 +240,7 @@ def main():
         ("Clean Air Act 1970", create_clean_air_act_matrix),
         ("Corporate Director Networks", create_director_network_matrix),
         ("Low-Level Radioactive Waste", create_llrw_matrix),
-        ("Nebraska K-12 Finance", build_nebraska_k12_matrix),
+        ("Nebraska K-12 Finance", build_nebraska_k12_wrapper),
     ]
 
     # Analyze each case
