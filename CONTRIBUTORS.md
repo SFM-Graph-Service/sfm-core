@@ -127,7 +127,7 @@ If you use SFM Core in your research, please cite both:
      title = {SFM Core: Social Fabric Matrix Graph Service},
      year = {2026},
      url = {https://github.com/SFM-Graph-Service/sfm-core},
-     version = {0.7.0},
+     version = {0.9.0},
      doi = {10.5281/zenodo.20418500}
    }
    ```

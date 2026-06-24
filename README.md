@@ -442,7 +442,7 @@ If you use this framework in your research, please cite:
   title = {SFM Core: Social Fabric Matrix Graph Service},
   year = {2026},
   url = {https://github.com/SFM-Graph-Service/sfm-core},
-  version = {0.8.1},
+  version = {0.9.0},
   doi = {10.5281/zenodo.20418500}
 }
 ```
