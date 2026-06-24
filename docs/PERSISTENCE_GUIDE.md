@@ -9,12 +9,13 @@
 1. [Overview](#overview)
 2. [Quick Start](#quick-start)
 3. [Save/Load Operations](#saveload-operations)
-4. [Storage Formats](#storage-formats)
-5. [Management Operations](#management-operations)
-6. [Export/Import Operations](#exportimport-operations)
-7. [Security Considerations](#security-considerations)
-8. [Common Workflows](#common-workflows)
-9. [API Reference](#api-reference)
+4. [Incremental Persistence](#incremental-persistence)
+5. [Storage Formats](#storage-formats)
+6. [Management Operations](#management-operations)
+7. [Export/Import Operations](#exportimport-operations)
+8. [Security Considerations](#security-considerations)
+9. [Common Workflows](#common-workflows)
+10. [API Reference](#api-reference)
 
 ---
 
@@ -194,6 +195,84 @@ print(f"Before reload: {len(service.list_nodes())} nodes")  # 2 nodes
 service.reload("checkpoint.json")
 print(f"After reload: {len(service.list_nodes())} nodes")  # 1 node
 ```
+
+---
+
+## Incremental Persistence
+
+Use incremental persistence when a large graph changes only slightly between saves.
+
+### `save_incremental(filename, base_path)`
+
+Writes only tracked node and relationship changes to a delta file. The first
+incremental save creates a `*_base.json` snapshot when no persisted base exists.
+
+```python
+service = SFMService()
+service.save("analysis.json")
+
+# ... make a few changes ...
+delta = service.save_incremental("analysis.json")
+print(delta["filepath"])
+```
+
+Delta files use this naming pattern:
+
+```text
+analysis_base.json
+analysis_delta_001.json
+analysis_delta_002.json
+```
+
+Each delta file contains JSON metadata plus the changed entities:
+
+```json
+{
+  "metadata": {
+    "delta_version": 1,
+    "base_snapshot": "analysis_base.json",
+    "delta_timestamp": "2026-06-23T10:30:00+00:00",
+    "changes_summary": {
+      "nodes_added": 5,
+      "nodes_modified": 3,
+      "nodes_deleted": 1,
+      "relationships_added": 10,
+      "relationships_modified": 0,
+      "relationships_deleted": 2
+    }
+  },
+  "changes": {
+    "nodes_added": [],
+    "nodes_modified": [],
+    "nodes_deleted": [],
+    "relationships_added": [],
+    "relationships_modified": [],
+    "relationships_deleted": []
+  }
+}
+```
+
+### `load_with_deltas(filename, base_path)`
+
+Loads the base snapshot and applies all discovered delta files in order.
+
+```python
+service = SFMService()
+service.load_with_deltas("analysis.json")
+```
+
+### `compact(filename, base_path)`
+
+Compacts the base snapshot plus all deltas into a single fresh snapshot and
+removes the old delta files.
+
+```python
+service.compact("analysis.json")
+```
+
+Incremental persistence depends on repository CRUD operations for change
+tracking, so direct in-memory mutation should still be followed by
+`update_node()` or `update_relationship()` before saving.
 
 ---
 
