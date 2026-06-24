@@ -13,7 +13,7 @@ Key Features:
 
 import logging
 import uuid
-from typing import Dict, List, Optional, Any, Type, TypeVar, Union
+from typing import Dict, List, Optional, Any, Type, TypeVar, Union, cast
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -2117,7 +2117,7 @@ class SFMService:
         import json
 
         with open(filepath, 'r', encoding='utf-8') as handle:
-            return json.load(handle)
+            return cast(Dict[str, Any], json.load(handle))
 
     @staticmethod
     def _write_json_file(filepath: Path, payload: Dict[str, Any]) -> int:
@@ -2188,16 +2188,16 @@ class SFMService:
 
         for node_data in changes.get("nodes_added", []):
             node = NodeSerializer.dict_to_node(node_data)
-            existing = self.repository.read_node(node.id)
-            if existing is None:
+            existing_node = self.repository.read_node(node.id)
+            if existing_node is None:
                 self.repository.create_node(node)
             else:
                 self.repository.update_node(node)
 
         for node_data in changes.get("nodes_modified", []):
             node = NodeSerializer.dict_to_node(node_data)
-            existing = self.repository.read_node(node.id)
-            if existing is None:
+            existing_node = self.repository.read_node(node.id)
+            if existing_node is None:
                 self.repository.create_node(node)
             else:
                 self.repository.update_node(node)
@@ -2210,8 +2210,8 @@ class SFMService:
                 kind=rel_data.get('kind', ''),
                 weight=rel_data.get('weight'),
             )
-            existing = self.repository.read_relationship(relationship.id)
-            if existing is None:
+            existing_relationship = self.repository.read_relationship(relationship.id)
+            if existing_relationship is None:
                 self.repository.create_relationship(relationship)
             else:
                 self.repository.update_relationship(relationship)
@@ -2224,8 +2224,8 @@ class SFMService:
                 kind=rel_data.get('kind', ''),
                 weight=rel_data.get('weight'),
             )
-            existing = self.repository.read_relationship(relationship.id)
-            if existing is None:
+            existing_relationship = self.repository.read_relationship(relationship.id)
+            if existing_relationship is None:
                 self.repository.create_relationship(relationship)
             else:
                 self.repository.update_relationship(relationship)
