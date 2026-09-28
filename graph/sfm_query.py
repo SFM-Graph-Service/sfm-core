@@ -32,7 +32,101 @@ __all__ = [
     'SFMQueryEngine',
     'NetworkXSFMQueryEngine',
     'SFMQueryFactory',
+    'compute_data_quality',
 ]
+
+
+def _severity_label(severity: float) -> str:
+    if severity >= 0.7:
+        return "high"
+    if severity >= 0.4:
+        return "medium"
+    return "low"
+
+
+def _severity_fields(severity: float) -> Dict[str, Any]:
+    clamped = max(0.0, min(1.0, severity))
+    return {"severity": clamped, "severity_label": _severity_label(clamped)}
+
+
+def _min_confidence(rels: List[Relationship]) -> Optional[float]:
+    values = [r.confidence for r in rels if r.confidence is not None]
+    return min(values) if values else None
+
+
+def _evidence_strength(rels: List[Relationship]) -> str:
+    source_count = sum(len(r.data_sources or []) for r in rels)
+    if source_count == 0:
+        return "none"
+    if any(r.source_agreement == "low" for r in rels):
+        return "low"
+    if source_count == 1:
+        return "low"
+    if source_count == 2:
+        return "medium"
+    return "high"
+
+
+def _conflict_detail_text(detail: Any) -> str:
+    if isinstance(detail, dict):
+        for key in ("description", "summary", "label", "name"):
+            if detail.get(key):
+                return str(detail[key])
+        return ", ".join(f"{k}={v}" for k, v in detail.items())
+    return str(detail)
+
+
+def compute_data_quality(
+    relationships: List[Relationship],
+    node_lookup: Any,
+) -> Dict[str, Any]:
+    """
+    Summarise the evidential quality of a set of relationships.
+
+    node_lookup is a callable mapping a node id to a Node (or None), used
+    only to label the flagged relationships.
+    """
+    total = len(relationships)
+
+    def describe(rel: Relationship) -> Dict[str, Any]:
+        src = node_lookup(rel.source_id)
+        tgt = node_lookup(rel.target_id)
+        return {
+            "id": str(rel.id),
+            "source": src.label if src else str(rel.source_id),
+            "target": tgt.label if tgt else str(rel.target_id),
+            "kind": rel.kind,
+            "weight": rel.weight,
+            "source_agreement": rel.source_agreement,
+        }
+
+    undocumented = [r for r in relationships if not r.data_sources]
+    without_ci = [r for r in relationships if not r.confidence_interval]
+    without_confidence = [r for r in relationships if r.confidence is None]
+    low_agreement = [r for r in relationships if r.source_agreement == "low"]
+
+    by_type: Dict[str, int] = {}
+    for rel in relationships:
+        key = rel.uncertainty_type or "unspecified"
+        by_type[key] = by_type.get(key, 0) + 1
+
+    if total:
+        penalties = len(undocumented) + len(without_ci) + len(low_agreement)
+        quality_score = max(0.0, 1.0 - penalties / (3.0 * total))
+    else:
+        quality_score = 1.0
+
+    return {
+        "total_relationships": total,
+        "with_data_sources": total - len(undocumented),
+        "with_confidence_interval": total - len(without_ci),
+        "with_confidence": total - len(without_confidence),
+        "low_source_agreement": len(low_agreement),
+        "quality_score": quality_score,
+        "undocumented": [describe(r) for r in undocumented],
+        "low_agreement": [describe(r) for r in low_agreement],
+        "by_uncertainty_type": by_type,
+    }
 
 
 class AnalysisType(Enum):
@@ -235,6 +329,7 @@ class NetworkXSFMQueryEngine(SFMQueryEngine):  # pylint: disable=too-many-public
         super().__init__(graph)
         self.nx_graph: nx.MultiDiGraph = self._build_networkx_graph()
         self._centrality_cache: Dict[str, Dict[uuid.UUID, float]] = {}
+        self._loop_participation: Optional[Dict[uuid.UUID, int]] = None
 
     def _build_networkx_graph(self) -> nx.MultiDiGraph:
         """Convert SFMGraph to NetworkX graph for analysis."""
@@ -642,38 +737,177 @@ class NetworkXSFMQueryEngine(SFMQueryEngine):  # pylint: disable=too-many-public
     def query_circular_causation_paths(
         self, source_id: uuid.UUID, max_depth: int = 5
     ) -> List[List[Node]]:
-        """Trace circular causation paths starting from a source node."""
-        paths: List[List[Node]] = []
+        """Trace circular causation paths starting from a source node (node lists only)."""
+        return [
+            cycle["nodes"]
+            for cycle in self.query_circular_causation_detailed(source_id, max_depth)
+        ]
 
-        # Check if source node exists
+    def query_circular_causation_detailed(
+        self, source_id: uuid.UUID, max_depth: int = 5
+    ) -> List[Dict[str, Any]]:
+        """
+        Trace circular causation paths and describe each loop analytically.
+
+        Each returned dict contains:
+            nodes            Node objects along the loop (starts and ends at source)
+            node_ids, labels Parallel id / label lists
+            edges            One descriptor per hop (strongest parallel edge is used)
+            length           Number of hops
+            gain             Signed product of edge weights (loop gain)
+            gain_range       (lower, upper) gain from compounding confidence intervals
+            strength         |gain|
+            strength_range   (lower, upper) bounds on |gain|
+            feedback_type    "reinforcing" (even number of negative links) or "balancing"
+            negative_links   Count of negative-weight hops
+            confidence       Lowest edge confidence in the loop, or None if none recorded
+            weakest_link     Edge with the least evidence (lowest confidence, else lowest |weight|)
+            weakest_link_basis  "confidence" or "weight"
+            leverage_node    Node in the loop participating in the most loops graph-wide
+        """
         if source_id not in self.nx_graph.nodes():
-            return paths
+            return []
 
-        # Use DFS to find paths that return to source
-        def dfs_paths(current: uuid.UUID, path: List[uuid.UUID], depth: int):
+        id_paths: List[List[uuid.UUID]] = []
+
+        def dfs_paths(current: uuid.UUID, path: List[uuid.UUID], depth: int) -> None:
             if depth > max_depth:
                 return
-
-            # Check if we've returned to source (circular)
             if len(path) > 2 and current == source_id:
-                # Convert UUIDs to Node objects
-                node_path = []
-                for node_id in path:
-                    node = self.graph.get_node_by_id(node_id)
-                    if node:
-                        node_path.append(node)
-                if node_path:
-                    paths.append(node_path)
+                id_paths.append(path)
                 return
-
-            # Explore neighbors
             for neighbor in self.nx_graph.neighbors(current):
                 if neighbor not in path or (neighbor == source_id and len(path) >= 2):
                     dfs_paths(neighbor, path + [neighbor], depth + 1)
 
-        # Start DFS from source
         dfs_paths(source_id, [source_id], 0)
-        return paths
+
+        participation = self.get_loop_participation()
+        cycles = []
+        for id_path in id_paths:
+            described = self._describe_cycle(id_path, participation)
+            if described is not None:
+                cycles.append(described)
+        return cycles
+
+    def _describe_cycle(
+        self, id_path: List[uuid.UUID], participation: Dict[uuid.UUID, int]
+    ) -> Optional[Dict[str, Any]]:
+        nodes = [n for n in (self.graph.get_node_by_id(i) for i in id_path) if n is not None]
+        if not nodes:
+            return None
+
+        edges = [self._strongest_edge(u, v) for u, v in zip(id_path, id_path[1:])]
+
+        gain = 1.0
+        gain_lo = gain_hi = 1.0
+        negative_links = 0
+        for edge in edges:
+            weight = edge["weight"] if edge["weight"] is not None else 1.0
+            if weight < 0:
+                negative_links += 1
+            gain *= weight
+            lo, hi = edge["weight_range"]
+            products = (gain_lo * lo, gain_lo * hi, gain_hi * lo, gain_hi * hi)
+            gain_lo, gain_hi = min(products), max(products)
+
+        strength_lo = 0.0 if gain_lo <= 0.0 <= gain_hi else min(abs(gain_lo), abs(gain_hi))
+        strength_hi = max(abs(gain_lo), abs(gain_hi))
+
+        with_confidence = [e for e in edges if e["confidence"] is not None]
+        if with_confidence:
+            weakest = min(with_confidence, key=lambda e: e["confidence"])
+            weakest_basis = "confidence"
+        else:
+            weakest = min(edges, key=lambda e: abs(e["weight"]) if e["weight"] is not None else 1.0)
+            weakest_basis = "weight"
+
+        loop_members = id_path[:-1]
+        leverage_id = max(loop_members, key=lambda n: participation.get(n, 0))
+        leverage_node = self.graph.get_node_by_id(leverage_id)
+
+        return {
+            "nodes": nodes,
+            "node_ids": list(id_path),
+            "labels": [n.label for n in nodes],
+            "edges": edges,
+            "length": len(edges),
+            "gain": gain,
+            "gain_range": (gain_lo, gain_hi),
+            "strength": abs(gain),
+            "strength_range": (strength_lo, strength_hi),
+            "feedback_type": "balancing" if negative_links % 2 else "reinforcing",
+            "negative_links": negative_links,
+            "confidence": min(e["confidence"] for e in with_confidence) if with_confidence else None,
+            "weakest_link": weakest,
+            "weakest_link_basis": weakest_basis,
+            "leverage_node": {
+                "id": leverage_id,
+                "label": leverage_node.label if leverage_node else str(leverage_id),
+                "loop_participation": participation.get(leverage_id, 0),
+            },
+        }
+
+    def _strongest_edge(self, source_id: uuid.UUID, target_id: uuid.UUID) -> Dict[str, Any]:
+        """Describe the highest-|weight| edge between two nodes, noting how many parallel edges exist."""
+        edge_data = self.nx_graph.get_edge_data(source_id, target_id) or {}
+        best_key: Any = None
+        best_attrs: Dict[str, Any] = {}
+        for key, attrs in edge_data.items():
+            if not best_attrs or abs(attrs.get("weight", 1.0)) > abs(best_attrs.get("weight", 1.0)):
+                best_key, best_attrs = key, attrs
+
+        payload = best_attrs.get("data")
+        if isinstance(payload, Relationship):
+            weight: Optional[float] = payload.weight if payload.weight is not None else 1.0
+            confidence_interval = payload.confidence_interval
+            confidence = payload.confidence
+            data_sources = list(payload.data_sources or [])
+        else:
+            weight = best_attrs.get("weight", 1.0)
+            confidence_interval = None
+            certainties = [
+                d.certainty for d in getattr(payload, "deliveries", []) if d.certainty is not None
+            ]
+            confidence = sum(certainties) / len(certainties) if certainties else None
+            data_sources = sorted({
+                s for d in getattr(payload, "deliveries", []) for s in (d.data_sources or [])
+            })
+
+        return {
+            "id": best_key,
+            "source_id": source_id,
+            "target_id": target_id,
+            "kind": best_attrs.get("kind"),
+            "weight": weight,
+            "weight_range": tuple(confidence_interval) if confidence_interval else (weight, weight),
+            "confidence": confidence,
+            "data_sources": data_sources,
+            "parallel_edges": len(edge_data),
+        }
+
+    def get_loop_participation(self, max_cycle_length: int = 8) -> Dict[uuid.UUID, int]:
+        """
+        Count, for every node, how many simple cycles (up to max_cycle_length) it lies on.
+
+        Nodes on many loops are the system's leverage points: intervening there
+        perturbs the most feedback structure. Computed once per engine instance.
+        """
+        if self._loop_participation is None:
+            counts: Dict[uuid.UUID, int] = {n: 0 for n in self.nx_graph.nodes}
+            simple = nx.DiGraph(self.nx_graph)
+            for cycle in nx.simple_cycles(simple, length_bound=max_cycle_length):
+                for node_id in cycle:
+                    counts[node_id] += 1
+            self._loop_participation = counts
+        return self._loop_participation
+
+    def data_quality_report(self) -> Dict[str, Any]:
+        """Summarise how well-evidenced the graph's relationships are."""
+        return compute_data_quality(
+            list(self.graph.relationships.values()),
+            self.graph.get_node_by_id,
+        )
 
     def query_holarchy_levels(
         self, institution_id: uuid.UUID
@@ -736,54 +970,81 @@ class NetworkXSFMQueryEngine(SFMQueryEngine):  # pylint: disable=too-many-public
         return levels
 
     def detect_conflicts(self) -> List[Dict[str, Any]]:
-        """Detect conflicts and contradictions in the graph."""
+        """
+        Detect conflicts and contradictions in the graph.
+
+        Every conflict carries: type (direct/indirect/structural/semantic),
+        conflict_type, description, involved_nodes, severity (0-1),
+        severity_label (low/medium/high), confidence (lowest recorded on the
+        supporting relationships, or None) and evidence_strength
+        (none/low/medium/high, from cited data sources and source agreement).
+        """
         conflicts: List[Dict[str, Any]] = []
 
-        # Check for ConflictDetection nodes in the graph
         for node in self.graph:
             if isinstance(node, ConflictDetection):
-                # Extract conflicts from the ConflictDetection node
+                conflict_type = node.conflict_type.value if hasattr(node.conflict_type, 'value') else str(node.conflict_type)
+                intensities = [v for v in node.conflict_intensity.values() if v is not None]
+                base_severity = sum(intensities) / len(intensities) if intensities else 0.6
+                involved = [str(node.id)] + ([str(node.analyzed_system_id)] if node.analyzed_system_id else [])
+
                 for direct_conflict in node.direct_conflicts:
                     conflicts.append({
                         "type": "direct",
-                        "conflict_type": node.conflict_type.value if hasattr(node.conflict_type, 'value') else str(node.conflict_type),
+                        "conflict_type": conflict_type,
                         "details": direct_conflict,
-                        "source_node": node.id
+                        "description": _conflict_detail_text(direct_conflict),
+                        "source_node": node.id,
+                        "involved_nodes": involved,
+                        **_severity_fields(base_severity),
+                        "confidence": None,
+                        "evidence_strength": "none",
                     })
 
                 for indirect_conflict in node.indirect_conflicts:
                     conflicts.append({
                         "type": "indirect",
-                        "conflict_type": node.conflict_type.value if hasattr(node.conflict_type, 'value') else str(node.conflict_type),
+                        "conflict_type": conflict_type,
                         "details": indirect_conflict,
-                        "source_node": node.id
+                        "description": _conflict_detail_text(indirect_conflict),
+                        "source_node": node.id,
+                        "involved_nodes": involved,
+                        **_severity_fields(base_severity * 0.7),
+                        "confidence": None,
+                        "evidence_strength": "none",
                     })
 
-        # Also detect structural conflicts in the graph
-        # Look for contradictory relationships (e.g., A->B positive, A->B negative)
+        # Structural: opposite-signed relationships between the same pair
         relationship_pairs: Dict[Tuple[uuid.UUID, uuid.UUID], List[Relationship]] = {}
-
         for rel in self.graph.relationships.values():
-            pair_key = (rel.source_id, rel.target_id)
-            if pair_key not in relationship_pairs:
-                relationship_pairs[pair_key] = []
-            relationship_pairs[pair_key].append(rel)
+            relationship_pairs.setdefault((rel.source_id, rel.target_id), []).append(rel)
 
         for (source, target), rels in relationship_pairs.items():
             if len(rels) > 1:
-                # Check for contradictory relationships
                 weights = [r.weight for r in rels if r.weight is not None]
                 if weights and max(weights) > 0 and min(weights) < 0:
+                    source_node = self.graph.get_node_by_id(source)
+                    target_node = self.graph.get_node_by_id(target)
+                    src_label = source_node.label if source_node else str(source)
+                    tgt_label = target_node.label if target_node else str(target)
                     conflicts.append({
                         "type": "structural",
                         "conflict_type": "contradictory_relationships",
                         "source": source,
                         "target": target,
                         "details": f"Contradictory relationships between nodes: {weights}",
-                        "relationships": [r.id for r in rels]
+                        "description": (
+                            f"{src_label} → {tgt_label} has both positive and negative "
+                            f"relationships (weights {weights})"
+                        ),
+                        "relationships": [r.id for r in rels],
+                        "involved_nodes": [str(source), str(target)],
+                        **_severity_fields(min(1.0, (max(weights) - min(weights)) / 2.0)),
+                        "confidence": _min_confidence(rels),
+                        "evidence_strength": _evidence_strength(rels),
                     })
 
-        # Method 3: Semantic conflict relationships
+        # Semantic: relationship kinds that denote opposition
         CONFLICT_KINDS = {
             "conflicts_with", "opposes", "contradicts", "challenges",
             "undermines", "blocks", "resists"
@@ -793,17 +1054,25 @@ class NetworkXSFMQueryEngine(SFMQueryEngine):  # pylint: disable=too-many-public
             if rel.kind in CONFLICT_KINDS:
                 source_node = self.graph.get_node_by_id(rel.source_id)
                 target_node = self.graph.get_node_by_id(rel.target_id)
+                src_label = source_node.label if source_node else "unknown"
+                tgt_label = target_node.label if target_node else "unknown"
+                severity = min(1.0, abs(rel.weight)) if rel.weight is not None else 0.5
 
                 conflicts.append({
                     "type": "semantic",
                     "conflict_type": rel.kind,
-                    "source": source_node.label if source_node else "unknown",
+                    "source": src_label,
                     "source_id": str(rel.source_id),
-                    "target": target_node.label if target_node else "unknown",
+                    "target": tgt_label,
                     "target_id": str(rel.target_id),
                     "weight": rel.weight,
                     "evidence": rel.meta.get("evidence", "") if rel.meta else "",
-                    "relationship_id": str(rel.id)
+                    "relationship_id": str(rel.id),
+                    "description": f"{src_label} {rel.kind.replace('_', ' ')} {tgt_label}",
+                    "involved_nodes": [str(rel.source_id), str(rel.target_id)],
+                    **_severity_fields(severity),
+                    "confidence": rel.confidence,
+                    "evidence_strength": _evidence_strength([rel]),
                 })
 
         return conflicts

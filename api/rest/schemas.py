@@ -188,6 +188,25 @@ class ConflictsResponse(BaseModel):
     total: int
 
 
+class LeveragePointsResponse(BaseModel):
+    """Nodes ranked by the number of feedback loops they lie on."""
+    leverage_points: List[Dict[str, Any]]
+    nodes_in_loops: int
+
+
+class DataQualityResponse(BaseModel):
+    """Evidential quality of the graph's relationships."""
+    total_relationships: int
+    with_data_sources: int
+    with_confidence_interval: int
+    with_confidence: int
+    low_source_agreement: int
+    quality_score: float = Field(..., ge=0.0, le=1.0)
+    undocumented: List[Dict[str, Any]]
+    low_agreement: List[Dict[str, Any]]
+    by_uncertainty_type: Dict[str, int]
+
+
 class TemporalEvolutionRequest(BaseModel):
     """Request schema for temporal evolution analysis."""
     start_date: datetime = Field(..., description="Start date for temporal analysis")

@@ -484,6 +484,154 @@ class TestBetaQueryMethods(unittest.TestCase):
         self.assertIn("conflict_type", conflict)
 
 
+class TestCircularCausationDetails(unittest.TestCase):
+    """Loop gain, polarity, confidence bounds, weakest link and leverage node."""
+
+    def setUp(self):
+        self.graph = SFMGraph()
+        self.a = Node(label="A")
+        self.b = Node(label="B")
+        self.c = Node(label="C")
+        self.d = Node(label="D")
+        for n in (self.a, self.b, self.c, self.d):
+            self.graph.add_node(n)
+
+        # Balancing loop A -> B -> C -> A with one negative link
+        self.ab = Relationship(source_id=self.a.id, target_id=self.b.id, kind="drives",
+                               weight=0.8, confidence=0.9, confidence_interval=(0.7, 0.9),
+                               data_sources=["EPA 1997", "Study X"])
+        self.bc = Relationship(source_id=self.b.id, target_id=self.c.id, kind="suppresses",
+                               weight=-0.5, confidence=0.4)
+        self.ca = Relationship(source_id=self.c.id, target_id=self.a.id, kind="feeds",
+                               weight=0.9)
+        # Second, reinforcing loop A -> D -> A so A lies on two loops
+        self.ad = Relationship(source_id=self.a.id, target_id=self.d.id, kind="funds", weight=0.6)
+        self.da = Relationship(source_id=self.d.id, target_id=self.a.id, kind="reports", weight=0.5)
+        for r in (self.ab, self.bc, self.ca, self.ad, self.da):
+            self.graph.add_relationship(r)
+        self.engine = NetworkXSFMQueryEngine(self.graph)
+
+    def _cycle_with_labels(self, labels):
+        cycles = self.engine.query_circular_causation_detailed(self.a.id, max_depth=5)
+        matches = [c for c in cycles if c["labels"] == labels]
+        self.assertEqual(len(matches), 1, f"expected exactly one cycle {labels}, got {[c['labels'] for c in cycles]}")
+        return matches[0]
+
+    def test_balancing_loop_gain_and_bounds(self):
+        cycle = self._cycle_with_labels(["A", "B", "C", "A"])
+        self.assertEqual(cycle["length"], 3)
+        self.assertEqual(cycle["negative_links"], 1)
+        self.assertEqual(cycle["feedback_type"], "balancing")
+        self.assertAlmostEqual(cycle["gain"], 0.8 * -0.5 * 0.9)
+        self.assertAlmostEqual(cycle["strength"], 0.36)
+        # Only ab has an interval: (0.7..0.9) * -0.5 * 0.9 -> (-0.405, -0.315)
+        lo, hi = cycle["gain_range"]
+        self.assertAlmostEqual(lo, -0.405)
+        self.assertAlmostEqual(hi, -0.315)
+        s_lo, s_hi = cycle["strength_range"]
+        self.assertAlmostEqual(s_lo, 0.315)
+        self.assertAlmostEqual(s_hi, 0.405)
+
+    def test_reinforcing_loop(self):
+        cycle = self._cycle_with_labels(["A", "D", "A"])
+        self.assertEqual(cycle["feedback_type"], "reinforcing")
+        self.assertEqual(cycle["negative_links"], 0)
+        self.assertAlmostEqual(cycle["strength"], 0.3)
+        self.assertIsNone(cycle["confidence"])
+        # No confidences recorded: weakest link falls back to lowest |weight|
+        self.assertEqual(cycle["weakest_link_basis"], "weight")
+        self.assertEqual(cycle["weakest_link"]["id"], self.da.id)
+
+    def test_weakest_link_uses_confidence_when_available(self):
+        cycle = self._cycle_with_labels(["A", "B", "C", "A"])
+        self.assertEqual(cycle["confidence"], 0.4)
+        self.assertEqual(cycle["weakest_link_basis"], "confidence")
+        self.assertEqual(cycle["weakest_link"]["id"], self.bc.id)
+        self.assertEqual(cycle["weakest_link"]["kind"], "suppresses")
+        ab_edge = next(e for e in cycle["edges"] if e["id"] == self.ab.id)
+        self.assertEqual(ab_edge["weight_range"], (0.7, 0.9))
+        self.assertEqual(ab_edge["data_sources"], ["EPA 1997", "Study X"])
+
+    def test_leverage_node_is_most_loop_connected(self):
+        participation = self.engine.get_loop_participation()
+        self.assertEqual(participation[self.a.id], 2)
+        self.assertEqual(participation[self.b.id], 1)
+        self.assertEqual(participation[self.d.id], 1)
+        for cycle in self.engine.query_circular_causation_detailed(self.a.id):
+            self.assertEqual(cycle["leverage_node"]["id"], self.a.id)
+            self.assertEqual(cycle["leverage_node"]["loop_participation"], 2)
+        self.assertIs(participation, self.engine.get_loop_participation())
+
+    def test_node_list_api_still_matches(self):
+        paths = self.engine.query_circular_causation_paths(self.a.id)
+        detailed = self.engine.query_circular_causation_detailed(self.a.id)
+        self.assertEqual([[n.id for n in p] for p in paths], [c["node_ids"] for c in detailed])
+
+    def test_data_quality_report(self):
+        report = self.engine.data_quality_report()
+        self.assertEqual(report["total_relationships"], 5)
+        self.assertEqual(report["with_data_sources"], 1)
+        self.assertEqual(report["with_confidence_interval"], 1)
+        self.assertEqual(report["with_confidence"], 2)
+        self.assertEqual(len(report["undocumented"]), 4)
+        self.assertEqual(report["by_uncertainty_type"], {"unspecified": 5})
+        self.assertGreater(report["quality_score"], 0.0)
+        self.assertLess(report["quality_score"], 1.0)
+        empty = NetworkXSFMQueryEngine(SFMGraph()).data_quality_report()
+        self.assertEqual(empty["total_relationships"], 0)
+        self.assertEqual(empty["quality_score"], 1.0)
+
+
+class TestConflictSeverity(unittest.TestCase):
+    """Conflicts carry severity, description, involved nodes and evidence strength."""
+
+    def setUp(self):
+        self.graph = SFMGraph()
+        self.x = Node(label="Industry")
+        self.y = Node(label="Regulator")
+        self.graph.add_node(self.x)
+        self.graph.add_node(self.y)
+
+    def test_semantic_conflict_fields(self):
+        rel = Relationship(source_id=self.x.id, target_id=self.y.id, kind="opposes", weight=0.85,
+                           confidence=0.7, data_sources=["Hearing transcript", "Filing", "Report"])
+        self.graph.add_relationship(rel)
+        conflicts = NetworkXSFMQueryEngine(self.graph).detect_conflicts()
+        self.assertEqual(len(conflicts), 1)
+        c = conflicts[0]
+        self.assertEqual(c["type"], "semantic")
+        self.assertAlmostEqual(c["severity"], 0.85)
+        self.assertEqual(c["severity_label"], "high")
+        self.assertEqual(c["description"], "Industry opposes Regulator")
+        self.assertEqual(c["involved_nodes"], [str(self.x.id), str(self.y.id)])
+        self.assertEqual(c["confidence"], 0.7)
+        self.assertEqual(c["evidence_strength"], "high")
+
+    def test_structural_conflict_fields(self):
+        pos = Relationship(source_id=self.x.id, target_id=self.y.id, kind="funds", weight=0.6,
+                           data_sources=["A"], source_agreement="low")
+        neg = Relationship(source_id=self.x.id, target_id=self.y.id, kind="lobbies_against", weight=-0.4,
+                           confidence=0.5)
+        self.graph.add_relationship(pos)
+        self.graph.add_relationship(neg)
+        conflicts = [c for c in NetworkXSFMQueryEngine(self.graph).detect_conflicts() if c["type"] == "structural"]
+        self.assertEqual(len(conflicts), 1)
+        c = conflicts[0]
+        self.assertAlmostEqual(c["severity"], 0.5)
+        self.assertEqual(c["severity_label"], "medium")
+        self.assertIn("Industry → Regulator", c["description"])
+        self.assertEqual(c["confidence"], 0.5)
+        self.assertEqual(c["evidence_strength"], "low")
+
+    def test_unweighted_semantic_conflict_defaults(self):
+        self.graph.add_relationship(Relationship(source_id=self.x.id, target_id=self.y.id, kind="resists"))
+        c = NetworkXSFMQueryEngine(self.graph).detect_conflicts()[0]
+        self.assertEqual(c["severity"], 0.5)
+        self.assertEqual(c["severity_label"], "medium")
+        self.assertIsNone(c["confidence"])
+        self.assertEqual(c["evidence_strength"], "none")
+
+
 class TestCeremonialClassificationFromDeliveryCells(unittest.TestCase):
     """Test ceremonial/instrumental classification via SFMDeliveryCell aggregation (Method 2.5)."""
 

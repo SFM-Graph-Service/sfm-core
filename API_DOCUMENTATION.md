@@ -803,6 +803,36 @@ GET /api/v1/query/conflicts
 }
 ```
 
+### Leverage Points
+
+```http
+GET /api/v1/query/leverage-points?limit=10
+```
+
+Ranks nodes by the number of simple feedback loops they lie on. Returns `{"leverage_points": [{"id", "label", "type", "loop_participation"}], "nodes_in_loops": n}`. Empty until the query engine has been initialized, like the other query endpoints.
+
+### Data Quality
+
+```http
+GET /api/v1/query/data-quality
+```
+
+Reports how well-evidenced the graph's relationships are. Does not require the query engine.
+
+```json
+{
+  "total_relationships": 12,
+  "with_data_sources": 4,
+  "with_confidence_interval": 3,
+  "with_confidence": 5,
+  "low_source_agreement": 1,
+  "quality_score": 0.53,
+  "undocumented": [{"id": "...", "source": "EPA", "target": "Industry", "kind": "regulates", "weight": 0.8, "source_agreement": null}],
+  "low_agreement": [],
+  "by_uncertainty_type": {"epistemic": 3, "unspecified": 9}
+}
+```
+
 ## Evaluation (Phase 3)
 
 ### Digraph Evaluation

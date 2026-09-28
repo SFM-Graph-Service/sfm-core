@@ -2,7 +2,7 @@
 
 import uuid
 from datetime import timedelta
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 
 from api.sfm_service import SFMService
 from api.rest.dependencies import get_sfm_service
@@ -12,6 +12,8 @@ from api.rest.schemas import (
     CircularCausationResponse,
     HolarchyResponse,
     ConflictsResponse,
+    LeveragePointsResponse,
+    DataQualityResponse,
     TemporalEvolutionRequest,
     TemporalEvolutionResponse,
     UncertaintyPropagationRequest,
@@ -128,6 +130,35 @@ def get_conflicts(
         conflicts=conflicts,
         total=len(conflicts)
     )
+
+
+@router.get(
+    "/leverage-points",
+    response_model=LeveragePointsResponse,
+    summary="Leverage points",
+    description="Rank nodes by how many feedback loops they participate in"
+)
+def get_leverage_points(
+    limit: int = Query(10, ge=1, le=100, description="Maximum nodes to return"),
+    service: SFMService = Depends(get_sfm_service)
+) -> LeveragePointsResponse:
+    """
+    Nodes lying on the most simple cycles are the points where an
+    intervention perturbs the most feedback structure.
+    """
+    return LeveragePointsResponse(**service.get_leverage_points(limit=limit))
+
+
+@router.get(
+    "/data-quality",
+    response_model=DataQualityResponse,
+    summary="Data quality report",
+    description="Report relationships lacking data sources, confidence intervals, or source agreement"
+)
+def get_data_quality(
+    service: SFMService = Depends(get_sfm_service)
+) -> DataQualityResponse:
+    return DataQualityResponse(**service.get_data_quality_report())
 
 
 @router.post(

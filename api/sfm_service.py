@@ -667,37 +667,34 @@ class SFMService:
             source_id: Starting node UUID
 
         Returns:
-            List of cycles, each cycle is a list of dicts with node info
+            List of cycle dicts. Each has:
+                - nodes: list of {id, label, type} along the loop (starts and ends at source)
+                - labels: node labels in order
+                - length: number of hops
+                - gain / gain_range: signed product of weights and its confidence bounds
+                - strength / strength_range: |gain| and its bounds
+                - feedback_type: "reinforcing" or "balancing"
+                - negative_links: number of negative-weight hops
+                - confidence: lowest recorded edge confidence, or None
+                - weakest_link: the hop with the least evidence, and weakest_link_basis
+                - leverage_node: loop member lying on the most loops graph-wide
+                - edges: per-hop descriptors (id, kind, weight, weight_range, confidence, data_sources)
 
         Raises:
             SFMNotFoundError: If source node doesn't exist
         """
         try:
-            # Verify source node exists first (before checking query engine)
             source_node = self.get_node(source_id)
             if source_node is None:
                 raise SFMNotFoundError(entity_type="Node", entity_id=source_id)
 
-            # Check if query engine is available
             if self.query_engine is None:
                 logger.warning("Query engine not initialized, returning empty cycles")
                 return []
 
-            # Call query engine method
             logger.info("Finding circular causation from node %s", source_id)
-            paths = self.query_engine.query_circular_causation_paths(source_id, max_depth=5)
-
-            # Convert Node objects to dicts for API response
-            cycles = []
-            for path in paths:
-                nodes = [{
-                    "id": str(node.id),
-                    "label": node.label,
-                    "type": type(node).__name__
-                } for node in path]
-                # Wrap in a dict with "nodes" key for schema compatibility
-                cycles.append({"nodes": nodes})
-
+            detailed = self.query_engine.query_circular_causation_detailed(source_id, max_depth=5)
+            cycles = [self._serialize_cycle(c) for c in detailed]
             logger.info("Found %d circular causation paths", len(cycles))
             return cycles
 
@@ -706,6 +703,89 @@ class SFMService:
         except Exception as e:
             logger.error("Error finding circular causation: %s", e, exc_info=True)
             return []
+
+    @staticmethod
+    def _serialize_cycle(cycle: Dict[str, Any]) -> Dict[str, Any]:
+        def edge_dict(edge: Dict[str, Any]) -> Dict[str, Any]:
+            return {
+                "id": str(edge["id"]) if edge["id"] is not None else None,
+                "source_id": str(edge["source_id"]),
+                "target_id": str(edge["target_id"]),
+                "kind": edge["kind"],
+                "weight": edge["weight"],
+                "weight_range": list(edge["weight_range"]),
+                "confidence": edge["confidence"],
+                "data_sources": list(edge["data_sources"]),
+                "parallel_edges": edge["parallel_edges"],
+            }
+
+        leverage = cycle["leverage_node"]
+        return {
+            "nodes": [
+                {"id": str(n.id), "label": n.label, "type": type(n).__name__}
+                for n in cycle["nodes"]
+            ],
+            "labels": list(cycle["labels"]),
+            "length": cycle["length"],
+            "gain": cycle["gain"],
+            "gain_range": list(cycle["gain_range"]),
+            "strength": cycle["strength"],
+            "strength_range": list(cycle["strength_range"]),
+            "feedback_type": cycle["feedback_type"],
+            "negative_links": cycle["negative_links"],
+            "confidence": cycle["confidence"],
+            "weakest_link": edge_dict(cycle["weakest_link"]),
+            "weakest_link_basis": cycle["weakest_link_basis"],
+            "leverage_node": {
+                "id": str(leverage["id"]),
+                "label": leverage["label"],
+                "loop_participation": leverage["loop_participation"],
+            },
+            "edges": [edge_dict(e) for e in cycle["edges"]],
+        }
+
+    def get_leverage_points(self, limit: int = 10) -> Dict[str, Any]:
+        """
+        Rank nodes by how many feedback loops they participate in.
+
+        Nodes on many loops are where an intervention perturbs the most
+        feedback structure. Returns an empty ranking if the query engine has
+        not been initialized.
+        """
+        if self.query_engine is None:
+            logger.warning("Query engine not initialized, returning empty leverage points")
+            return {"leverage_points": [], "nodes_in_loops": 0}
+
+        participation: Dict[uuid.UUID, int] = self.query_engine.get_loop_participation()
+        ranked = sorted(participation.items(), key=lambda kv: kv[1], reverse=True)
+        points = []
+        for node_id, count in ranked[:limit]:
+            if count == 0:
+                break
+            node = self.get_node(node_id)
+            points.append({
+                "id": str(node_id),
+                "label": node.label if node else str(node_id),
+                "type": type(node).__name__ if node else "unknown",
+                "loop_participation": count,
+            })
+        return {
+            "leverage_points": points,
+            "nodes_in_loops": sum(1 for c in participation.values() if c > 0),
+        }
+
+    def get_data_quality_report(self) -> Dict[str, Any]:
+        """
+        Report how well-evidenced the graph's relationships are.
+
+        Works directly from the repository, so it does not require the query
+        engine. Flags relationships with no data_sources, no confidence
+        interval, or low source agreement, and gives an overall quality score
+        in [0, 1].
+        """
+        from graph.sfm_query import compute_data_quality
+
+        return compute_data_quality(self.list_relationships(), self.get_node)
 
     def get_holarchy(self, institution_id: uuid.UUID) -> dict:
         """
@@ -775,11 +855,15 @@ class SFMService:
         Detect value conflicts in the system.
 
         Returns:
-            List of detected conflicts, where each conflict is:
-                - conflict_type: Type of conflict (value, resource, institutional)
-                - nodes: List of node IDs involved
-                - severity: Conflict severity (0.0-1.0)
+            List of detected conflicts. Every conflict has:
+                - type: direct | indirect | structural | semantic
+                - conflict_type: Kind of conflict (e.g. value_conflict, opposes)
                 - description: Human-readable description
+                - involved_nodes: Node IDs involved (as strings)
+                - severity: 0.0-1.0, and severity_label: low | medium | high
+                - confidence: Lowest recorded confidence on supporting relationships, or None
+                - evidence_strength: none | low | medium | high
+            plus type-specific fields (relationship ids, weights, evidence text).
         """
         if self.query_engine is None:
             logger.warning("Query engine not initialized, returning empty conflicts")

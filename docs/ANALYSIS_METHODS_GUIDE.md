@@ -172,10 +172,20 @@ cycles = service.get_circular_causation(source_id=node.id)
 # Results structure
 [
     {
-        "nodes": [uuid1, uuid2, uuid3, uuid1],  # Cycle path (starts and ends at source)
+        "nodes": [{"id": ..., "label": "EPA", "type": "Institution"}, ...],  # starts and ends at source
         "labels": ["EPA", "Standards", "Emissions", "Health", "EPA"],
-        "strength": 0.64,  # Cumulative effect (product of weights)
-        "feedback_type": "reinforcing"  # "reinforcing" or "balancing"
+        "length": 4,                       # number of hops
+        "gain": 0.64,                      # signed product of weights
+        "gain_range": [0.41, 0.81],        # bounds from compounding confidence intervals
+        "strength": 0.64,                  # |gain|
+        "strength_range": [0.41, 0.81],
+        "feedback_type": "reinforcing",    # even number of negative links; "balancing" if odd
+        "negative_links": 0,
+        "confidence": 0.6,                 # lowest edge confidence in the loop, or null
+        "weakest_link": {"id": ..., "kind": "influences", "weight": 0.6, "confidence": 0.6, ...},
+        "weakest_link_basis": "confidence",  # or "weight" when no confidences are recorded
+        "leverage_node": {"id": ..., "label": "EPA", "loop_participation": 3},
+        "edges": [ {per-hop id, kind, weight, weight_range, confidence, data_sources}, ... ]
     },
     ...
 ]
@@ -191,6 +201,9 @@ cycles = service.get_circular_causation(source_id=node.id)
 - **Strength < 0.3**: Weak feedback (may be overshadowed by other forces)
 - **Reinforcing**: Amplifies initial change (virtuous/vicious cycle)
 - **Balancing**: Dampens change toward equilibrium (regulatory feedback)
+- **strength_range**: If the lower bound is near 0 the loop's dominance is not established by the evidence, whatever the point estimate says
+- **weakest_link**: The hop whose evidence is thinnest; the first place to collect more data before acting on the loop
+- **leverage_node**: The loop member lying on the most loops graph-wide; intervening there perturbs the most feedback structure. `service.get_leverage_points()` ranks all such nodes.
 
 #### REST API
 
@@ -204,13 +217,27 @@ GET /api/query/circular-causation/{source_node_id}
   "source_id": "550e8400-e29b-41d4-a716-446655440000",
   "cycles": [
     {
-      "nodes": ["550e8400-...", "660e8400-...", "770e8400-...", "550e8400-..."],
+      "nodes": [{"id": "550e8400-...", "label": "EPA Standards", "type": "PolicyInstrument"}, ...],
       "labels": ["EPA Standards", "Auto Compliance", "Industry Lobbying", "EPA Standards"],
-      "strength": 0.56,
-      "feedback_type": "reinforcing"
+      "length": 3,
+      "gain": 0.56, "gain_range": [0.42, 0.63],
+      "strength": 0.56, "strength_range": [0.42, 0.63],
+      "feedback_type": "reinforcing", "negative_links": 0,
+      "confidence": 0.7,
+      "weakest_link": {"id": "...", "kind": "influences", "weight": 0.7, "confidence": 0.7},
+      "weakest_link_basis": "confidence",
+      "leverage_node": {"id": "550e8400-...", "label": "EPA Standards", "loop_participation": 2},
+      "edges": [ ... ]
     }
   ]
 }
+```
+
+Related endpoints:
+
+```bash
+GET /api/query/leverage-points?limit=10   # nodes ranked by loop participation
+GET /api/query/data-quality               # relationships lacking sources / intervals / agreement
 ```
 
 #### Example: EPA Standards Feedback Loop
@@ -373,20 +400,27 @@ conflicts = service.get_conflicts()
 # Results structure
 [
     {
-        "type": "value_conflict",
-        "severity": "high",  # "low", "medium", "high"
-        "description": "Environmental protection vs Economic growth",
-        "involved_nodes": [uuid1, uuid2],
-        "metadata": {...}
+        "type": "semantic",                 # direct | indirect | structural | semantic
+        "conflict_type": "opposes",         # relationship kind or ConflictType value
+        "description": "Environmental protection opposes Economic growth",
+        "involved_nodes": ["uuid1", "uuid2"],
+        "severity": 0.85,                   # 0.0-1.0
+        "severity_label": "high",           # low (<0.4) | medium | high (>=0.7)
+        "confidence": 0.7,                  # lowest confidence on supporting relationships, or null
+        "evidence_strength": "medium",      # none | low | medium | high (from cited data_sources)
+        ...                                 # type-specific: relationship ids, weights, evidence text
     },
     ...
 ]
 ```
 
+**Severity derivation**: semantic conflicts use `|weight|` (0.5 if unweighted); structural conflicts use half the spread between the most positive and most negative weight; conflicts read from `ConflictDetection` nodes use the mean of `conflict_intensity` (indirect conflicts are scaled by 0.7).
+
 **Interpretation**:
 - **Severity high**: Fundamental conflict requiring resolution
 - **Severity medium**: Tension requiring negotiation
 - **Severity low**: Minor incompatibility, manageable
+- **evidence_strength none/low**: The conflict may be real, but the model cannot yet support acting on it; see `service.get_data_quality_report()`
 - **Type value_conflict**: Normative disagreement (hardest to resolve)
 - **Type resource_conflict**: Allocation problem (solvable with redistribution)
 
@@ -401,11 +435,18 @@ GET /api/query/conflicts
 {
   "conflicts": [
     {
-      "type": "value_conflict",
-      "severity": "high",
-      "description": "Industry profit vs Public health",
+      "type": "semantic",
+      "conflict_type": "opposes",
+      "description": "Industry Profit Maximization opposes Public Health Protection",
       "involved_nodes": ["550e8400-...", "660e8400-..."],
-      "metadata": {"relationship_kinds": ["opposes"]}
+      "severity": 0.9,
+      "severity_label": "high",
+      "confidence": null,
+      "evidence_strength": "none",
+      "source": "Industry Profit Maximization",
+      "target": "Public Health Protection",
+      "weight": 0.9,
+      "relationship_id": "..."
     }
   ],
   "total": 1
@@ -439,9 +480,12 @@ service.create_relationship(
 conflicts = service.get_conflicts()
 
 for conflict in conflicts:
-    if conflict['severity'] == 'high':
+    if conflict['severity_label'] == 'high':
         print(f"High-severity conflict: {conflict['description']}")
-        print("Requires policy intervention or institutional change")
+        if conflict['evidence_strength'] in ('none', 'low'):
+            print("  ...but thinly evidenced; document data_sources before acting")
+        else:
+            print("  Requires policy intervention or institutional change")
 ```
 
 ---

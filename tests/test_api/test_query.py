@@ -393,3 +393,74 @@ def test_circular_causation_finds_cycles(integration_client, integration_app):
     assert "nodes" in cycle
     assert isinstance(cycle["nodes"], list)
     assert len(cycle["nodes"]) >= 3  # At least 3 nodes in cycle
+
+    # Analytical fields documented in README / ANALYSIS_METHODS_GUIDE
+    assert cycle["labels"] == ["Node1", "Node2", "Node3", "Node1"]
+    assert cycle["feedback_type"] == "reinforcing"
+    assert cycle["strength"] == 1.0
+    assert cycle["strength_range"] == [1.0, 1.0]
+    assert cycle["length"] == 3
+    assert cycle["weakest_link_basis"] == "weight"
+    assert cycle["leverage_node"]["loop_participation"] == 1
+    assert len(cycle["edges"]) == 3
+    assert all(e["kind"] == "causes" for e in cycle["edges"])
+
+    # Leverage points endpoint sees the same loop
+    lp = integration_client.get("/api/v1/query/leverage-points?limit=5")
+    assert lp.status_code == 200
+    lp_data = lp.json()
+    assert lp_data["nodes_in_loops"] == 3
+    assert {p["label"] for p in lp_data["leverage_points"]} == {"Node1", "Node2", "Node3"}
+    assert all(p["loop_participation"] == 1 for p in lp_data["leverage_points"])
+
+
+@pytest.mark.integration
+def test_leverage_points_empty_without_engine(integration_client):
+    """Leverage points follow the same opt-in semantics as the other query methods."""
+    integration_client.delete("/api/v1/nodes/clear")
+    response = integration_client.get("/api/v1/query/leverage-points")
+    assert response.status_code == 200
+    assert response.json() == {"leverage_points": [], "nodes_in_loops": 0}
+
+
+@pytest.mark.integration
+def test_data_quality_report_flags_undocumented_relationships(integration_client):
+    """Data quality works from the repository and does not need the query engine."""
+    integration_client.delete("/api/v1/nodes/clear")
+    a = integration_client.post("/api/v1/nodes/", json={"label": "A", "node_type": "Node"}).json()["id"]
+    b = integration_client.post("/api/v1/nodes/", json={"label": "B", "node_type": "Node"}).json()["id"]
+    integration_client.post("/api/v1/relationships/", json={
+        "source_id": a, "target_id": b, "kind": "influences", "weight": 0.5
+    })
+
+    response = integration_client.get("/api/v1/query/data-quality")
+    assert response.status_code == 200
+    data = response.json()
+    assert data["total_relationships"] == 1
+    assert data["with_data_sources"] == 0
+    assert data["with_confidence_interval"] == 0
+    assert len(data["undocumented"]) == 1
+    assert data["undocumented"][0]["source"] == "A"
+    assert data["undocumented"][0]["target"] == "B"
+    assert 0.0 <= data["quality_score"] < 1.0
+    assert data["by_uncertainty_type"] == {"unspecified": 1}
+
+
+@pytest.mark.integration
+def test_conflicts_carry_severity_and_evidence(integration_client, integration_app):
+    from api.rest.dependencies import get_sfm_service
+
+    integration_client.delete("/api/v1/nodes/clear")
+    a = integration_client.post("/api/v1/nodes/", json={"label": "Industry", "node_type": "Actor"}).json()["id"]
+    b = integration_client.post("/api/v1/nodes/", json={"label": "Regulator", "node_type": "Actor"}).json()["id"]
+    integration_client.post("/api/v1/relationships/", json={
+        "source_id": a, "target_id": b, "kind": "opposes", "weight": 0.9
+    })
+    integration_app.dependency_overrides[get_sfm_service]().initialize_query_engine()
+
+    conflict = integration_client.get("/api/v1/query/conflicts").json()["conflicts"][0]
+    assert conflict["severity"] == 0.9
+    assert conflict["severity_label"] == "high"
+    assert conflict["description"] == "Industry opposes Regulator"
+    assert conflict["involved_nodes"] == [a, b]
+    assert conflict["evidence_strength"] == "none"
