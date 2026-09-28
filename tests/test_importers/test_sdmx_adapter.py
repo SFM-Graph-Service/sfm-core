@@ -268,6 +268,44 @@ class TestExtraction:
         assert adapter.validate_format("sdmx:ECB:") == ["flow (dataflow id) is required for SDMX adapter"]
 
 
+DATAFLOWS_XML = """<?xml version="1.0"?>
+<message:Structure xmlns:message="http://www.sdmx.org/resources/sdmxml/schemas/v2_1/message"
+                   xmlns:str="http://www.sdmx.org/resources/sdmxml/schemas/v2_1/structure"
+                   xmlns:com="http://www.sdmx.org/resources/sdmxml/schemas/v2_1/common">
+  <message:Structures><str:Dataflows>
+    <str:Dataflow id="DSD_NAMAIN1@DF_QNA" agencyID="OECD.SDD.NAD" version="1.0">
+      <com:Name xml:lang="fr">Comptes nationaux trimestriels</com:Name>
+      <com:Name xml:lang="en">Quarterly national accounts</com:Name>
+    </str:Dataflow>
+    <str:Dataflow id="EXR" agencyID="ECB" version="1.0"><com:Name xml:lang="en">Exchange Rates</com:Name></str:Dataflow>
+  </str:Dataflows></message:Structures>
+</message:Structure>"""
+
+
+class TestDataflowDiscovery:
+    @patch("data.importers.sdmx_adapter.requests.get")
+    def test_list_dataflows(self, mock_get):
+        mock_get.return_value = Mock(text=DATAFLOWS_XML, raise_for_status=Mock())
+        adapter = SDMXAdapter(agency="OECD", flow="", params={"startPeriod": "2020"})
+        flows = adapter.list_dataflows()
+        assert mock_get.call_args[0][0] == SDMX_AGENCIES["OECD"] + "/dataflow/all"
+        assert mock_get.call_args.kwargs["params"] == {}       # data params not sent to /dataflow
+        assert adapter.params == {"startPeriod": "2020"}         # and restored afterwards
+        assert flows == [
+            {"id": "DSD_NAMAIN1@DF_QNA", "agency": "OECD.SDD.NAD", "version": "1.0",
+             "name": "Quarterly national accounts", "flow_ref": "OECD.SDD.NAD,DSD_NAMAIN1@DF_QNA,1.0"},
+            {"id": "EXR", "agency": "ECB", "version": "1.0", "name": "Exchange Rates", "flow_ref": "ECB,EXR,1.0"},
+        ]
+        assert [f["id"] for f in adapter.list_dataflows(query="national")] == ["DSD_NAMAIN1@DF_QNA"]
+        assert adapter.list_dataflows(query="nothing") == []
+
+    @patch("data.importers.sdmx_adapter.requests.get")
+    def test_list_dataflows_rejects_non_xml(self, mock_get):
+        mock_get.return_value = Mock(text="{}", raise_for_status=Mock())
+        with pytest.raises(ValidationError):
+            SDMXAdapter(agency="ECB", flow="").list_dataflows()
+
+
 class TestMappingTemplate:
     def test_sdmx_indicator_template_year_and_period(self):
         mapping = MappingTemplates.sdmx_indicator()

@@ -71,6 +71,26 @@ State Legislature,Lawmaking body,formal,State
 Community Board,Local governance,informal,Local
 ```
 
+### Relationships
+
+Relationships come from a companion file. Put it next to the node file as `<stem>_relationships.csv` and it is picked up automatically, or pass it explicitly with `CSVImportAdapter(mapping, relationships_file="edges.csv")`.
+
+```csv
+source,target,kind,weight,confidence,data_sources,meta
+EPA,State Legislature,reports_to,0.6,0.8,CAA 1990;GAO 2021,"{""channel"": ""annual report""}"
+State Legislature,Community Board,funds,0.9,,,
+```
+
+- `source` / `target`: node **labels** (resolved against nodes created in the same import, then against the existing graph) or node **UUIDs**.
+- `kind` is required; `weight`, `confidence`, `id`, `data_sources` (`;`-separated) and `meta` (JSON, or free text stored as `meta.note`) are optional.
+- Column aliases: `from`/`to` for endpoints, `type`/`relationship`/`predicate` for kind.
+- Unresolvable labels are reported per row in `result.errors` and counted in `relationships_failed`; the rest still import.
+
+```python
+result = service.import_bulk("institutions.csv", adapter=CSVImportAdapter(MappingTemplates.csv_institution()))
+print(result.nodes_created, result.relationships_created, result.relationships_failed)
+```
+
 ## Field Mapping
 
 ### Pre-built Templates
@@ -257,17 +277,16 @@ curl -X POST "http://localhost:8000/api/v1/import/csv" \
   -F "mapping_template=csv_institution" \
   -F "dry_run=true" \
   -F "batch_size=500"
+
+# Nodes plus relationships
+curl -X POST "http://localhost:8000/api/v1/import/csv" \
+  -F "file=@institutions.csv" \
+  -F "relationships=@institutions_relationships.csv"
 ```
 
-### Import from OECD (Coming Soon)
+### Import from External Services
 
-```bash
-curl -X POST "http://localhost:8000/api/v1/import/oecd" \
-  -F "dataset_id=GREEN_GROWTH" \
-  -F 'filters={"LOCATION": "USA", "MEASURE": "CO2"}'
-
-# Returns: 501 Not Implemented (Priority 2 feature)
-```
+`POST /api/v1/import/oecd`, `/import/worldbank`, `/import/sdmx` and `/import/rdf` are all available; see the [API Adapters Guide](api_adapters_guide.md) for parameters and examples.
 
 ## Node Type Registry
 
@@ -409,17 +428,17 @@ Hardware: Standard laptop (4 cores, 16GB RAM)
 
 **Speedup**: Bulk creation is **20-100x faster** than individual node creation.
 
-## Future Features (Roadmap)
+## Adapter Status
 
-### Priority 2 - API Adapters
-- OECD.Stat API integration
-- World Bank API integration
-- Automatic pagination and rate limiting
+| Adapter | Status | Relationships |
+|---------|--------|---------------|
+| CSV / Excel | Available | Yes, via companion file |
+| OECD (SDMX 2.1) | Available | No (indicators only) |
+| World Bank | Available | No (indicators only) |
+| SDMX 2.1 (ECB, Eurostat, BIS, IMF, ILO, UN, …) | Available | No (indicators only) |
+| RDF / Linked Data | Available | Yes, from object properties |
 
-### Priority 3 - Standards
-- SDMX adapter (ECB, Eurostat, IMF, BIS)
-- RDF/Turtle adapter (Wikidata, DBpedia)
-- Custom adapter registration system
+Any class implementing `BaseImportAdapter` can be passed to `import_bulk(source, adapter=...)`; there is no registration step.
 
 ## See Also
 

@@ -32,7 +32,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum
 from pathlib import Path
-from typing import Any, Dict, List, Optional, cast
+from typing import Any, Dict, List, Optional, Tuple, Union, cast, get_args, get_origin, get_type_hints
 
 import networkx as nx
 
@@ -217,6 +217,24 @@ class NodeSerializer:
         }
 
     @staticmethod
+    def _to_jsonable(value: Any) -> Any:
+        """Recursively convert UUIDs, datetimes and Enums (inside lists, tuples, dicts) to JSON-safe values."""
+        if isinstance(value, uuid.UUID):
+            return str(value)
+        if isinstance(value, datetime):
+            return value.isoformat()
+        if isinstance(value, Enum):
+            return value.value
+        if isinstance(value, dict):
+            return {
+                (str(k) if isinstance(k, (uuid.UUID, Enum, datetime)) else k): NodeSerializer._to_jsonable(v)
+                for k, v in value.items()
+            }
+        if isinstance(value, (list, tuple)):
+            return [NodeSerializer._to_jsonable(v) for v in value]
+        return value
+
+    @staticmethod
     def node_to_dict(node: Node) -> Dict[str, Any]:
         """
         Convert a Node to dictionary representation.
@@ -247,14 +265,10 @@ class NodeSerializer:
                 # Special handling for SFMDeliveryCell.deliveries (List[Delivery]):
                 elif key == 'deliveries' and isinstance(value, list):
                     result[key] = [NodeSerializer._delivery_to_dict(d) for d in value]
-                # Handle special types
-                elif isinstance(value, uuid.UUID):
-                    result[key] = str(value)
-                elif isinstance(value, datetime):
-                    result[key] = value.isoformat()
-                elif isinstance(value, Enum):
-                    result[key] = value.value
-                elif isinstance(value, (list, dict, str, int, float, bool, type(None))):
+                # Handle special types, including inside containers
+                elif isinstance(value, (uuid.UUID, datetime, Enum, list, tuple, dict)):
+                    result[key] = NodeSerializer._to_jsonable(value)
+                elif isinstance(value, (str, int, float, bool, type(None))):
                     result[key] = value
                 else:
                     # Try to convert to string for other types
@@ -264,6 +278,68 @@ class NodeSerializer:
                         logger.warning("Could not serialize attribute %s of node %s", key, node.id)
 
         return result
+
+    @staticmethod
+    def _coerce_value(hint: Any, value: Any) -> Any:
+        """Coerce a JSON-shaped value back to the type its dataclass field declares."""
+        origin = get_origin(hint)
+        args = get_args(hint)
+
+        if origin is Union:
+            if value is None:
+                return None
+            for candidate in (a for a in args if a is not type(None)):
+                try:
+                    return NodeSerializer._coerce_value(candidate, value)
+                except (ValueError, TypeError):
+                    continue
+            return value
+        if origin in (list, List):
+            if isinstance(value, list) and args:
+                return [NodeSerializer._coerce_value(args[0], v) for v in value]
+            return value
+        if origin in (tuple, Tuple):
+            if isinstance(value, (list, tuple)) and args:
+                hints = [args[0]] * len(value) if len(args) == 2 and args[1] is Ellipsis else list(args)
+                return tuple(NodeSerializer._coerce_value(h, v) for h, v in zip(hints, value))
+            return value
+        if origin in (dict, Dict):
+            if isinstance(value, dict) and len(args) == 2:
+                return {
+                    NodeSerializer._coerce_value(args[0], k): NodeSerializer._coerce_value(args[1], v)
+                    for k, v in value.items()
+                }
+            return value
+        if hint is datetime and isinstance(value, str):
+            return datetime.fromisoformat(value)
+        if hint is uuid.UUID and isinstance(value, str):
+            return uuid.UUID(value)
+        if isinstance(hint, type) and issubclass(hint, Enum) and not isinstance(value, hint):
+            return hint(value)
+        return value
+
+    @staticmethod
+    def _coerce_fields(node_class: type, node_data: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Restore datetime, UUID and Enum values (and containers of them) from their
+        serialised forms, driven by the dataclass field annotations, so a node
+        reads back with the same types it was written with.
+        """
+        try:
+            hints = get_type_hints(node_class)
+        except Exception:  # unresolved forward references: leave values as-is
+            return node_data
+        coerced: Dict[str, Any] = {}
+        for key, value in node_data.items():
+            hint = hints.get(key)
+            if hint is None or value is None:
+                coerced[key] = value
+                continue
+            try:
+                coerced[key] = NodeSerializer._coerce_value(hint, value)
+            except (ValueError, TypeError):
+                coerced[key] = value
+        return coerced
 
     @staticmethod
     def dict_to_node(data: Dict[str, Any]) -> Node:
@@ -284,7 +360,9 @@ class NodeSerializer:
             data['id'] = uuid.UUID(data['id'])
 
         # Remove 'type' from data as it's not a constructor parameter
-        node_data = {k: v for k, v in data.items() if k != 'type'}
+        node_data = NodeSerializer._coerce_fields(
+            node_class, {k: v for k, v in data.items() if k != 'type'}
+        )
 
         # Special handling for SFMDeliveryMatrix: reconstruct cells dict with tuple keys
         if node_type_name == 'SFMDeliveryMatrix':

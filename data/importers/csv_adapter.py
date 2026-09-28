@@ -10,8 +10,10 @@ Supports:
 """
 
 import csv
+import json
+import uuid
 from pathlib import Path
-from typing import Any, Dict, Iterator, Optional, Union
+from typing import Any, Dict, Iterator, List, Optional, Union
 import pandas as pd
 
 from .base_adapter import BaseImportAdapter, ImportConfig
@@ -117,11 +119,16 @@ class CSVImportAdapter(BaseImportAdapter):
     and enum translation.
     """
 
+    RELATIONSHIP_SOURCE_COLUMNS = ("source", "source_id", "from", "source_label")
+    RELATIONSHIP_TARGET_COLUMNS = ("target", "target_id", "to", "target_label")
+    RELATIONSHIP_KIND_COLUMNS = ("kind", "type", "relationship", "relationship_type", "predicate")
+
     def __init__(
         self,
         mapping: MappingConfig,
         config: Optional[ImportConfig] = None,
-        allowed_base_dir: Optional[Path] = None
+        allowed_base_dir: Optional[Path] = None,
+        relationships_file: Optional[Union[str, Path]] = None,
     ):
         """
         Initialize CSV adapter with field mapping.
@@ -133,10 +140,16 @@ class CSVImportAdapter(BaseImportAdapter):
                             None (default) = path traversal validation disabled (backward compatible).
                             Path object = only allow files within this directory tree.
                             For production file uploads, set to a secure upload directory.
+            relationships_file: Optional CSV of relationships with columns
+                            source, target, kind and optionally weight, id, meta (JSON),
+                            confidence, data_sources (';'-separated). source/target may be
+                            node UUIDs or node labels. If omitted, a sibling file named
+                            ``<stem>_relationships<suffix>`` is used when it exists.
         """
         super().__init__(config)
         self.mapping = mapping
         self.allowed_base_dir = allowed_base_dir
+        self.relationships_file = Path(relationships_file) if relationships_file else None
 
     def detect_format(self, source: Union[str, Path, Dict[str, Any]]) -> bool:
         """
@@ -276,23 +289,101 @@ class CSVImportAdapter(BaseImportAdapter):
                 # Skip invalid rows
                 continue
 
+    def _relationships_path(self, source: Union[str, Path, Dict[str, Any]]) -> Optional[Path]:
+        if self.relationships_file is not None:
+            return _validate_safe_path(self.relationships_file, self.allowed_base_dir)
+        if isinstance(source, dict) or (isinstance(source, str) and _is_uri_like_source(source)):
+            return None
+        node_path = Path(source)
+        sibling = node_path.with_name(f"{node_path.stem}_relationships{node_path.suffix or '.csv'}")
+        if sibling.exists():
+            return _validate_safe_path(sibling, self.allowed_base_dir)
+        return None
+
+    @staticmethod
+    def _pick(row: Dict[str, Any], names: tuple) -> Optional[str]:
+        lowered = {str(k).strip().lower(): v for k, v in row.items() if k is not None}
+        for name in names:
+            value = lowered.get(name)
+            if value is not None and str(value).strip() != "":
+                return str(value).strip()
+        return None
+
+    @staticmethod
+    def _endpoint(value: str) -> Dict[str, Any]:
+        """A UUID string references a node id; anything else references a node label."""
+        try:
+            return {"id": uuid.UUID(value)}
+        except ValueError:
+            return {"label": value}
+
     def extract_relationships(self, source: Union[str, Path, Dict[str, Any]]) -> Iterator[Dict[str, Any]]:
         """
-        Extract relationships from CSV/Excel file.
+        Extract relationships from a companion CSV (see ``relationships_file``).
 
-        Not supported for basic CSV adapter. Return empty iterator.
-
-        Args:
-            source: Path to file
-
-        Yields:
-            Empty (relationships not supported)
+        Yields dicts with ``source_id``/``target_id`` (when the column held a UUID) or
+        ``source_label``/``target_label`` (when it held a node label, resolved by
+        ``SFMService.import_bulk``), plus ``kind``, ``weight``, ``meta`` and optional
+        ``id``, ``confidence`` and ``data_sources``.
         """
-        # CSV files typically don't encode relationships
-        # This would require additional columns like:
-        # source_node_id, target_node_id, relationship_type, weight
-        # For now, return empty iterator
-        return iter([])
+        path = self._relationships_path(source)
+        if path is None:
+            return
+        if not path.exists():
+            raise FileNotFoundError(f"Relationships file not found: {path}")
+
+        if path.suffix.lower() in (".xlsx", ".xls"):
+            rows: List[Dict[str, Any]] = [r.to_dict() for _, r in pd.read_excel(path).iterrows()]
+        else:
+            with open(path, "r", newline="", encoding="utf-8") as f:
+                rows = list(csv.DictReader(f, delimiter=self._detect_delimiter(path)))
+
+        for row_num, row in enumerate(rows, start=1):
+            src = self._pick(row, self.RELATIONSHIP_SOURCE_COLUMNS)
+            tgt = self._pick(row, self.RELATIONSHIP_TARGET_COLUMNS)
+            kind = self._pick(row, self.RELATIONSHIP_KIND_COLUMNS)
+            if not src or not tgt or not kind:
+                if not self.config.continue_on_error:
+                    raise ValueError(f"Relationship row {row_num}: source, target and kind are required")
+                continue
+
+            rel: Dict[str, Any] = {"kind": kind, "meta": {}}
+            for prefix, value in (("source", src), ("target", tgt)):
+                for key, resolved in self._endpoint(value).items():
+                    rel[f"{prefix}_{key}"] = resolved
+
+            weight = self._pick(row, ("weight",))
+            if weight is not None:
+                try:
+                    rel["weight"] = float(weight)
+                except ValueError:
+                    if not self.config.continue_on_error:
+                        raise ValueError(f"Relationship row {row_num}: weight '{weight}' is not numeric")
+                    continue
+            rel_id = self._pick(row, ("id",))
+            if rel_id:
+                try:
+                    rel["id"] = uuid.UUID(rel_id)
+                except ValueError:
+                    rel["id"] = uuid.uuid5(uuid.NAMESPACE_URL, f"{path}:{rel_id}")
+            confidence = self._pick(row, ("confidence",))
+            if confidence is not None:
+                try:
+                    rel["confidence"] = float(confidence)
+                except ValueError:
+                    pass
+            sources = self._pick(row, ("data_sources", "sources"))
+            if sources:
+                rel["data_sources"] = [s.strip() for s in sources.split(";") if s.strip()]
+            meta = self._pick(row, ("meta",))
+            if meta:
+                try:
+                    parsed = json.loads(meta)
+                    if isinstance(parsed, dict):
+                        rel["meta"] = parsed
+                except json.JSONDecodeError:
+                    rel["meta"] = {"note": meta}
+            yield rel
 
     def _detect_delimiter(self, path: Path) -> str:
         """

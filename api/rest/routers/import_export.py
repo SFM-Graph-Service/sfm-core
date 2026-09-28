@@ -202,6 +202,11 @@ async def list_supported_formats():
 @router.post("/csv", response_model=ImportResultResponse)
 async def import_csv(
     file: UploadFile = File(..., description="CSV or Excel file to import"),
+    relationships: Optional[UploadFile] = File(
+        None,
+        description="Optional CSV/Excel of relationships: columns source, target, kind "
+                    "(+ weight, id, meta, confidence, data_sources). source/target are node labels or UUIDs."
+    ),
     node_type: str = Form(default="Node", description="Default node type for imported data"),
     mapping_template: Optional[str] = Form(
         default=None,
@@ -244,6 +249,19 @@ async def import_csv(
         temp_file.write(content)
         temp_path = temp_file.name
 
+    rel_path: Optional[str] = None
+    if relationships is not None and relationships.filename:
+        rel_ext = Path(relationships.filename).suffix.lower()
+        if rel_ext not in ['.csv', '.xlsx', '.xls', '.tsv', '.txt']:
+            Path(temp_path).unlink(missing_ok=True)
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Unsupported relationships file type: {rel_ext}. Supported: .csv, .xlsx, .xls, .tsv"
+            )
+        with tempfile.NamedTemporaryFile(mode='wb', suffix=rel_ext, delete=False) as rel_file:
+            rel_file.write(await relationships.read())
+            rel_path = rel_file.name
+
     try:
         template_name = mapping_template or "basic_node"
         template_factory = MAPPING_TEMPLATES.get(template_name)
@@ -267,7 +285,7 @@ async def import_csv(
         )
 
         # Create adapter and import
-        adapter = CSVImportAdapter(mapping, config)
+        adapter = CSVImportAdapter(mapping, config, relationships_file=rel_path)
         result = service.import_bulk(temp_path, adapter=adapter, config=config)
         return _to_response(result)
 
@@ -281,8 +299,10 @@ async def import_csv(
         ) from e
 
     finally:
-        # Clean up temporary file
+        # Clean up temporary files
         Path(temp_path).unlink(missing_ok=True)
+        if rel_path:
+            Path(rel_path).unlink(missing_ok=True)
 
 
 @router.post("/oecd", response_model=ImportResultResponse)

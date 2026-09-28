@@ -179,6 +179,52 @@ class SDMXAdapter(BaseImportAdapter):
     def build_url(self) -> str:
         return f"{self.base_url}/data/{self.flow}/{self.key}"
 
+    def list_dataflows(self, agency_filter: str = "all", query: Optional[str] = None) -> List[Dict[str, str]]:
+        """
+        Discover dataflows the service publishes.
+
+        Calls ``{base}/dataflow/{agency_filter}`` and returns one entry per
+        dataflow with ``id``, ``agency``, ``version``, ``name`` and ``flow_ref``,
+        the agency-qualified ``AGENCY,ID,VERSION`` form some services (OECD)
+        expect as the flow in data requests. ``query`` filters by substring of
+        id or name, case-insensitively.
+        """
+        url = f"{self.base_url}/dataflow/{agency_filter}"
+        saved_params, self.params = self.params, {}
+        try:
+            text = self._fetch(url)
+        finally:
+            self.params = saved_params
+
+        try:
+            root = ET.fromstring(text.lstrip())
+        except ET.ParseError as e:
+            raise ValidationError(f"Dataflow listing is not SDMX-ML: {e}") from e
+
+        flows: List[Dict[str, str]] = []
+        needle = query.lower() if query else None
+        for element in root.iter():
+            if _local(element.tag) != "Dataflow" or not element.get("id"):
+                continue
+            names = [
+                (child.get("{http://www.w3.org/XML/1998/namespace}lang") or "", child.text or "")
+                for child in element if _local(child.tag) == "Name"
+            ]
+            name = next((t for lang, t in names if lang == "en"), names[0][1] if names else "")
+            flow_id = element.get("id", "")
+            agency = element.get("agencyID", "")
+            version = element.get("version", "")
+            if needle and needle not in flow_id.lower() and needle not in name.lower():
+                continue
+            flows.append({
+                "id": flow_id,
+                "agency": agency,
+                "version": version,
+                "name": name,
+                "flow_ref": f"{agency},{flow_id},{version}" if agency else flow_id,
+            })
+        return flows
+
     def _fetch(self, url: str, max_retries: int = 3) -> str:
         cache_key = f"{url}?{sorted(self.params.items())}"
         if cache_key in self._cache:

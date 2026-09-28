@@ -1477,18 +1477,21 @@ class SFMService:
 
         # Batch tracking
         node_batch: List[Node] = []
+        imported_nodes: List[Node] = []
         row_num = 0
 
         def create_batch(batch: List[Node]) -> int:
             """Bulk-create, falling back to per-node creation so one duplicate does not sink the batch."""
             try:
                 self.repository.create_nodes_bulk(batch)
+                imported_nodes.extend(batch)
                 return len(batch)
             except NodeCreationError:
                 created = 0
                 for node in batch:
                     try:
                         self.repository.create_node(node)
+                        imported_nodes.append(node)
                         created += 1
                     except Exception as e:
                         result.nodes_failed += 1
@@ -1519,6 +1522,7 @@ class SFMService:
                             self._ensure_capacity(len(node_batch), operation="import_bulk")
                             result.nodes_created += create_batch(node_batch)
                         else:
+                            imported_nodes.extend(node_batch)
                             result.nodes_created += len(node_batch)
                         node_batch = []
 
@@ -1551,22 +1555,46 @@ class SFMService:
                 except GraphSizeExceededError as e:
                     result.nodes_failed += len(node_batch)
                     result.add_error(row=row_num, field=None, message=str(e), suggested_fix=e.remediation)
+            elif node_batch:
+                imported_nodes.extend(node_batch)
 
         except Exception as e:
             result.add_error(None, None, f"Import failed: {e}")
             logger.error("Bulk import failed: %s", e)
 
-        # Relationships (adapters that support them yield source_id/target_id/kind dicts)
+        # Relationships: adapters yield source/target as ids, or as labels to be resolved
+        # against nodes created in this import first, then the repository.
+        label_index: Optional[Dict[str, uuid.UUID]] = None
+
+        def resolve(rel_dict: Dict[str, Any], end: str) -> uuid.UUID:
+            nonlocal label_index
+            if rel_dict.get(f"{end}_id") is not None:
+                return cast(uuid.UUID, rel_dict[f"{end}_id"])
+            label = rel_dict.get(f"{end}_label")
+            if label is None:
+                raise ValueError(f"relationship has neither {end}_id nor {end}_label")
+            if label_index is None:
+                label_index = {}
+                for node in self.list_nodes():
+                    label_index.setdefault(node.label, node.id)
+                for node in imported_nodes:
+                    label_index[node.label] = node.id
+            if label not in label_index:
+                raise SFMNotFoundError(entity_type="Node", entity_id=f"label={label!r}")
+            return label_index[label]
+
         try:
             for rel_num, rel_dict in enumerate(adapter.extract_relationships(source), start=1):
                 try:
                     relationship = Relationship(
                         id=rel_dict.get("id") or uuid.uuid4(),
-                        source_id=rel_dict["source_id"],
-                        target_id=rel_dict["target_id"],
+                        source_id=resolve(rel_dict, "source"),
+                        target_id=resolve(rel_dict, "target"),
                         kind=rel_dict.get("kind") or "",
                         weight=rel_dict.get("weight"),
                         meta=dict(rel_dict.get("meta") or {}),
+                        confidence=rel_dict.get("confidence"),
+                        data_sources=list(rel_dict.get("data_sources") or []),
                     )
                     if not config.dry_run:
                         self.repository.create_relationship(relationship)

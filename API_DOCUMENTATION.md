@@ -946,7 +946,7 @@ Each returns:
 ### Import
 
 - `GET /api/v1/import/formats` — list import adapters and whether each is available
-- `POST /api/v1/import/csv` — multipart upload of `.csv` / `.tsv` / `.xlsx` / `.xls`; form fields `node_type`, `mapping_template` (`basic_node`, `csv_institution`, `oecd_indicator`, `worldbank_indicator`, `sdmx_indicator`, `rdf_entity`), `dry_run`, `continue_on_error`, `batch_size`. An unknown `mapping_template` returns `400` listing the valid names.
+- `POST /api/v1/import/csv` — multipart upload of `.csv` / `.tsv` / `.xlsx` / `.xls`, plus an optional second upload `relationships` (columns `source`, `target`, `kind`, and optionally `weight`, `id`, `meta`, `confidence`, `data_sources`; `source`/`target` are node labels or UUIDs); form fields `node_type`, `mapping_template` (`basic_node`, `csv_institution`, `oecd_indicator`, `worldbank_indicator`, `sdmx_indicator`, `rdf_entity`), `dry_run`, `continue_on_error`, `batch_size`. An unknown `mapping_template` returns `400` listing the valid names.
 - `POST /api/v1/import/oecd` — form fields `dataset_id`, `filters` (JSON string), `dry_run`, `batch_size`
 - `POST /api/v1/import/worldbank` — form fields `country`, `indicator`, `start_year`, `end_year`, `dry_run`, `batch_size`
 - `POST /api/v1/import/rdf` — multipart upload of `.ttl` / `.rdf` / `.nt` / `.n3` / `.jsonld` / `.trig`; form fields `type_map` (JSON: rdf:type → SFM node type), `dry_run`, `continue_on_error`, `batch_size`. Creates relationships from object properties as well as nodes.

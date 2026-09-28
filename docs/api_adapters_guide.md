@@ -53,16 +53,23 @@ curl -X POST "http://localhost:8000/api/v1/import/oecd" \
 }
 ```
 
-### Common Datasets
+### Finding Dataflow IDs
 
-| Dataflow ID | Description | Common Filters |
-|-------------|-------------|----------------|
-| `OECD.SDD.NAD,DSD_NAMAIN1@DF_QNA,1.0` | Quarterly National Accounts | FREQ, REF_AREA, TRANSACTION |
-| `OECD.ENV.EPI,DSD_GG@DF_GREEN_GROWTH,1.0` | Green growth indicators | REF_AREA, MEASURE |
-| `OECD.ELS.HD,DSD_HEALTH_STAT@DF_HEALTH_STAT,1.0` | Health status | REF_AREA, MEASURE |
-| `OECD.SDD.TPS,DSD_LFS@DF_IALFS_UNE_M,1.0` | Unemployment (monthly) | REF_AREA, SEX, AGE |
+OECD dataflow ids follow the `AGENCY,DATAFLOW,VERSION` convention (for example the quarterly national accounts flow is of the form `OECD.SDD.NAD,DSD_NAMAIN1@DF_QNA,1.0`), and the OECD revises them. Rather than copying ids from documentation, list them from the live service:
 
-Dataflow ids change as the OECD revises structures; verify in the Data Explorer before relying on one.
+```python
+from data.importers import SDMXAdapter
+
+catalogue = SDMXAdapter(agency="OECD", flow="")
+for flow in catalogue.list_dataflows(query="national accounts")[:5]:
+    print(flow["flow_ref"], "-", flow["name"])
+# OECD.SDD.NAD,DSD_NAMAIN1@DF_QNA,1.0 - Quarterly national accounts   (illustrative)
+
+adapter = OECDAdapter(dataset_id=catalogue.list_dataflows(query="QNA")[0]["flow_ref"],
+                      filters={"FREQ": "Q", "REF_AREA": "USA"})
+```
+
+`list_dataflows()` works for every agency the SDMX adapter knows (`SDMXAdapter(agency="ECB", flow="").list_dataflows()`), and the Data Explorer's *API* panel shows the same id for any table you are viewing.
 
 ### Filter Dimensions
 
