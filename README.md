@@ -17,7 +17,7 @@ A Python framework for institutional analysis and policy modeling using graph-ba
 - **Delivery-Centric Analysis**: Model multi-type deliveries (money, rules, authority, information) between institutional components
 - **Advanced Graph Analytics**: Circular causation detection, network centrality, conflict identification, temporal evolution tracking
 - **Multi-Framework Integration**: Bridges to Doughnut Economics, Ostrom SES/IAD frameworks
-- **Production Ready**: Dual backends (NetworkX in-memory, Neo4j persistent), REST API, 990 passing tests
+- **Production Ready**: Dual backends (NetworkX in-memory, Neo4j persistent) verified by a shared contract suite, REST API, 1,144 passing tests
 
 ---
 
@@ -442,7 +442,7 @@ If you use this framework in your research, please cite:
   title = {SFM Core: Social Fabric Matrix Graph Service},
   year = {2026},
   url = {https://github.com/SFM-Graph-Service/sfm-core},
-  version = {0.9.1},
+  version = {0.10.0},
   doi = {10.5281/zenodo.20418500}
 }
 ```
@@ -478,4 +478,4 @@ GPL-3.0 License - See LICENSE file for details
 
 **AI Assistance Disclosure**: Claude AI was used extensively in code development, documentation, and architectural design. All outputs should be independently verified for research applications.
 
-**Status**: Experimental Research Software | **Version**: 0.9.1 | **Python**: 3.9+ | **Tests**: 991 passing ✓
+**Status**: Experimental Research Software | **Version**: 0.10.0 | **Python**: 3.9+ | **Tests**: 1,144 passing ✓

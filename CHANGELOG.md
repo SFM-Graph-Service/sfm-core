@@ -9,6 +9,61 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 No unreleased changes at this time.
 
+## [0.10.0] - 2026-09-28
+
+**Robustness pass, uncertainty-aware analysis, scenario comparison, and four new import/export surfaces**
+
+This release closes every finding from a full code review (28 items, each with a regression test), delivers the analysis features the SFM methodology calls for, and adds SDMX, RDF and CSV-relationship imports plus REST export. The test suite grows from 991 to 1,144 and CI now exercises the Neo4j backend against a live server.
+
+### Added
+
+**Analysis**
+- Circular causation results carry loop `gain` and `strength` with confidence bounds compounded from edge intervals, `feedback_type` derived from the count of negative links, the `weakest_link` by evidence, and the `leverage_node` with the highest graph-wide loop participation; `labels`, `length` and per-hop `edges` are included
+- Conflicts carry `severity` (0–1) with `severity_label`, `description`, `involved_nodes`, `confidence` and `evidence_strength`
+- `get_leverage_points()` / `GET /query/leverage-points` — nodes ranked by feedback-loop participation
+- `get_data_quality_report()` / `GET /query/data-quality` — relationships lacking data sources, confidence intervals or source agreement; works without the query engine
+- `compare_scenarios()` / `POST /query/compare-scenarios` — run structure, centrality, loop, conflict and circular-causation analyses on two graph states (any version ref, or the uncommitted working graph) and report base / alternative / delta
+- `sensitivity_analysis()` now returns a real ranking (its path finder was a stub returning `[]`)
+- Eigenvector centrality in the query engine and `compute_centrality_metrics()` (previously documented but absent)
+- `get_all_centrality()` returns a full per-node dict; centrality, loop participation, cycle counts, communities and conflict scans are computed once per engine instance
+
+**Import / export**
+- `GET /api/v1/export/graph?format=json|graphml|gexf` and `GET /api/v1/export/matrix/{id}?format=xlsx|xmile`, with `/export/formats` and `/export/matrices` for discovery
+- `SDMXAdapter` for any SDMX 2.1 REST service (ECB, Eurostat, BIS, IMF, ILO, OECD, UN, World Bank, or a base URL) or local file; parses SDMX-JSON (series-keyed and flat) and SDMX-ML (Generic and StructureSpecific); `list_dataflows()` discovers current dataflow ids; `POST /import/sdmx`
+- `RDFAdapter` for Turtle, RDF/XML, N-Triples, N3, JSON-LD and TriG: labelled resources become nodes with IRI-derived UUIDs, object properties become relationships, `type_map` selects SFM node classes; `POST /import/rdf`
+- `CSVImportAdapter` reads a companion relationships file with label-or-UUID endpoints; `POST /import/csv` accepts it as a second upload
+- `import_bulk()` now imports relationships from any adapter that yields them, resolves label references, honours adapter-supplied ids, and falls back to per-node creation when a bulk batch contains a duplicate
+- Mapping templates `sdmx_indicator` and `rdf_entity`
+
+**Robustness**
+- `graph_size_limit` is enforced (`GraphSizeExceededError`, HTTP 413); `SFMRepository.count_nodes()` with O(1) NetworkX and Cypher-count Neo4j implementations
+- The query engine rebuilds itself when the graph changes after `initialize_query_engine()`
+- `SFMGraph.remove_relationship()`; node removal cascades to incident relationships
+- Backend contract suite (`tests/test_backends`) runs identical assertions on NetworkX and, when `NEO4J_URI` is set, Neo4j; CI provides a `neo4j:5` service container
+- `NodeSerializer` restores `datetime`, `UUID` and `Enum` values (and containers of them) from the dataclass field annotations on deserialisation, and serialises containers recursively
+
+### Changed
+
+- One `RelationshipSerializer` backs every persistence path (snapshots, version commits, deltas, JSON export/import, persistence manager); previously three divergent formats existed and `save()`/`load()` dropped `weight` and every uncertainty field
+- Neo4j node storage goes through `NodeSerializer`, so delivery cells and matrices round-trip; map-valued properties are stored as JSON text (a real Neo4j rejects nested maps)
+- Neo4j relationships persist `confidence`, `confidence_interval`, `uncertainty_type`, `data_sources`, `source_agreement` and validity dates
+- `OECDAdapter` targets `https://sdmx.oecd.org/public/rest` (the `stats.oecd.org` endpoint it used was retired in 2024) and delegates parsing to `SDMXAdapter`; the `oecd_indicator` template reads the country from `REF_AREA` or `LOCATION`
+- Import endpoints use `Depends(get_sfm_service)` like every other router, share one response helper, and let `SFMError` reach the app-level handler instead of collapsing to 500
+- `mypy` is pinned in the code-quality workflow; the CI test job runs the Neo4j leg serially after the parallel run
+- `rdflib` added to requirements
+
+### Fixed
+
+- `get_circular_causation()` returned only `{"nodes": [...]}` although the README and analysis guide documented `labels`, `strength` and `feedback_type`
+- The request-validation handler put the raw Starlette `FormData` object into its JSON response, so any missing or malformed form field on any import endpoint returned 500 instead of 422
+- The import router silently mapped unknown `mapping_template` names to `basic_node`; it now returns 400 listing the valid names
+- Documentation cited four `SFMService` methods that did not exist and described OECD import as "coming soon, returns 501"
+- Several tests asserted only the return type; they now assert content
+
+### Notes
+
+All 1,144 tests pass. The live OECD endpoint could not be exercised from the development environment used for this release; `SDMXAdapter.list_dataflows()` is the recommended way to confirm current dataflow ids.
+
 ## [0.9.1] - 2026-06-24
 
 **Documentation updates and synthetic dataset**

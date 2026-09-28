@@ -230,4 +230,4 @@ For questions about:
 
 ---
 
-**Last Updated**: 2026-06-24 | **sfm-core Version**: 0.9.1 | **sfm-visualization**: v1.0.0
+**Last Updated**: 2026-09-28 | **sfm-core Version**: 0.10.0 | **sfm-visualization**: v1.0.0
