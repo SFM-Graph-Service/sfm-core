@@ -430,6 +430,8 @@ pip install -e .
 pytest tests/ --cov
 ```
 
+**Releasing:** bump `version` in `pyproject.toml`, add a matching `## [x.y.z]` section to `CHANGELOG.md`, then either push a `vx.y.z` tag or run the **Release** workflow from the Actions tab. The workflow builds the sdist and wheel, verifies them with `twine check`, and publishes a GitHub release with the changelog section as notes. PyPI publishing is opt-in (workflow input, or repository variable `PUBLISH_PYPI=true` for tag pushes) and uses trusted publishing via a `pypi` environment.
+
 ---
 
 ## Citation
