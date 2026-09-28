@@ -56,6 +56,7 @@ from .validators import (
 from .csv_adapter import CSVImportAdapter
 from .oecd_adapter import OECDAdapter
 from .worldbank_adapter import WorldBankAdapter
+from .sdmx_adapter import SDMXAdapter, KNOWN_AGENCIES as SDMX_AGENCIES
 
 
 __all__ = [
@@ -69,6 +70,8 @@ __all__ = [
     "CSVImportAdapter",
     "OECDAdapter",
     "WorldBankAdapter",
+    "SDMXAdapter",
+    "SDMX_AGENCIES",
 
     # Mapping
     "MappingConfig",

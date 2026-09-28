@@ -949,6 +949,7 @@ Each returns:
 - `POST /api/v1/import/csv` — multipart upload of `.csv` / `.tsv` / `.xlsx` / `.xls`; form fields `node_type`, `mapping_template` (`basic_node`, `csv_institution`, `oecd_indicator`, `worldbank_indicator`), `dry_run`, `continue_on_error`, `batch_size`. An unknown `mapping_template` returns `400` listing the valid names.
 - `POST /api/v1/import/oecd` — form fields `dataset_id`, `filters` (JSON string), `dry_run`, `batch_size`
 - `POST /api/v1/import/worldbank` — form fields `country`, `indicator`, `start_year`, `end_year`, `dry_run`, `batch_size`
+- `POST /api/v1/import/sdmx` — form fields `agency` (`ECB`, `EUROSTAT`, `BIS`, `IMF`, `ILO`, `OECD`, `UNSD`, `WB`, or any SDMX 2.1 REST base URL), `flow`, `key` (default `all`), `start_period`, `end_period`, `dry_run`, `batch_size`. Accepts SDMX-JSON and SDMX-ML responses. Unknown agency returns `400`.
 
 All import endpoints return an `ImportResult`:
 ```json

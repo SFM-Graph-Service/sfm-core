@@ -53,6 +53,73 @@ class TestImportFormatsEndpoint:
         wb_format = next(f for f in data["formats"] if f["format_name"] == "worldbank")
         assert wb_format["adapter_available"] is True
 
+        sdmx_format = next(f for f in data["formats"] if f["format_name"] == "sdmx")
+        assert sdmx_format["adapter_available"] is True
+        assert "ECB" in sdmx_format["description"]
+        assert ".json" in sdmx_format["file_extensions"]
+
+
+class TestSDMXImportEndpoint:
+    """Test POST /import/sdmx endpoint."""
+
+    def setup_method(self):
+        self.app = create_app()
+        self.client = TestClient(self.app)
+
+    def test_import_sdmx_dry_run(self):
+        from unittest.mock import Mock, patch
+        import json as _json
+
+        payload = {
+            "structure": {"dimensions": {"observation": [
+                {"id": "REF_AREA", "values": [{"id": "US"}]},
+                {"id": "TIME_PERIOD", "values": [{"id": "2023"}, {"id": "2024"}]},
+            ]}},
+            "dataSets": [{"observations": {"0:0": [1.5], "0:1": [1.7]}}],
+        }
+        with patch("data.importers.sdmx_adapter.requests.get") as mock_get:
+            mock_get.return_value = Mock(text=_json.dumps(payload), raise_for_status=Mock())
+            response = self.client.post(
+                "/api/v1/import/sdmx",
+                data={"agency": "ECB", "flow": "EXR", "key": "A.USD.EUR.SP00.A",
+                      "start_period": "2023", "dry_run": "true"},
+            )
+            assert response.status_code == 200
+            data = response.json()
+            assert data["nodes_created"] == 0  # dry run counts nothing as created
+            assert data["nodes_failed"] == 0
+            assert mock_get.call_args[0][0].endswith("/data/EXR/A.USD.EUR.SP00.A")
+            assert mock_get.call_args.kwargs["params"] == {"startPeriod": "2023"}
+
+    def test_import_sdmx_unknown_agency_is_400(self):
+        response = self.client.post(
+            "/api/v1/import/sdmx",
+            data={"agency": "NOT_AN_AGENCY", "flow": "EXR"},
+        )
+        assert response.status_code == 400
+        assert "Unknown SDMX agency" in response.json()["detail"]
+
+    def test_import_sdmx_requires_flow(self):
+        """A missing form field must be a structured 422, not a 500 from serialising FormData."""
+        response = self.client.post("/api/v1/import/sdmx", data={"agency": "ECB"})
+        assert response.status_code == 422
+        data = response.json()
+        assert data["error"] == "VALIDATION_ERROR"
+        assert any(e["loc"][-1] == "flow" for e in data["context"]["errors"])
+        assert data["context"]["body"] == {"agency": "ECB"}
+
+    def test_csv_upload_validation_error_is_422(self):
+        """Multipart bodies with an upload must also serialise in the 422 response."""
+        response = self.client.post(
+            "/api/v1/import/csv",
+            files={"file": ("t.csv", BytesIO(b"name\nA\n"), "text/csv")},
+            data={"batch_size": "not-a-number"},
+        )
+        assert response.status_code == 422
+        body = response.json()["context"]["body"]
+        assert body["batch_size"] == "not-a-number"
+        assert body["file"] == {"filename": "t.csv"}
+
 
 class TestCSVImportEndpoint:
     """Test POST /import/csv endpoint."""

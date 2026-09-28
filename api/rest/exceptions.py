@@ -6,7 +6,9 @@ HTTP_413_CONTENT_TOO_LARGE) are not yet available in Starlette 1.1.0.
 """
 
 from datetime import datetime, timezone
+from typing import Any
 from fastapi import Request, status
+from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
 
@@ -74,6 +76,23 @@ async def sfm_exception_handler(request: Request, exc: SFMError) -> JSONResponse
     )
 
 
+def _json_safe(value: Any) -> Any:
+    """Reduce a request body (JSON, multipart FormData, uploads) to JSON-serialisable data."""
+    if value is None or isinstance(value, (str, int, float, bool)):
+        return value
+    if isinstance(value, dict):
+        return {str(k): _json_safe(v) for k, v in value.items()}
+    if isinstance(value, (list, tuple, set)):
+        return [_json_safe(v) for v in value]
+    if hasattr(value, "multi_items"):  # Starlette FormData / multidicts
+        return {str(k): _json_safe(v) for k, v in value.multi_items()}
+    if hasattr(value, "filename"):  # UploadFile
+        return {"filename": getattr(value, "filename", None)}
+    if isinstance(value, bytes):
+        return value.decode("utf-8", errors="replace")
+    return str(value)
+
+
 async def validation_exception_handler(
     request: Request,
     exc: RequestValidationError
@@ -88,14 +107,19 @@ async def validation_exception_handler(
     Returns:
         JSONResponse with validation error details
     """
+    try:
+        errors = jsonable_encoder(exc.errors())
+    except Exception:  # pragma: no cover - defensive; pydantic ctx may hold arbitrary objects
+        errors = [_json_safe(e) for e in exc.errors()]
+
     return JSONResponse(
         status_code=422,  # Raw int avoids deprecation (HTTP_422_UNPROCESSABLE_CONTENT not yet available)
         content={
             "error": "VALIDATION_ERROR",
             "message": "Request validation failed",
             "context": {
-                "errors": exc.errors(),
-                "body": exc.body if hasattr(exc, "body") else None,
+                "errors": errors,
+                "body": _json_safe(getattr(exc, "body", None)),
             },
             "timestamp": datetime.now(timezone.utc).isoformat(),
         }

@@ -9,7 +9,7 @@ Provides endpoints for:
 Export endpoints live in api.rest.routers.export.
 """
 
-from typing import Optional, List
+from typing import Dict, Optional, List
 from pathlib import Path
 import logging
 import tempfile
@@ -23,6 +23,8 @@ from data.importers import (
     CSVImportAdapter,
     OECDAdapter,
     WorldBankAdapter,
+    SDMXAdapter,
+    SDMX_AGENCIES,
     MappingTemplates,
     ImportConfig,
 )
@@ -37,7 +39,23 @@ MAPPING_TEMPLATES = {
     "csv_institution": MappingTemplates.csv_institution,
     "oecd_indicator": MappingTemplates.oecd_indicator,
     "worldbank_indicator": MappingTemplates.worldbank_indicator,
+    "sdmx_indicator": MappingTemplates.sdmx_indicator,
 }
+
+
+def _to_response(result) -> "ImportResultResponse":
+    return ImportResultResponse(
+        nodes_created=result.nodes_created,
+        nodes_failed=result.nodes_failed,
+        relationships_created=result.relationships_created,
+        relationships_failed=result.relationships_failed,
+        errors=[
+            ImportErrorResponse(row=e.row, field=e.field, message=e.message, suggestion=e.suggested_fix)
+            for e in result.errors
+        ],
+        warnings=result.warnings,
+        elapsed_time=result.elapsed_time,
+    )
 
 
 # ==================== Response Schemas ====================
@@ -155,10 +173,13 @@ async def list_supported_formats():
         ),
         SupportedFormat(
             format_name="sdmx",
-            display_name="SDMX",
-            file_extensions=[".xml"],
-            description="Statistical Data and Metadata eXchange standard (ECB, Eurostat, IMF, BIS).",
-            adapter_available=False
+            display_name="SDMX 2.1",
+            file_extensions=[".xml", ".json"],
+            description=(
+                "SDMX 2.1 REST services (" + ", ".join(sorted(SDMX_AGENCIES)) + " or any base URL) "
+                "and local SDMX-JSON / SDMX-ML files."
+            ),
+            adapter_available=True
         ),
         SupportedFormat(
             format_name="rdf",
@@ -178,7 +199,7 @@ async def import_csv(
     node_type: str = Form(default="Node", description="Default node type for imported data"),
     mapping_template: Optional[str] = Form(
         default=None,
-        description="Pre-built mapping template (basic_node, csv_institution, oecd_indicator, worldbank_indicator)"
+        description="Pre-built mapping template (basic_node, csv_institution, oecd_indicator, worldbank_indicator, sdmx_indicator)"
     ),
     dry_run: bool = Form(default=False, description="Validate without persisting data"),
     continue_on_error: bool = Form(default=True, description="Continue processing after errors"),
@@ -242,27 +263,7 @@ async def import_csv(
         # Create adapter and import
         adapter = CSVImportAdapter(mapping, config)
         result = service.import_bulk(temp_path, adapter=adapter, config=config)
-
-        # Convert result to response model
-        errors_response = [
-            ImportErrorResponse(
-                row=err.row,
-                field=err.field,
-                message=err.message,
-                suggestion=err.suggested_fix
-            )
-            for err in result.errors
-        ]
-
-        return ImportResultResponse(
-            nodes_created=result.nodes_created,
-            nodes_failed=result.nodes_failed,
-            relationships_created=result.relationships_created,
-            relationships_failed=result.relationships_failed,
-            errors=errors_response,
-            warnings=result.warnings,
-            elapsed_time=result.elapsed_time
-        )
+        return _to_response(result)
 
     except (HTTPException, SFMError):
         raise
@@ -331,27 +332,7 @@ async def import_oecd(
         # Import via service
         source = f"oecd:{dataset_id}"
         result = service.import_bulk(source, adapter=adapter, config=config)
-
-        # Convert result to response model
-        errors_response = [
-            ImportErrorResponse(
-                row=err.row,
-                field=err.field,
-                message=err.message,
-                suggestion=err.suggested_fix
-            )
-            for err in result.errors
-        ]
-
-        return ImportResultResponse(
-            nodes_created=result.nodes_created,
-            nodes_failed=result.nodes_failed,
-            relationships_created=result.relationships_created,
-            relationships_failed=result.relationships_failed,
-            errors=errors_response,
-            warnings=result.warnings,
-            elapsed_time=result.elapsed_time
-        )
+        return _to_response(result)
 
     except (HTTPException, SFMError):
         raise
@@ -409,27 +390,7 @@ async def import_worldbank(
         # Import via service
         source = f"worldbank:{country}:{indicator}"
         result = service.import_bulk(source, adapter=adapter, config=config)
-
-        # Convert result to response model
-        errors_response = [
-            ImportErrorResponse(
-                row=err.row,
-                field=err.field,
-                message=err.message,
-                suggestion=err.suggested_fix
-            )
-            for err in result.errors
-        ]
-
-        return ImportResultResponse(
-            nodes_created=result.nodes_created,
-            nodes_failed=result.nodes_failed,
-            relationships_created=result.relationships_created,
-            relationships_failed=result.relationships_failed,
-            errors=errors_response,
-            warnings=result.warnings,
-            elapsed_time=result.elapsed_time
-        )
+        return _to_response(result)
 
     except (HTTPException, SFMError):
         raise
@@ -438,4 +399,55 @@ async def import_worldbank(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="World Bank import failed due to an internal error"
+        ) from e
+
+
+@router.post("/sdmx", response_model=ImportResultResponse)
+async def import_sdmx(
+    agency: str = Form(..., description="Agency code (" + ", ".join(sorted(SDMX_AGENCIES)) + ") or SDMX REST base URL"),
+    flow: str = Form(..., description="Dataflow id, e.g. EXR (ECB) or nama_10_gdp (Eurostat)"),
+    key: str = Form(default="all", description="Dot-separated dimension key, e.g. M.USD.EUR.SP00.A; 'all' for no filter"),
+    start_period: Optional[str] = Form(None, description="Earliest period to include, e.g. 2020 or 2020-Q1"),
+    end_period: Optional[str] = Form(None, description="Latest period to include"),
+    dry_run: bool = Form(default=False, description="Validate without persisting data"),
+    batch_size: int = Form(default=1000, description="Number of nodes per batch"),
+    service: SFMService = Depends(get_sfm_service),
+):
+    """
+    Import observations from any SDMX 2.1 REST service.
+
+    Understands SDMX-JSON (series-keyed and flat) and SDMX-ML (Generic and
+    StructureSpecific) responses, so it works with ECB, Eurostat, BIS, IMF,
+    ILO, OECD, UN and World Bank endpoints. Observations are mapped to
+    SocialFabricIndicator nodes labelled by dataflow, with country, period,
+    year, frequency, unit and provenance in meta.
+
+    **Examples**:
+    - agency="ECB", flow="EXR", key="M.USD.EUR.SP00.A", start_period="2023"
+    - agency="EUROSTAT", flow="nama_10_gdp", key="A.CP_MEUR.B1GQ.DE"
+    """
+    params: Dict[str, str] = {}
+    if start_period:
+        params["startPeriod"] = start_period
+    if end_period:
+        params["endPeriod"] = end_period
+
+    config = ImportConfig(dry_run=dry_run, continue_on_error=True, batch_size=batch_size)
+    try:
+        adapter = SDMXAdapter(agency=agency, flow=flow, key=key, params=params, config=config)
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
+
+    try:
+        source = f"sdmx:{adapter.agency}:{adapter.flow}:{adapter.key}"
+        result = service.import_bulk(source, adapter=adapter, config=config)
+        return _to_response(result)
+
+    except (HTTPException, SFMError):
+        raise
+    except Exception as e:
+        logger.exception("SDMX import failed")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="SDMX import failed due to an internal error"
         ) from e

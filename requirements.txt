@@ -27,6 +27,6 @@ pydantic-settings==2.6.0
 pandas>=2.0.0
 openpyxl>=3.1.0
 
-# Optional (for SDMX/RDF adapters)
-# pandasdmx>=1.9.0
+# SDMX adapter uses requests + stdlib XML; no extra dependency.
+# Optional (for a future RDF adapter)
 # rdflib>=7.0.0

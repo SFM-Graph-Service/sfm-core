@@ -280,6 +280,72 @@ adapter = WorldBankAdapter(
 )
 ```
 
+## SDMX Adapter
+
+SDMX 2.1 is the exchange standard shared by most national and international statistical agencies. One adapter covers all of them.
+
+### Quick Start
+
+```python
+from api.sfm_service import SFMService
+from data.importers import SDMXAdapter, SDMX_AGENCIES
+
+service = SFMService()
+
+# ECB monthly USD/EUR reference rate since 2023
+adapter = SDMXAdapter(
+    agency="ECB",
+    flow="EXR",
+    key="M.USD.EUR.SP00.A",
+    params={"startPeriod": "2023"},
+)
+result = service.import_bulk("sdmx:ECB:EXR:M.USD.EUR.SP00.A", adapter=adapter)
+print(f"Imported {result.nodes_created} observations")
+
+# Eurostat GDP for Germany, current prices
+adapter = SDMXAdapter(agency="EUROSTAT", flow="nama_10_gdp", key="A.CP_MEUR.B1GQ.DE")
+service.import_bulk("sdmx:EUROSTAT:nama_10_gdp:A.CP_MEUR.B1GQ.DE", adapter=adapter)
+
+# Any other SDMX 2.1 service, by base URL
+adapter = SDMXAdapter(agency="https://stats.example.org/sdmx", flow="MY_FLOW")
+
+# A file downloaded earlier (SDMX-JSON or SDMX-ML)
+adapter = SDMXAdapter(agency="IMF", flow="IFS")
+service.import_bulk("ifs_extract.xml", adapter=adapter)
+```
+
+`SDMX_AGENCIES` lists the built-in base URLs: `ECB`, `EUROSTAT`, `BIS`, `IMF`, `ILO`, `OECD`, `UNSD`, `WB`.
+
+### REST API
+
+```bash
+curl -X POST "http://localhost:8000/api/v1/import/sdmx" \
+  -F "agency=ECB" -F "flow=EXR" -F "key=M.USD.EUR.SP00.A" -F "start_period=2023"
+```
+
+### Data Mapping
+
+Each observation becomes a `SocialFabricIndicator`:
+
+| Node field | Source |
+|------------|--------|
+| `label` | dataflow id |
+| `current_value` | observation value (observations with no value are skipped) |
+| `meta.country` | `REF_AREA`, `LOCATION`, `GEO`, `COUNTRY` or `AREA`, whichever the flow uses |
+| `meta.period` | `TIME_PERIOD` as given (`2023`, `2023-Q1`, `2023-03`) |
+| `meta.year` | first four digits of the period |
+| `meta.frequency`, `meta.unit` | `FREQ`, `UNIT_MEASURE` |
+| `meta.agency`, `meta.data_source` | agency code, `SDMX:<agency>` |
+
+Every dimension and attribute in the message is available to a custom `MappingConfig` under its SDMX id (and `<id>_name` for the human-readable label when the message carries one).
+
+### Formats Understood
+
+- SDMX-JSON 1.0 and 2.0, series-keyed (`dataSets[].series`) and flat (`dataSets[].observations`), including series and observation attributes
+- SDMX-ML 2.1 Generic (`SeriesKey` / `ObsDimension` / `ObsValue`) and StructureSpecific (dimensions as XML attributes), including flat `Obs` under `DataSet`
+
+The adapter asks for SDMX-JSON first and falls back to whatever the service returns, so agencies that only speak SDMX-ML work unchanged.
+
 ## Performance Considerations
 
 ### OECD Adapter

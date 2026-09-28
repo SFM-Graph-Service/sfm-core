@@ -240,6 +240,69 @@ class MappingTemplates:
         return config
 
     @staticmethod
+    def sdmx_indicator() -> MappingConfig:
+        """
+        SDMX observation mapping (ECB, Eurostat, BIS, IMF, ILO, OECD, UN, ...).
+
+        Expected fields from SDMXAdapter:
+        - dataflow: Dataflow id (used as label)
+        - country: Reporting area, derived from REF_AREA / LOCATION / GEO
+        - Value: Numeric observation value
+        - TIME_PERIOD: Period string ("2020", "2020-Q1", "2020-03")
+        - FREQ, UNIT_MEASURE: Optional dimensions
+        - data_source, agency: Provenance
+
+        Maps to SocialFabricIndicator node type.
+        """
+        config = MappingConfig(node_type="SocialFabricIndicator")
+
+        config.add_mapping(FieldMapping(
+            source_field="dataflow",
+            target_field="label",
+            required=True
+        ))
+        config.add_mapping(FieldMapping(
+            source_field="country",
+            target_field="meta.country",
+            transform=lambda x: str(x).upper() if x else None
+        ))
+        config.add_mapping(FieldMapping(
+            source_field="Value",
+            target_field="current_value",
+            transform=lambda x: float(x) if x is not None else None,
+            required=True
+        ))
+        config.add_mapping(FieldMapping(
+            source_field="TIME_PERIOD",
+            target_field="meta.period",
+            transform=lambda x: str(x) if x is not None else None
+        ))
+        config.add_mapping(FieldMapping(
+            source_field="TIME_PERIOD",
+            target_field="meta.year",
+            transform=lambda x: int(str(x)[:4]) if x is not None and str(x)[:4].isdigit() else None
+        ))
+        config.add_mapping(FieldMapping(
+            source_field="FREQ",
+            target_field="meta.frequency"
+        ))
+        config.add_mapping(FieldMapping(
+            source_field="UNIT_MEASURE",
+            target_field="meta.unit"
+        ))
+        config.add_mapping(FieldMapping(
+            source_field="agency",
+            target_field="meta.agency"
+        ))
+        config.add_mapping(FieldMapping(
+            source_field="data_source",
+            target_field="meta.data_source",
+            default="SDMX"
+        ))
+
+        return config
+
+    @staticmethod
     def worldbank_indicator() -> MappingConfig:
         """
         World Bank indicator mapping.
