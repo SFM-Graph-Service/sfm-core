@@ -57,6 +57,7 @@ from .csv_adapter import CSVImportAdapter
 from .oecd_adapter import OECDAdapter
 from .worldbank_adapter import WorldBankAdapter
 from .sdmx_adapter import SDMXAdapter, KNOWN_AGENCIES as SDMX_AGENCIES
+from .rdf_adapter import RDFAdapter, RDF_EXTENSIONS, iri_to_uuid
 
 
 __all__ = [
@@ -72,6 +73,9 @@ __all__ = [
     "WorldBankAdapter",
     "SDMXAdapter",
     "SDMX_AGENCIES",
+    "RDFAdapter",
+    "RDF_EXTENSIONS",
+    "iri_to_uuid",
 
     # Mapping
     "MappingConfig",

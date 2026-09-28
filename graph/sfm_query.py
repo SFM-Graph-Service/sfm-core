@@ -331,6 +331,8 @@ class NetworkXSFMQueryEngine(SFMQueryEngine):  # pylint: disable=too-many-public
         self._centrality_cache: Dict[str, Dict[uuid.UUID, float]] = {}
         self._loop_participation: Optional[Dict[uuid.UUID, int]] = None
         self._simple_cycle_count: Optional[int] = None
+        self._communities_cache: Dict[str, Dict[int, List[uuid.UUID]]] = {}
+        self._conflicts_cache: Optional[List[Dict[str, Any]]] = None
 
     def _build_networkx_graph(self) -> nx.MultiDiGraph:
         """Convert SFMGraph to NetworkX graph for analysis."""
@@ -525,20 +527,22 @@ class NetworkXSFMQueryEngine(SFMQueryEngine):  # pylint: disable=too-many-public
     def identify_communities(
         self, algorithm: str = "louvain"
     ) -> Dict[int, List[uuid.UUID]]:
-        """Identify communities/clusters in the network."""
+        """Identify communities/clusters in the network. Computed once per engine and algorithm."""
         if self.nx_graph.number_of_nodes() == 0:
             return {}
 
-        try:
-            undirected_graph = self.nx_graph.to_undirected()
-            communities = nx.algorithms.community.louvain_communities(undirected_graph)
+        cached = self._communities_cache.get(algorithm)
+        if cached is None:
+            try:
+                undirected_graph = self.nx_graph.to_undirected()
+                # Fixed seed so repeated calls and scenario comparisons are deterministic
+                communities = nx.algorithms.community.louvain_communities(undirected_graph, seed=0)
+                cached = {i: list(community) for i, community in enumerate(communities)}
+            except (nx.NetworkXError, AttributeError):
+                cached = {0: list(self.nx_graph.nodes())}
+            self._communities_cache[algorithm] = cached
 
-            community_dict = {}
-            for i, community in enumerate(communities):
-                community_dict[i] = list(community)
-            return community_dict
-        except (nx.NetworkXError, AttributeError):
-            return {0: list(self.nx_graph.nodes())}
+        return {k: list(v) for k, v in cached.items()}
 
     def comprehensive_node_analysis(self, node_id: uuid.UUID) -> NodeMetrics:
         """Comprehensive analysis of a single node."""
@@ -980,6 +984,12 @@ class NetworkXSFMQueryEngine(SFMQueryEngine):  # pylint: disable=too-many-public
         return levels
 
     def detect_conflicts(self) -> List[Dict[str, Any]]:
+        """Detect conflicts and contradictions in the graph. Scanned once per engine instance."""
+        if self._conflicts_cache is None:
+            self._conflicts_cache = self._detect_conflicts_uncached()
+        return [dict(conflict) for conflict in self._conflicts_cache]
+
+    def _detect_conflicts_uncached(self) -> List[Dict[str, Any]]:
         """
         Detect conflicts and contradictions in the graph.
 

@@ -25,6 +25,8 @@ from data.importers import (
     WorldBankAdapter,
     SDMXAdapter,
     SDMX_AGENCIES,
+    RDFAdapter,
+    RDF_EXTENSIONS,
     MappingTemplates,
     ImportConfig,
 )
@@ -40,6 +42,7 @@ MAPPING_TEMPLATES = {
     "oecd_indicator": MappingTemplates.oecd_indicator,
     "worldbank_indicator": MappingTemplates.worldbank_indicator,
     "sdmx_indicator": MappingTemplates.sdmx_indicator,
+    "rdf_entity": MappingTemplates.rdf_entity,
 }
 
 
@@ -183,10 +186,13 @@ async def list_supported_formats():
         ),
         SupportedFormat(
             format_name="rdf",
-            display_name="RDF/Turtle",
-            file_extensions=[".rdf", ".ttl", ".n3"],
-            description="RDF/Linked Data from Wikidata, DBpedia institutional entities.",
-            adapter_available=False
+            display_name="RDF / Linked Data",
+            file_extensions=sorted(RDF_EXTENSIONS),
+            description=(
+                "Turtle, RDF/XML, N-Triples, N3, JSON-LD or TriG. Labelled resources become nodes; "
+                "object properties between them become relationships."
+            ),
+            adapter_available=True
         )
     ]
 
@@ -400,6 +406,68 @@ async def import_worldbank(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="World Bank import failed due to an internal error"
         ) from e
+
+
+@router.post("/rdf", response_model=ImportResultResponse)
+async def import_rdf(
+    file: UploadFile = File(..., description="RDF file: " + ", ".join(sorted(RDF_EXTENSIONS))),
+    type_map: Optional[str] = Form(
+        None,
+        description='JSON object mapping rdf:type local names or IRIs to SFM node types, '
+                    'e.g. {"Organization": "InstitutionalStructure"}'
+    ),
+    dry_run: bool = Form(default=False, description="Validate without persisting data"),
+    continue_on_error: bool = Form(default=True, description="Continue processing after errors"),
+    batch_size: int = Form(default=1000, description="Number of nodes per batch"),
+    service: SFMService = Depends(get_sfm_service),
+):
+    """
+    Import an RDF / Linked Data file.
+
+    Every IRI with a label (rdfs:label, schema:name, skos:prefLabel, dcterms:title,
+    foaf:name) becomes a node whose UUID is derived from the IRI, so re-importing
+    updates rather than duplicates. Object properties between imported resources
+    become relationships whose kind is the predicate's local name.
+    """
+    import json
+
+    if not file.filename:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Filename required")
+    file_ext = Path(file.filename).suffix.lower()
+    if file_ext not in RDF_EXTENSIONS:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Unsupported file type: {file_ext}. Supported: {', '.join(sorted(RDF_EXTENSIONS))}"
+        )
+
+    type_map_dict: Dict[str, str] = {}
+    if type_map:
+        try:
+            type_map_dict = json.loads(type_map)
+        except json.JSONDecodeError:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid JSON in type_map parameter")
+
+    with tempfile.NamedTemporaryFile(mode='wb', suffix=file_ext, delete=False) as temp_file:
+        temp_file.write(await file.read())
+        temp_path = temp_file.name
+
+    try:
+        config = ImportConfig(dry_run=dry_run, continue_on_error=continue_on_error, batch_size=batch_size)
+        adapter = RDFAdapter(config=config, type_map=type_map_dict)
+        result = service.import_bulk(temp_path, adapter=adapter, config=config)
+        return _to_response(result)
+
+    except (HTTPException, SFMError):
+        raise
+    except Exception as e:
+        logger.exception("RDF import failed")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="RDF import failed due to an internal error"
+        ) from e
+
+    finally:
+        Path(temp_path).unlink(missing_ok=True)
 
 
 @router.post("/sdmx", response_model=ImportResultResponse)

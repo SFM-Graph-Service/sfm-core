@@ -170,6 +170,56 @@ class TestNeo4jRepository(unittest.TestCase):
         restored = self.Neo4jSFMRepository._properties_to_node(properties, BaseNode)
         self.assertEqual(restored.meta, {"tier": "state", "nested": {"a": [1, 2]}})
 
+    def test_delivery_cell_round_trips_through_properties(self):
+        """Nested dataclasses (Delivery inside SFMDeliveryCell) survive the Neo4j flattening."""
+        from models.delivery_matrix import Delivery, SFMDeliveryCell
+
+        src, tgt = uuid.uuid4(), uuid.uuid4()
+        cell = SFMDeliveryCell(
+            label="A->B", source_component_id=src, target_component_id=tgt,
+            cell_description="Funding", cultural_values_influence={"equity": 0.4},
+        )
+        cell.add_delivery(Delivery(delivery_type="money", delivery_content="Grant", quantity=5.0,
+                                   units="USD", certainty=0.8, data_sources=["Budget"]))
+
+        properties = self.Neo4jSFMRepository._node_to_properties(cell)
+        for value in properties.values():
+            self.assertFalse(isinstance(value, dict), "map property would be rejected by Neo4j")
+            if isinstance(value, list):
+                self.assertTrue(all(isinstance(v, (str, int, float, bool)) for v in value))
+        self.assertIn("deliveries", properties["_json_fields"])
+        self.assertIn("cultural_values_influence", properties["_json_fields"])
+
+        restored = self.Neo4jSFMRepository._properties_to_node(properties, SFMDeliveryCell)
+        self.assertIsInstance(restored, SFMDeliveryCell)
+        self.assertEqual(restored.source_component_id, src)
+        self.assertEqual(restored.cell_description, "Funding")
+        self.assertEqual(restored.cultural_values_influence, {"equity": 0.4})
+        self.assertEqual(len(restored.deliveries), 1)
+        self.assertIsInstance(restored.deliveries[0], Delivery)
+        self.assertEqual(restored.deliveries[0].quantity, 5.0)
+        self.assertEqual(restored.deliveries[0].data_sources, ["Budget"])
+
+    def test_delivery_matrix_round_trips_through_properties(self):
+        from models.delivery_matrix import Delivery, SFMDeliveryCell, SFMDeliveryMatrix
+
+        a, b = uuid.uuid4(), uuid.uuid4()
+        matrix = SFMDeliveryMatrix(label="M", components=[a, b], matrix_scope="state")
+        cell = SFMDeliveryCell(label="c", source_component_id=a, target_component_id=b, cell_description="d")
+        cell.add_delivery(Delivery(delivery_type="rule", delivery_content="Reporting"))
+        matrix.set_cell(cell)
+
+        properties = self.Neo4jSFMRepository._node_to_properties(matrix)
+        self.assertIsInstance(properties["cells"], str)
+        self.assertEqual(properties["components"], [str(a), str(b)])
+
+        restored = self.Neo4jSFMRepository._properties_to_node(properties, SFMDeliveryMatrix)
+        self.assertIsInstance(restored, SFMDeliveryMatrix)
+        self.assertEqual(restored.components, [a, b])
+        self.assertEqual(restored.matrix_scope, "state")
+        self.assertEqual(set(restored.cells), {(a, b)})
+        self.assertEqual(restored.cells[(a, b)].deliveries[0].delivery_type, "rule")
+
     def test_relationship_properties_round_trip_uncertainty_fields(self):
         """Every Relationship field must survive the property flattening."""
         rel = Relationship(

@@ -1479,6 +1479,22 @@ class SFMService:
         node_batch: List[Node] = []
         row_num = 0
 
+        def create_batch(batch: List[Node]) -> int:
+            """Bulk-create, falling back to per-node creation so one duplicate does not sink the batch."""
+            try:
+                self.repository.create_nodes_bulk(batch)
+                return len(batch)
+            except NodeCreationError:
+                created = 0
+                for node in batch:
+                    try:
+                        self.repository.create_node(node)
+                        created += 1
+                    except Exception as e:
+                        result.nodes_failed += 1
+                        result.add_error(row=None, field="id", message=str(e), suggested_fix=None)
+                return created
+
         try:
             # Stream nodes from source
             for row_num, node_dict in enumerate(adapter.extract_nodes(source), start=1):
@@ -1501,8 +1517,9 @@ class SFMService:
                     if len(node_batch) >= config.batch_size:
                         if not config.dry_run:
                             self._ensure_capacity(len(node_batch), operation="import_bulk")
-                            self.repository.create_nodes_bulk(node_batch)
-                        result.nodes_created += len(node_batch)
+                            result.nodes_created += create_batch(node_batch)
+                        else:
+                            result.nodes_created += len(node_batch)
                         node_batch = []
 
                         if config.show_progress and row_num % config.progress_interval == 0:
@@ -1530,8 +1547,7 @@ class SFMService:
             if node_batch and not config.dry_run:
                 try:
                     self._ensure_capacity(len(node_batch), operation="import_bulk")
-                    self.repository.create_nodes_bulk(node_batch)
-                    result.nodes_created += len(node_batch)
+                    result.nodes_created += create_batch(node_batch)
                 except GraphSizeExceededError as e:
                     result.nodes_failed += len(node_batch)
                     result.add_error(row=row_num, field=None, message=str(e), suggested_fix=e.remediation)
@@ -1540,15 +1556,40 @@ class SFMService:
             result.add_error(None, None, f"Import failed: {e}")
             logger.error("Bulk import failed: %s", e)
 
-        if result.nodes_created and not config.dry_run:
+        # Relationships (adapters that support them yield source_id/target_id/kind dicts)
+        try:
+            for rel_num, rel_dict in enumerate(adapter.extract_relationships(source), start=1):
+                try:
+                    relationship = Relationship(
+                        id=rel_dict.get("id") or uuid.uuid4(),
+                        source_id=rel_dict["source_id"],
+                        target_id=rel_dict["target_id"],
+                        kind=rel_dict.get("kind") or "",
+                        weight=rel_dict.get("weight"),
+                        meta=dict(rel_dict.get("meta") or {}),
+                    )
+                    if not config.dry_run:
+                        self.repository.create_relationship(relationship)
+                    result.relationships_created += 1
+                except Exception as e:
+                    result.relationships_failed += 1
+                    result.add_error(row=rel_num, field="relationship", message=str(e), suggested_fix=None)
+                    if not config.continue_on_error:
+                        break
+        except Exception as e:
+            result.add_error(None, "relationships", f"Relationship import failed: {e}")
+            logger.error("Relationship import failed: %s", e)
+
+        if (result.nodes_created or result.relationships_created) and not config.dry_run:
             self._bump_graph_version()
 
         result.elapsed_time = time.time() - start_time
 
         logger.info(
-            "Bulk import complete: %d nodes created, %d failed, %.2fs elapsed",
+            "Bulk import complete: %d nodes created, %d failed, %d relationships created, %.2fs elapsed",
             result.nodes_created,
             result.nodes_failed,
+            result.relationships_created,
             result.elapsed_time
         )
 

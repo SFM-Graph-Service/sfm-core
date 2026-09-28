@@ -21,15 +21,21 @@ from data.importers import OECDAdapter
 
 service = SFMService()
 
-# Import environmental indicators for USA
+# Quarterly national accounts for the USA from the OECD Data Explorer API
 adapter = OECDAdapter(
-    dataset_id="GREEN_GROWTH",
-    filters={"LOCATION": "USA", "MEASURE": "CO2"}
+    dataset_id="OECD.SDD.NAD,DSD_NAMAIN1@DF_QNA,1.0",
+    filters={"FREQ": "Q", "REF_AREA": "USA"}
 )
 
-result = service.import_bulk("oecd:GREEN_GROWTH", adapter=adapter)
+result = service.import_bulk("oecd:OECD.SDD.NAD,DSD_NAMAIN1@DF_QNA,1.0", adapter=adapter)
 print(f"Imported {result.nodes_created} indicators in {result.elapsed_time:.2f}s")
 ```
+
+> The legacy `stats.oecd.org` endpoint was retired in 2024. `OECDAdapter` now talks to
+> `https://sdmx.oecd.org/public/rest`, where dataflow ids are agency-qualified
+> (`AGENCY,DATAFLOW,VERSION`) and the country dimension is `REF_AREA`. Copy the id from the
+> Data Explorer's *API* panel. Parsing is shared with `SDMXAdapter`, which you can also use
+> directly with `agency="OECD"`.
 
 ### REST API
 
@@ -49,13 +55,14 @@ curl -X POST "http://localhost:8000/api/v1/import/oecd" \
 
 ### Common Datasets
 
-| Dataset ID | Description | Common Filters |
-|------------|-------------|----------------|
-| `GREEN_GROWTH` | Environmental indicators | LOCATION, MEASURE |
-| `QNA` | Quarterly National Accounts | LOCATION, MEASURE, FREQUENCY |
-| `HEALTH_STAT` | Health status indicators | LOCATION, VAR |
-| `EDU_UOE` | Education indicators | LOCATION, YEAR |
-| `GOV_DEBT` | Government debt | LOCATION, SECTOR |
+| Dataflow ID | Description | Common Filters |
+|-------------|-------------|----------------|
+| `OECD.SDD.NAD,DSD_NAMAIN1@DF_QNA,1.0` | Quarterly National Accounts | FREQ, REF_AREA, TRANSACTION |
+| `OECD.ENV.EPI,DSD_GG@DF_GREEN_GROWTH,1.0` | Green growth indicators | REF_AREA, MEASURE |
+| `OECD.ELS.HD,DSD_HEALTH_STAT@DF_HEALTH_STAT,1.0` | Health status | REF_AREA, MEASURE |
+| `OECD.SDD.TPS,DSD_LFS@DF_IALFS_UNE_M,1.0` | Unemployment (monthly) | REF_AREA, SEX, AGE |
+
+Dataflow ids change as the OECD revises structures; verify in the Data Explorer before relying on one.
 
 ### Filter Dimensions
 
@@ -345,6 +352,47 @@ Every dimension and attribute in the message is available to a custom `MappingCo
 - SDMX-ML 2.1 Generic (`SeriesKey` / `ObsDimension` / `ObsValue`) and StructureSpecific (dimensions as XML attributes), including flat `Obs` under `DataSet`
 
 The adapter asks for SDMX-JSON first and falls back to whatever the service returns, so agencies that only speak SDMX-ML work unchanged.
+
+## RDF / Linked Data Adapter
+
+Institutional data published as Linked Data (Wikidata and DBpedia extracts, organisational ontologies, SKOS vocabularies) can be imported directly. Unlike the statistical adapters, this one produces **relationships as well as nodes**.
+
+### Quick Start
+
+```python
+from api.sfm_service import SFMService
+from data.importers import RDFAdapter
+
+service = SFMService()
+adapter = RDFAdapter(type_map={
+    "GovernmentOrganization": "InstitutionalStructure",   # rdf:type local name -> SFM node type
+    "https://schema.org/Legislation": "PolicyInstrument",  # or a full IRI
+})
+result = service.import_bulk("institutions.ttl", adapter=adapter)
+print(result.nodes_created, result.relationships_created)
+```
+
+Formats: Turtle (`.ttl`), RDF/XML (`.rdf`, `.owl`, `.xml`), N-Triples (`.nt`), N3 (`.n3`), JSON-LD (`.jsonld`, `.json`), TriG (`.trig`). Pass `rdf_format=` to override the extension-based guess.
+
+### REST API
+
+```bash
+curl -X POST "http://localhost:8000/api/v1/import/rdf" \
+  -F "file=@institutions.ttl" \
+  -F 'type_map={"GovernmentOrganization": "InstitutionalStructure"}'
+```
+
+### What Becomes What
+
+| RDF | SFM |
+|-----|-----|
+| Any IRI with a label (`rdfs:label`, `schema:name`, `skos:prefLabel`, `dcterms:title`, `foaf:name`) | A node; `id = uuid5(NAMESPACE_URL, iri)`, so re-imports resolve to the same node |
+| `rdfs:comment`, `schema:description`, `dcterms:description`, `skos:definition` | `description` |
+| `rdf:type` | `meta.rdf_types`; `type_map` picks the SFM node class |
+| Object property between two imported resources | A relationship; `kind` is the predicate's local name in snake_case (`reportsTo` → `reports_to`), IRI kept in `meta.predicate` |
+| Resources without a label, literal-valued properties, blank nodes | Skipped |
+
+Language-tagged labels prefer `preferred_language` (default `en`), then untagged, then whatever is first.
 
 ## Performance Considerations
 

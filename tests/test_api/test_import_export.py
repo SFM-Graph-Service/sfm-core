@@ -59,6 +59,55 @@ class TestImportFormatsEndpoint:
         assert ".json" in sdmx_format["file_extensions"]
 
 
+class TestRDFImportEndpoint:
+    """Test POST /import/rdf endpoint."""
+
+    TTL = b"""
+    @prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+    @prefix ex: <http://example.org/> .
+    ex:A a ex:Agency ; rdfs:label "Agency A" ; ex:funds ex:B .
+    ex:B rdfs:label "Program B" .
+    """
+
+    def setup_method(self):
+        self.app = create_app()
+        self.client = TestClient(self.app)
+
+    def test_import_rdf_dry_run_counts_nodes_and_relationships(self):
+        response = self.client.post(
+            "/api/v1/import/rdf",
+            files={"file": ("inst.ttl", BytesIO(self.TTL), "text/turtle")},
+            data={"dry_run": "true", "type_map": '{"Agency": "InstitutionalStructure"}'},
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert data["nodes_created"] == 0
+        assert data["relationships_created"] == 1
+        assert data["errors"] == []
+
+    def test_import_rdf_rejects_unknown_extension_and_bad_type_map(self):
+        response = self.client.post(
+            "/api/v1/import/rdf",
+            files={"file": ("inst.csv", BytesIO(self.TTL), "text/csv")},
+        )
+        assert response.status_code == 400
+        assert "Unsupported file type" in response.json()["detail"]
+
+        response = self.client.post(
+            "/api/v1/import/rdf",
+            files={"file": ("inst.ttl", BytesIO(self.TTL), "text/turtle")},
+            data={"type_map": "{not json"},
+        )
+        assert response.status_code == 400
+        assert "type_map" in response.json()["detail"]
+
+    def test_formats_report_rdf_available(self):
+        formats = {f["format_name"]: f for f in self.client.get("/api/v1/import/formats").json()["formats"]}
+        assert formats["rdf"]["adapter_available"] is True
+        assert ".ttl" in formats["rdf"]["file_extensions"]
+        assert ".jsonld" in formats["rdf"]["file_extensions"]
+
+
 class TestSDMXImportEndpoint:
     """Test POST /import/sdmx endpoint."""
 

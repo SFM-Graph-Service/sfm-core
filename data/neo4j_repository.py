@@ -150,29 +150,41 @@ class Neo4jSFMRepository(SFMRepository):
         return json.dumps(normalise(value), default=str)
 
     @staticmethod
+    def _is_neo4j_list(value: Any) -> bool:
+        """Neo4j arrays must be homogeneous primitives."""
+        if not isinstance(value, list):
+            return False
+        if not value:
+            return True
+        first = type(value[0])
+        return first in (str, int, float, bool) and all(type(v) is first for v in value)
+
+    @staticmethod
     def _node_to_properties(node: Node) -> Dict[str, Any]:
         """
         Convert a Node instance to Neo4j properties dictionary.
 
-        Serializes all node attributes, handling complex types. Dict-valued
-        attributes are stored as JSON strings and their names recorded in
-        ``_json_fields`` so they can be decoded on read.
+        Serialisation is delegated to NodeSerializer so every node type,
+        including delivery cells and matrices with nested dataclasses, is
+        flattened the same way as in JSON persistence. Values Neo4j cannot
+        hold (maps, heterogeneous or nested lists) are stored as JSON text and
+        their names recorded in ``_json_fields`` so they decode on read.
         """
+        from graph.sfm_persistence import NodeSerializer
+
+        data = NodeSerializer.node_to_dict(node)
         properties: Dict[str, Any] = {}
         json_fields: List[str] = []
 
-        for attr_name, attr_value in node.__dict__.items():
-            if attr_name.startswith('_'):
-                # Skip private attributes
+        for key, value in data.items():
+            if key == 'type':
                 continue
+            if isinstance(value, dict) or (isinstance(value, list) and not Neo4jSFMRepository._is_neo4j_list(value)):
+                properties[key] = Neo4jSFMRepository._to_json_property(value)
+                json_fields.append(key)
+            else:
+                properties[key] = value
 
-            serialized = Neo4jSFMRepository._serialize_value(attr_value)
-            if isinstance(serialized, dict):
-                serialized = Neo4jSFMRepository._to_json_property(serialized)
-                json_fields.append(attr_name)
-            properties[attr_name] = serialized
-
-        # Store the Python class name for deserialization
         properties['_python_class'] = type(node).__name__
         if json_fields:
             properties['_json_fields'] = json_fields
@@ -186,37 +198,39 @@ class Neo4jSFMRepository(SFMRepository):
 
         Args:
             properties: Dictionary of node properties from Neo4j
-            node_class: The Python class to instantiate
+            node_class: Fallback Python class when ``_python_class`` is absent or unregistered
         """
-        json_fields = properties.get('_json_fields') or []
+        from graph.sfm_persistence import NodeSerializer, SFMSerializationError
 
-        # Remove internal properties
+        json_fields = properties.get('_json_fields') or []
         props = {k: v for k, v in properties.items() if not k.startswith('_')}
 
-        for field_name in json_fields:
+        for field_name in list(json_fields) + ['meta']:
             if isinstance(props.get(field_name), str):
                 try:
                     props[field_name] = json.loads(props[field_name])
                 except (json.JSONDecodeError, TypeError):
                     pass
 
-        # Deserialize specific fields
-        if 'id' in props:
-            props['id'] = uuid.UUID(props['id'])
-        if 'created_at' in props:
-            props['created_at'] = datetime.fromisoformat(props['created_at'])
-        if 'modified_at' in props and props['modified_at']:
-            props['modified_at'] = datetime.fromisoformat(props['modified_at'])
-        if 'previous_version_id' in props and props['previous_version_id']:
+        for field_name in ('created_at', 'modified_at'):
+            if isinstance(props.get(field_name), str):
+                props[field_name] = datetime.fromisoformat(props[field_name])
+        if isinstance(props.get('previous_version_id'), str):
             props['previous_version_id'] = uuid.UUID(props['previous_version_id'])
 
-        # Reconstruct meta dict if it was serialized as string
-        if 'meta' in props and isinstance(props['meta'], str):
+        type_name = properties.get('_python_class') or node_class.__name__
+        if NodeSerializer.get_node_class(type_name) is not None:
+            props['type'] = type_name
             try:
-                props['meta'] = json.loads(props['meta'])
-            except (json.JSONDecodeError, TypeError):
-                pass
+                return NodeSerializer.dict_to_node(props)
+            except SFMSerializationError as e:
+                raise Neo4jSerializationError(
+                    f"Failed to deserialize node of type {type_name}: {e}"
+                ) from e
 
+        # Class known to the driver caller but not to the serializer registry
+        if isinstance(props.get('id'), str):
+            props['id'] = uuid.UUID(props['id'])
         try:
             return node_class(**props)
         except TypeError as e:

@@ -1,12 +1,15 @@
 """
-OECD.Stat API import adapter.
+OECD Data Explorer import adapter.
 
-Supports importing statistical indicators from OECD datasets:
-- GREEN_GROWTH (environmental indicators)
-- QNA (quarterly national accounts)
-- Custom datasets via SDMX-JSON API
+Fetches statistical observations from OECD's SDMX 2.1 REST API
+(https://sdmx.oecd.org/public/rest). The legacy stats.oecd.org endpoint was
+retired in 2024; dataflow ids on the current API are agency-qualified, e.g.
+``OECD.SDD.NAD,DSD_NAMAIN1@DF_QNA,1.0`` for quarterly national accounts.
 
-API Documentation: https://data.oecd.org/api/sdmx-json-documentation/
+Parsing is delegated to SDMXAdapter, so both series-keyed and flat SDMX-JSON
+layouts are understood. For non-OECD agencies use SDMXAdapter directly.
+
+API Documentation: https://www.oecd.org/en/data/insights/data-explainers/2024/09/api.html
 """
 
 import time
@@ -18,18 +21,19 @@ from datetime import datetime
 from .base_adapter import BaseImportAdapter, ImportConfig
 from .mapping_config import MappingConfig
 from .validators import ValidationError
+from .sdmx_adapter import SDMXAdapter, KNOWN_AGENCIES
 
 
 class OECDAdapter(BaseImportAdapter):
     """
-    Import adapter for OECD.Stat API.
+    Import adapter for the OECD SDMX 2.1 API.
 
-    Fetches statistical indicators via SDMX-JSON API and maps them to
-    SocialFabricIndicator nodes. Supports automatic pagination, rate limiting,
-    and response caching.
+    Fetches statistical observations and maps them to SocialFabricIndicator
+    nodes, with rate limiting and response caching. ``dataset_id`` is the
+    dataflow id as shown in the OECD Data Explorer's API panel.
     """
 
-    BASE_URL = "https://stats.oecd.org/SDMX-JSON/data"
+    BASE_URL = f"{KNOWN_AGENCIES['OECD']}/data"
 
     def __init__(
         self,
@@ -187,73 +191,23 @@ class OECDAdapter(BaseImportAdapter):
         # Order matters - follow OECD dimension structure
         return ".".join(str(v) for v in filters.values())
 
-    def _parse_sdmx_json(self, data: Dict[str, Any]) -> Iterator[Dict[str, str]]:
+    def _parse_sdmx_json(self, data: Dict[str, Any]) -> Iterator[Dict[str, Any]]:
         """
-        Parse SDMX-JSON format to flat dictionaries.
-
-        SDMX-JSON structure:
-        {
-          "dataSets": [{
-            "observations": {
-              "0:0:0:0": [value],
-              ...
-            }
-          }],
-          "structure": {
-            "dimensions": [...],
-            "attributes": [...]
-          }
-        }
-
-        Args:
-            data: SDMX-JSON response
-
-        Yields:
-            Flat dictionaries with dimension values and observations
+        Flatten an OECD SDMX-JSON response (series-keyed or flat) into
+        observation dictionaries annotated with dataset_id and provenance.
         """
+        fetched_at = datetime.now().isoformat()
         try:
-            # Extract structure
-            structure = data.get("structure", {})
-            dimensions = structure.get("dimensions", {}).get("observation", [])
-
-            # Extract dataset
-            datasets = data.get("dataSets", [])
-            if not datasets:
-                return
-
-            observations = datasets[0].get("observations", {})
-
-            # Parse each observation
-            for key, values in observations.items():
-                # Parse dimension indices (e.g., "0:1:2:3")
-                indices = [int(i) for i in key.split(":")]
-
-                # Build flat dictionary
-                obs_dict = {}
-
-                # Add dimension values
-                for i, dim in enumerate(dimensions):
-                    if i < len(indices):
-                        dim_id = dim.get("id", f"DIM_{i}")
-                        dim_values = dim.get("values", [])
-                        dim_index = indices[i]
-
-                        if dim_index < len(dim_values):
-                            dim_value = dim_values[dim_index].get("id", "")
-                            obs_dict[dim_id] = dim_value
-
-                # Add observation value
-                if values and len(values) > 0:
-                    obs_dict["Value"] = values[0]
-
-                # Add metadata
-                obs_dict["dataset_id"] = self.dataset_id
-                obs_dict["data_source"] = "OECD"
-                obs_dict["fetched_at"] = datetime.now().isoformat()
-
-                yield obs_dict
-
-        except (KeyError, IndexError, ValueError) as e:
+            for obs in SDMXAdapter.parse_sdmx_json(data):
+                obs["dataset_id"] = self.dataset_id
+                obs["data_source"] = "OECD"
+                obs["fetched_at"] = fetched_at
+                # New API uses REF_AREA; legacy datasets used LOCATION
+                country = obs.get("REF_AREA") or obs.get("LOCATION")
+                if country:
+                    obs["country"] = country
+                yield obs
+        except (KeyError, IndexError, ValueError, AttributeError) as e:
             raise ValidationError(f"Failed to parse SDMX-JSON: {e}") from e
 
     def extract_relationships(self, source: Union[str, Path, Dict[str, Any]]) -> Iterator[Dict[str, Any]]:
@@ -314,10 +268,6 @@ class OECDAdapter(BaseImportAdapter):
         """
         try:
             data = self._fetch_data(self.dataset_id, self.filters)
-            datasets = data.get("dataSets", [])
-            if datasets:
-                observations = datasets[0].get("observations", {})
-                return len(observations)
-            return 0
+            return sum(1 for _ in SDMXAdapter.parse_sdmx_json(data))
         except Exception:
             return 0  # Unknown size

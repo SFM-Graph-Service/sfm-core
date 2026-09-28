@@ -184,9 +184,9 @@ class MappingTemplates:
         """
         OECD statistical indicator mapping.
 
-        Expected JSON fields from OECD SDMX-JSON API:
-        - dataset_id: "GREEN_GROWTH", "QNA", etc.
-        - LOCATION: Country code (e.g., "USA")
+        Expected JSON fields from the OECD SDMX API (via OECDAdapter):
+        - dataset_id: Dataflow id
+        - country: Reporting area, derived from REF_AREA (new API) or LOCATION (legacy)
         - Value: Numeric observation value
         - TIME_PERIOD: Year or date string
         - MEASURE, SUBJECT, etc.: Additional dimensions
@@ -204,9 +204,9 @@ class MappingTemplates:
 
         # Country/location
         config.add_mapping(FieldMapping(
-            source_field="LOCATION",
+            source_field="country",
             target_field="meta.country",
-            transform=lambda x: x.upper() if x else None
+            transform=lambda x: str(x).upper() if x else None
         ))
 
         # Observation value
@@ -300,6 +300,29 @@ class MappingTemplates:
             default="SDMX"
         ))
 
+        return config
+
+    @staticmethod
+    def rdf_entity() -> MappingConfig:
+        """
+        RDF resource mapping (via RDFAdapter).
+
+        Expected fields:
+        - id: Deterministic UUID derived from the IRI
+        - uri: Resource IRI
+        - label: rdfs:label / schema:name / skos:prefLabel / dcterms:title / foaf:name
+        - description: rdfs:comment / schema:description / dcterms:description / skos:definition
+        - rdf_types, rdf_type_names: rdf:type IRIs and their local names
+
+        Maps to a generic Node; RDFAdapter's type_map can override the node type per rdf:type.
+        """
+        config = MappingConfig(node_type="Node")
+        config.add_mapping(FieldMapping(source_field="id", target_field="id", required=True))
+        config.add_mapping(FieldMapping(source_field="label", target_field="label", required=True))
+        config.add_mapping(FieldMapping(source_field="description", target_field="description", default=""))
+        config.add_mapping(FieldMapping(source_field="uri", target_field="meta.uri", required=True))
+        config.add_mapping(FieldMapping(source_field="rdf_types", target_field="meta.rdf_types", default=[]))
+        config.add_mapping(FieldMapping(source_field="data_source", target_field="meta.data_source", default="RDF"))
         return config
 
     @staticmethod

@@ -197,6 +197,41 @@ class TestGraphContract:
         assert svc.repository.count_nodes() == 0
 
 
+class TestDeliveryMatrixContract:
+    def test_matrix_and_cells_round_trip(self, backend_service):
+        from models.delivery_matrix import Delivery, SFMDeliveryCell, SFMDeliveryMatrix
+
+        svc = backend_service
+        a = svc.create_node(Node(label="Legislature"))
+        b = svc.create_node(Node(label="Districts"))
+        matrix = svc.create_delivery_matrix(label="Finance", description="d")
+        matrix.add_component(a.id)
+        matrix.add_component(b.id)
+        svc.add_delivery_to_matrix(
+            matrix, a.id, b.id,
+            Delivery(delivery_type="money", delivery_content="Aid", quantity=10.0, units="USD",
+                     certainty=0.9, data_sources=["Act"]),
+            cell_description="Legislature funds districts",
+        )
+        svc.update_node(matrix)
+
+        cells = svc.list_nodes(SFMDeliveryCell)
+        assert len(cells) == 1
+        cell = cells[0]
+        assert cell.source_component_id == a.id and cell.target_component_id == b.id
+        assert cell.cell_description == "Legislature funds districts"
+        assert len(cell.deliveries) == 1
+        assert isinstance(cell.deliveries[0], Delivery)
+        assert cell.deliveries[0].quantity == 10.0
+        assert cell.deliveries[0].data_sources == ["Act"]
+
+        stored = svc.get_node(matrix.id)
+        assert isinstance(stored, SFMDeliveryMatrix)
+        assert stored.components == [a.id, b.id]
+        assert set(stored.cells) == {(a.id, b.id)}
+        assert stored.cells[(a.id, b.id)].deliveries[0].delivery_content == "Aid"
+
+
 class TestAnalysisParity:
     """The same institutional model must yield the same analysis on every backend."""
 
