@@ -13,7 +13,7 @@ Key Features:
 
 import logging
 import uuid
-from typing import Dict, List, Optional, Any, Type, TypeVar, Union, TYPE_CHECKING, cast
+from typing import Dict, List, Optional, Any, Tuple, Type, TypeVar, Union, TYPE_CHECKING, cast
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -32,6 +32,7 @@ from data.repositories import (
 from graph.sfm_graph import Relationship
 
 if TYPE_CHECKING:
+    from graph.sfm_graph import SFMGraph
     from graph.version_control import SFMVersionController
     from graph.version_storage import GraphVersion
 
@@ -1407,19 +1408,9 @@ class SFMService:
         # Import relationships if present
         relationships_imported = 0
         if "relationships" in import_data:
-            from graph.sfm_graph import Relationship
-
             for rel_data in import_data["relationships"]:
                 try:
-                    relationship = Relationship(
-                        id=uuid.UUID(rel_data["id"]),
-                        source_id=uuid.UUID(rel_data["source_id"]),
-                        target_id=uuid.UUID(rel_data["target_id"]),
-                        kind=rel_data.get("kind", ""),
-                        weight=rel_data.get("weight"),
-                        meta=rel_data.get("meta", {})
-                    )
-                    self.create_relationship(relationship)
+                    self.create_relationship(self._relationship_from_dict(rel_data))
                     relationships_imported += 1
                 except Exception as e:
                     logger.warning("Failed to import relationship %s: %s", rel_data.get('id'), e)
@@ -2211,14 +2202,53 @@ class SFMService:
 
     @staticmethod
     def _relationship_to_dict(rel: Relationship) -> Dict[str, Any]:
-        """Serialize a relationship for snapshot or delta persistence."""
-        return {
+        """Serialize a relationship for snapshot or delta persistence, including uncertainty fields."""
+        data: Dict[str, Any] = {
             'id': str(rel.id),
             'source_id': str(rel.source_id),
             'target_id': str(rel.target_id),
-            'kind': rel.kind if hasattr(rel, 'kind') else None,
-            'weight': rel.weight if hasattr(rel, 'weight') else None,
+            'kind': rel.kind,
+            'weight': rel.weight,
         }
+        if rel.meta:
+            data['meta'] = dict(rel.meta)
+        if rel.confidence is not None:
+            data['confidence'] = rel.confidence
+        if rel.confidence_interval is not None:
+            data['confidence_interval'] = list(rel.confidence_interval)
+        if rel.uncertainty_type:
+            data['uncertainty_type'] = rel.uncertainty_type
+        if rel.data_sources:
+            data['data_sources'] = list(rel.data_sources)
+        if rel.source_agreement:
+            data['source_agreement'] = rel.source_agreement
+        if rel.valid_from is not None:
+            data['valid_from'] = rel.valid_from.isoformat()
+        if rel.valid_to is not None:
+            data['valid_to'] = rel.valid_to.isoformat()
+        return data
+
+    @staticmethod
+    def _relationship_from_dict(rel_data: Dict[str, Any]) -> Relationship:
+        """Inverse of _relationship_to_dict; tolerates the older five-field shape."""
+        from datetime import datetime
+
+        ci = rel_data.get('confidence_interval')
+        return Relationship(
+            id=uuid.UUID(rel_data['id']),
+            source_id=uuid.UUID(rel_data['source_id']),
+            target_id=uuid.UUID(rel_data['target_id']),
+            kind=rel_data.get('kind') or '',
+            weight=rel_data.get('weight'),
+            meta=dict(rel_data.get('meta') or {}),
+            confidence=rel_data.get('confidence'),
+            confidence_interval=(ci[0], ci[1]) if ci else None,
+            uncertainty_type=rel_data.get('uncertainty_type'),
+            data_sources=list(rel_data.get('data_sources') or []),
+            source_agreement=rel_data.get('source_agreement'),
+            valid_from=datetime.fromisoformat(rel_data['valid_from']) if rel_data.get('valid_from') else None,
+            valid_to=datetime.fromisoformat(rel_data['valid_to']) if rel_data.get('valid_to') else None,
+        )
 
     @staticmethod
     def _resolve_incremental_paths(
@@ -2346,13 +2376,7 @@ class SFMService:
                 self.repository.update_node(node)
 
         for rel_data in changes.get("relationships_added", []):
-            relationship = Relationship(
-                id=uuid.UUID(rel_data['id']),
-                source_id=uuid.UUID(rel_data['source_id']),
-                target_id=uuid.UUID(rel_data['target_id']),
-                kind=rel_data.get('kind', ''),
-                weight=rel_data.get('weight'),
-            )
+            relationship = self._relationship_from_dict(rel_data)
             existing_relationship = self.repository.read_relationship(relationship.id)
             if existing_relationship is None:
                 self.repository.create_relationship(relationship)
@@ -2360,13 +2384,7 @@ class SFMService:
                 self.repository.update_relationship(relationship)
 
         for rel_data in changes.get("relationships_modified", []):
-            relationship = Relationship(
-                id=uuid.UUID(rel_data['id']),
-                source_id=uuid.UUID(rel_data['source_id']),
-                target_id=uuid.UUID(rel_data['target_id']),
-                kind=rel_data.get('kind', ''),
-                weight=rel_data.get('weight'),
-            )
+            relationship = self._relationship_from_dict(rel_data)
             existing_relationship = self.repository.read_relationship(relationship.id)
             if existing_relationship is None:
                 self.repository.create_relationship(relationship)
@@ -2457,14 +2475,7 @@ class SFMService:
         rels_loaded = 0
         for rel_data in snapshot_data.get('relationships', []):
             try:
-                rel = Relationship(
-                    id=uuid.UUID(rel_data['id']),
-                    source_id=uuid.UUID(rel_data['source_id']),
-                    target_id=uuid.UUID(rel_data['target_id']),
-                    kind=rel_data.get('kind', ''),
-                    weight=rel_data.get('weight'),
-                )
-                self.repository.create_relationship(rel)
+                self.repository.create_relationship(self._relationship_from_dict(rel_data))
                 rels_loaded += 1
             except Exception as e:
                 logger.warning("Failed to load relationship: %s", e)
@@ -3108,14 +3119,7 @@ class SFMService:
         rels_loaded = 0
         for rel_data in snapshot_data.get("relationships", []):
             try:
-                rel = Relationship(
-                    id=uuid.UUID(rel_data['id']),
-                    source_id=uuid.UUID(rel_data['source_id']),
-                    target_id=uuid.UUID(rel_data['target_id']),
-                    kind=rel_data.get('kind', ''),
-                    weight=rel_data.get('weight'),
-                )
-                self.repository.create_relationship(rel)
+                self.repository.create_relationship(self._relationship_from_dict(rel_data))
                 rels_loaded += 1
             except Exception as e:
                 logger.warning("Failed to import relationship: %s", e)
@@ -3205,6 +3209,243 @@ class SFMService:
         controller = self._get_version_controller()
         history: str = controller.show_history(format=format)
         return history
+
+    # =========================================================================
+    # Scenario Comparison
+    # =========================================================================
+
+    SCENARIO_ANALYSES = ("structure", "centrality", "loops", "conflicts", "circular_causation")
+
+    def _graph_from_snapshot(self, snapshot_data: Dict[str, Any]) -> "SFMGraph":
+        """Materialise a snapshot as a standalone SFMGraph without touching the repository."""
+        from graph.sfm_graph import SFMGraph
+        from graph.sfm_persistence import NodeSerializer
+
+        graph = SFMGraph()
+        for nodes_data in snapshot_data.get('nodes_by_type', {}).values():
+            for node_data in nodes_data:
+                try:
+                    graph.add_node(NodeSerializer.dict_to_node(dict(node_data)))
+                except Exception as e:
+                    logger.warning("Skipping node in scenario snapshot: %s", e)
+        for rel_data in snapshot_data.get('relationships', []):
+            try:
+                rel = self._relationship_from_dict(rel_data)
+            except Exception as e:
+                logger.warning("Skipping relationship in scenario snapshot: %s", e)
+                continue
+            if rel.source_id in graph.nodes and rel.target_id in graph.nodes:
+                graph.add_relationship(rel)
+        return graph
+
+    def _resolve_scenario(self, ref: Optional[str]) -> Tuple[Dict[str, Any], Dict[str, Any]]:
+        """Return (descriptor, snapshot) for a version ref, or for the working graph when ref is None."""
+        if ref is None or ref == "working":
+            snapshot = self._build_snapshot_dict()
+            descriptor = {
+                "ref": "working",
+                "version_id": None,
+                "message": "current working graph",
+                "node_count": snapshot["metadata"]["node_count"],
+                "relationship_count": snapshot["metadata"]["relationship_count"],
+            }
+            return descriptor, snapshot
+
+        controller = self._get_version_controller()
+        version, snapshot = controller.get_version_snapshot(ref)
+        descriptor = {
+            "ref": ref,
+            "version_id": str(version.version_id),
+            "message": version.message,
+            "node_count": version.stats.get("node_count", 0),
+            "relationship_count": version.stats.get("relationship_count", 0),
+        }
+        return descriptor, snapshot
+
+    def compare_scenarios(
+        self,
+        base_ref: str = "HEAD",
+        alt_ref: Optional[str] = None,
+        analyses: Optional[List[str]] = None,
+        source_id: Optional[uuid.UUID] = None,
+        top_n: int = 10,
+    ) -> Dict[str, Any]:
+        """
+        Run the same analyses on two graph states and report the differences.
+
+        Both states are materialised as standalone graphs, so the live
+        repository and its query engine are untouched.
+
+        Args:
+            base_ref: Version reference for the baseline (HEAD, HEAD~n, branch, tag, or id)
+            alt_ref: Version reference for the alternative; None or "working" uses the
+                     current uncommitted graph, which makes edit-then-compare what-if
+                     analysis possible without committing
+            analyses: Subset of SCENARIO_ANALYSES; defaults to all (circular_causation
+                      is included only when source_id is given)
+            source_id: Node from which to trace circular causation in both scenarios
+            top_n: How many movers / leverage points to list per metric
+
+        Returns:
+            Dict with "base", "alternative", "analyses" and one section per analysis.
+            Every numeric comparison is reported as base, alternative and delta
+            (alternative minus base).
+
+        Raises:
+            VersionControlError: If a version reference cannot be resolved
+            SFMValidationError: If an unknown analysis name is requested
+        """
+        import networkx as nx
+        from graph.sfm_query import NetworkXSFMQueryEngine
+
+        requested = list(analyses) if analyses else [
+            a for a in self.SCENARIO_ANALYSES if a != "circular_causation" or source_id is not None
+        ]
+        unknown = [a for a in requested if a not in self.SCENARIO_ANALYSES]
+        if unknown:
+            raise SFMValidationError(
+                f"Unknown scenario analyses: {unknown}",
+                field="analyses",
+                value=unknown,
+                remediation=f"Choose from {list(self.SCENARIO_ANALYSES)}",
+            )
+        if "circular_causation" in requested and source_id is None:
+            raise SFMValidationError(
+                "circular_causation comparison requires source_id",
+                field="source_id",
+            )
+
+        base_desc, base_snapshot = self._resolve_scenario(base_ref)
+        alt_desc, alt_snapshot = self._resolve_scenario(alt_ref)
+        base_graph = self._graph_from_snapshot(base_snapshot)
+        alt_graph = self._graph_from_snapshot(alt_snapshot)
+        base_engine = NetworkXSFMQueryEngine(base_graph)
+        alt_engine = NetworkXSFMQueryEngine(alt_graph)
+
+        def label_of(node_id: uuid.UUID) -> str:
+            node = alt_graph.get_node_by_id(node_id) or base_graph.get_node_by_id(node_id)
+            return node.label if node else str(node_id)
+
+        def triple(b: Any, a: Any) -> Dict[str, Any]:
+            return {"base": b, "alternative": a, "delta": (a - b) if isinstance(a, (int, float)) and isinstance(b, (int, float)) else None}
+
+        result: Dict[str, Any] = {
+            "base": base_desc,
+            "alternative": alt_desc,
+            "analyses": requested,
+        }
+
+        if "structure" in requested:
+            controller = self._get_version_controller()
+            node_added, node_modified, node_deleted = controller._diff_maps(
+                controller._index_nodes(base_snapshot), controller._index_nodes(alt_snapshot)
+            )
+            rel_added, rel_modified, rel_deleted = controller._diff_maps(
+                controller._index_relationships(base_snapshot), controller._index_relationships(alt_snapshot)
+            )
+            result["structure"] = {
+                "nodes": triple(len(base_graph), len(alt_graph)),
+                "relationships": triple(len(base_graph.relationships), len(alt_graph.relationships)),
+                "nodes_added": len(node_added),
+                "nodes_modified": len(node_modified),
+                "nodes_deleted": len(node_deleted),
+                "relationships_added": len(rel_added),
+                "relationships_modified": len(rel_modified),
+                "relationships_deleted": len(rel_deleted),
+                "density": triple(
+                    nx.density(base_engine.nx_graph) if len(base_graph) > 1 else 0.0,
+                    nx.density(alt_engine.nx_graph) if len(alt_graph) > 1 else 0.0,
+                ),
+            }
+
+        if "centrality" in requested:
+            centrality: Dict[str, Any] = {}
+            for kind in ("betweenness", "degree", "eigenvector"):
+                base_scores = base_engine.get_all_centrality(kind)
+                alt_scores = alt_engine.get_all_centrality(kind)
+                movers = []
+                for node_id in set(base_scores) | set(alt_scores):
+                    b = base_scores.get(node_id, 0.0)
+                    a = alt_scores.get(node_id, 0.0)
+                    if a != b:
+                        movers.append({
+                            "id": str(node_id), "label": label_of(node_id),
+                            "base": b, "alternative": a, "delta": a - b,
+                        })
+                movers.sort(key=lambda m: abs(m["delta"]), reverse=True)
+                centrality[kind] = {"top_movers": movers[:top_n], "nodes_changed": len(movers)}
+            result["centrality"] = centrality
+
+        if "loops" in requested:
+            base_part = base_engine.get_loop_participation()
+            alt_part = alt_engine.get_loop_participation()
+
+            def leverage(participation: Dict[uuid.UUID, int]) -> List[Dict[str, Any]]:
+                ranked = sorted(participation.items(), key=lambda kv: kv[1], reverse=True)
+                return [
+                    {"id": str(n), "label": label_of(n), "loop_participation": c}
+                    for n, c in ranked[:top_n] if c > 0
+                ]
+
+            movers = []
+            for node_id in set(base_part) | set(alt_part):
+                b = base_part.get(node_id, 0)
+                a = alt_part.get(node_id, 0)
+                if a != b:
+                    movers.append({"id": str(node_id), "label": label_of(node_id), "base": b, "alternative": a, "delta": a - b})
+            movers.sort(key=lambda m: abs(m["delta"]), reverse=True)
+
+            result["loops"] = {
+                "simple_cycles": triple(base_engine.count_simple_cycles(), alt_engine.count_simple_cycles()),
+                "nodes_in_loops": triple(
+                    sum(1 for c in base_part.values() if c > 0),
+                    sum(1 for c in alt_part.values() if c > 0),
+                ),
+                "leverage_points": {"base": leverage(base_part), "alternative": leverage(alt_part)},
+                "participation_movers": movers[:top_n],
+            }
+
+        if "conflicts" in requested:
+            base_conflicts = base_engine.detect_conflicts()
+            alt_conflicts = alt_engine.detect_conflicts()
+
+            def by_severity(conflicts: List[Dict[str, Any]]) -> Dict[str, int]:
+                counts = {"high": 0, "medium": 0, "low": 0}
+                for c in conflicts:
+                    counts[c.get("severity_label", "low")] += 1
+                return counts
+
+            base_keys = {c.get("description") for c in base_conflicts}
+            alt_keys = {c.get("description") for c in alt_conflicts}
+            base_sev = by_severity(base_conflicts)
+            alt_sev = by_severity(alt_conflicts)
+            result["conflicts"] = {
+                "total": triple(len(base_conflicts), len(alt_conflicts)),
+                "by_severity": {k: triple(base_sev[k], alt_sev[k]) for k in ("high", "medium", "low")},
+                "new": sorted(k for k in alt_keys - base_keys if k),
+                "resolved": sorted(k for k in base_keys - alt_keys if k),
+            }
+
+        if "circular_causation" in requested and source_id is not None:
+            def summarise(engine: "NetworkXSFMQueryEngine") -> Dict[str, Any]:
+                cycles = engine.query_circular_causation_detailed(source_id, max_depth=5)
+                return {
+                    "cycles": len(cycles),
+                    "reinforcing": sum(1 for c in cycles if c["feedback_type"] == "reinforcing"),
+                    "balancing": sum(1 for c in cycles if c["feedback_type"] == "balancing"),
+                    "max_strength": max((c["strength"] for c in cycles), default=0.0),
+                    "total_strength": sum(c["strength"] for c in cycles),
+                }
+
+            b = summarise(base_engine)
+            a = summarise(alt_engine)
+            result["circular_causation"] = {
+                "source_id": str(source_id),
+                "source_label": label_of(source_id),
+                **{k: triple(b[k], a[k]) for k in b},
+            }
+
+        return result
 
 
 # ThresholdAlert dataclass

@@ -188,6 +188,33 @@ class ConflictsResponse(BaseModel):
     total: int
 
 
+class ScenarioComparisonRequest(BaseModel):
+    """Compare analyses between two graph states."""
+    base_ref: str = Field("HEAD", description="Baseline version: HEAD, HEAD~n, branch, tag, or version id")
+    alt_ref: Optional[str] = Field(
+        None,
+        description="Alternative version reference; omit (or 'working') to compare against the current uncommitted graph"
+    )
+    analyses: Optional[List[str]] = Field(
+        None,
+        description="Subset of: structure, centrality, loops, conflicts, circular_causation (default: all applicable)"
+    )
+    source_id: Optional[uuid.UUID] = Field(None, description="Required for circular_causation")
+    top_n: int = Field(10, ge=1, le=100, description="Movers / leverage points to list per metric")
+
+
+class ScenarioComparisonResponse(BaseModel):
+    """Per-analysis base / alternative / delta comparison."""
+    base: Dict[str, Any]
+    alternative: Dict[str, Any]
+    analyses: List[str]
+    structure: Optional[Dict[str, Any]] = None
+    centrality: Optional[Dict[str, Any]] = None
+    loops: Optional[Dict[str, Any]] = None
+    conflicts: Optional[Dict[str, Any]] = None
+    circular_causation: Optional[Dict[str, Any]] = None
+
+
 class LeveragePointsResponse(BaseModel):
     """Nodes ranked by the number of feedback loops they lie on."""
     leverage_points: List[Dict[str, Any]]

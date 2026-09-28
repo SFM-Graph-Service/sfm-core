@@ -2,7 +2,7 @@
 
 import uuid
 from datetime import timedelta
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from api.sfm_service import SFMService
 from api.rest.dependencies import get_sfm_service
@@ -14,6 +14,8 @@ from api.rest.schemas import (
     ConflictsResponse,
     LeveragePointsResponse,
     DataQualityResponse,
+    ScenarioComparisonRequest,
+    ScenarioComparisonResponse,
     TemporalEvolutionRequest,
     TemporalEvolutionResponse,
     UncertaintyPropagationRequest,
@@ -147,6 +149,31 @@ def get_leverage_points(
     intervention perturbs the most feedback structure.
     """
     return LeveragePointsResponse(**service.get_leverage_points(limit=limit))
+
+
+@router.post(
+    "/compare-scenarios",
+    response_model=ScenarioComparisonResponse,
+    summary="Scenario comparison",
+    description="Run the same analyses on two graph versions (or a version and the working graph) and report deltas"
+)
+def compare_scenarios(
+    request: ScenarioComparisonRequest,
+    service: SFMService = Depends(get_sfm_service)
+) -> ScenarioComparisonResponse:
+    from graph.version_control import VersionControlError
+
+    try:
+        result = service.compare_scenarios(
+            base_ref=request.base_ref,
+            alt_ref=request.alt_ref,
+            analyses=request.analyses,
+            source_id=request.source_id,
+            top_n=request.top_n,
+        )
+    except VersionControlError as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e)) from e
+    return ScenarioComparisonResponse(**result)
 
 
 @router.get(

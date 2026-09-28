@@ -811,6 +811,30 @@ GET /api/v1/query/leverage-points?limit=10
 
 Ranks nodes by the number of simple feedback loops they lie on. Returns `{"leverage_points": [{"id", "label", "type", "loop_participation"}], "nodes_in_loops": n}`. Empty until the query engine has been initialized, like the other query endpoints.
 
+### Scenario Comparison
+
+```http
+POST /api/v1/query/compare-scenarios
+```
+
+Runs the same analyses on two graph states and reports base / alternative / delta for each metric. Both states are materialised as standalone graphs, so the live repository is untouched.
+
+```json
+{
+  "base_ref": "baseline",
+  "alt_ref": null,
+  "analyses": ["structure", "centrality", "loops", "conflicts", "circular_causation"],
+  "source_id": "550e8400-...",
+  "top_n": 10
+}
+```
+
+- `base_ref` / `alt_ref` accept `HEAD`, `HEAD~n`, a branch, a tag, or a version id. Omit `alt_ref` (or pass `"working"`) to compare a committed version against the current uncommitted graph — the edit-then-compare what-if workflow.
+- `analyses` defaults to all; `circular_causation` requires `source_id`.
+- Returns `404` for an unknown reference and `400` for an unknown analysis name.
+
+Response sections: `structure` (counts, added/modified/deleted, density), `centrality` (top movers per metric), `loops` (simple cycle count, nodes in loops, leverage points per scenario, participation movers), `conflicts` (totals by severity, `new` and `resolved` descriptions), `circular_causation` (cycle counts, polarity split, max and total strength from `source_id`).
+
 ### Data Quality
 
 ```http

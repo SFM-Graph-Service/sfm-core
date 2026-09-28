@@ -21,6 +21,7 @@ This guide explains the analytical capabilities of SFM Core for institutional ec
    - [Circular Causation Detection](#circular-causation-detection)
    - [Institutional Holarchy](#institutional-holarchy)
    - [Conflict Detection](#conflict-detection)
+   - [Scenario Comparison](#scenario-comparison)
 3. [Advanced Analysis](#advanced-analysis)
    - [Temporal Evolution](#temporal-evolution)
    - [Uncertainty Propagation](#uncertainty-propagation)
@@ -487,6 +488,57 @@ for conflict in conflicts:
         else:
             print("  Requires policy intervention or institutional change")
 ```
+
+---
+
+### Scenario Comparison
+
+**Purpose**: Answer "what changes if we alter this?" by running the same analyses on two graph states and reporting the differences.
+
+**Theory**: Hayden's SFM is a policy-evaluation instrument: the matrix is built, a proposed change is encoded as altered deliveries, and the consequences are read off the analysis. Comparing two snapshots makes that step explicit and repeatable.
+
+**Method**: Both states are materialised as standalone graphs (the live repository is untouched), each analysis runs on both, and every numeric result is reported as `base`, `alternative`, `delta`.
+
+#### Python API
+
+```python
+# Commit the baseline
+service.commit("baseline", tags=["baseline"])
+
+# Encode the proposed change in the working graph: sever one delivery, add another
+service.delete_relationship(subsidy.id)
+service.create_relationship(Relationship(source_id=levy.id, target_id=district.id, kind="funds", weight=0.6))
+
+# Compare working graph against the committed baseline
+result = service.compare_scenarios(base_ref="baseline", alt_ref=None, source_id=district.id)
+
+result["structure"]["relationships"]           # {"base": 12, "alternative": 12, "delta": 0}
+result["loops"]["simple_cycles"]               # {"base": 3, "alternative": 2, "delta": -1}
+result["loops"]["participation_movers"]        # nodes whose loop participation changed
+result["conflicts"]["new"]                     # conflict descriptions present only in the alternative
+result["circular_causation"]["max_strength"]   # strongest loop through `district` in each scenario
+result["centrality"]["betweenness"]["top_movers"]
+```
+
+**Parameters**:
+- `base_ref`, `alt_ref`: `HEAD`, `HEAD~n`, branch, tag, or version id. `alt_ref=None` (or `"working"`) uses the current uncommitted graph.
+- `analyses`: subset of `structure`, `centrality`, `loops`, `conflicts`, `circular_causation` (default all; the last needs `source_id`).
+- `top_n`: movers and leverage points listed per metric.
+
+**Interpretation**:
+- A negative `simple_cycles` delta with the same node count means the change broke feedback structure; check `participation_movers` to see which nodes left loops.
+- `conflicts["new"]` lists tensions the change introduces; `conflicts["resolved"]` lists ones it removes.
+- `circular_causation["max_strength"]` falling while `cycles` stays constant means the loops persist but weaker.
+- Pair with `sensitivity_analysis()` to find which single delivery, varied by ±20%, most moves the outcome, then encode that change and compare.
+
+#### REST API
+
+```bash
+POST /api/query/compare-scenarios
+{"base_ref": "baseline", "alt_ref": null, "source_id": "...", "top_n": 10}
+```
+
+Returns `404` for an unknown reference, `400` for an unknown analysis name.
 
 ---
 

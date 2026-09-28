@@ -330,6 +330,7 @@ class NetworkXSFMQueryEngine(SFMQueryEngine):  # pylint: disable=too-many-public
         self.nx_graph: nx.MultiDiGraph = self._build_networkx_graph()
         self._centrality_cache: Dict[str, Dict[uuid.UUID, float]] = {}
         self._loop_participation: Optional[Dict[uuid.UUID, int]] = None
+        self._simple_cycle_count: Optional[int] = None
 
     def _build_networkx_graph(self) -> nx.MultiDiGraph:
         """Convert SFMGraph to NetworkX graph for analysis."""
@@ -901,6 +902,15 @@ class NetworkXSFMQueryEngine(SFMQueryEngine):  # pylint: disable=too-many-public
                     counts[node_id] += 1
             self._loop_participation = counts
         return self._loop_participation
+
+    def count_simple_cycles(self, max_cycle_length: int = 8) -> int:
+        """Number of simple cycles up to max_cycle_length, on the simple-digraph projection."""
+        if self._simple_cycle_count is None:
+            simple = nx.DiGraph(self.nx_graph)
+            self._simple_cycle_count = sum(
+                1 for _ in nx.simple_cycles(simple, length_bound=max_cycle_length)
+            )
+        return self._simple_cycle_count
 
     def data_quality_report(self) -> Dict[str, Any]:
         """Summarise how well-evidenced the graph's relationships are."""
