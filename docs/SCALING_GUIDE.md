@@ -297,11 +297,15 @@ service = SFMService(config)
 ```python
 # Export from NetworkX
 old_service = SFMService()
-export_data = old_service.export_graph()
+export_data = old_service.export_to_json()
 
 # Import to Neo4j
 new_service = SFMService(config)
-new_service.import_graph(export_data)
+new_service.import_from_json(export_data)
+
+# Or via a file on disk, preserving every relationship field:
+old_service.save("migration.json")
+new_service.load("migration.json")
 ```
 
 4. **Update Scenario Builders**:

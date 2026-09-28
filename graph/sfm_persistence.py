@@ -340,6 +340,65 @@ class NodeSerializer:
             ) from e
 
 
+class RelationshipSerializer:
+    """
+    Single source of truth for Relationship <-> dict conversion.
+
+    Every persistence path (snapshots, version commits, deltas, JSON export and
+    import) must go through this pair so that no field is silently dropped.
+    from_dict tolerates the historical five-field shape (id, source_id,
+    target_id, kind, weight).
+    """
+
+    @staticmethod
+    def to_dict(rel: Any) -> Dict[str, Any]:
+        data: Dict[str, Any] = {
+            'id': str(rel.id),
+            'source_id': str(rel.source_id),
+            'target_id': str(rel.target_id),
+            'kind': rel.kind,
+            'weight': rel.weight,
+        }
+        if rel.meta:
+            data['meta'] = dict(rel.meta)
+        if rel.confidence is not None:
+            data['confidence'] = rel.confidence
+        if rel.confidence_interval is not None:
+            data['confidence_interval'] = list(rel.confidence_interval)
+        if rel.uncertainty_type:
+            data['uncertainty_type'] = rel.uncertainty_type
+        if rel.data_sources:
+            data['data_sources'] = list(rel.data_sources)
+        if rel.source_agreement:
+            data['source_agreement'] = rel.source_agreement
+        if rel.valid_from is not None:
+            data['valid_from'] = rel.valid_from.isoformat()
+        if rel.valid_to is not None:
+            data['valid_to'] = rel.valid_to.isoformat()
+        return data
+
+    @staticmethod
+    def from_dict(data: Dict[str, Any]) -> Any:
+        from graph.sfm_graph import Relationship
+
+        ci = data.get('confidence_interval')
+        return Relationship(
+            id=uuid.UUID(data['id']),
+            source_id=uuid.UUID(data['source_id']),
+            target_id=uuid.UUID(data['target_id']),
+            kind=data.get('kind') or '',
+            weight=data.get('weight'),
+            meta=dict(data.get('meta') or {}),
+            confidence=data.get('confidence'),
+            confidence_interval=(ci[0], ci[1]) if ci else None,
+            uncertainty_type=data.get('uncertainty_type'),
+            data_sources=list(data.get('data_sources') or []),
+            source_agreement=data.get('source_agreement'),
+            valid_from=datetime.fromisoformat(data['valid_from']) if data.get('valid_from') else None,
+            valid_to=datetime.fromisoformat(data['valid_to']) if data.get('valid_to') else None,
+        )
+
+
 class SFMGraphSerializer:
     """Handles serialization and deserialization of SFM graphs."""
 
@@ -387,15 +446,9 @@ class SFMGraphSerializer:
                 nodes_by_type[node_type] = []
             nodes_by_type[node_type].append(NodeSerializer.node_to_dict(node))
 
-        # Serialize relationships
-        relationships = []
-        for rel in graph.relationships.values():
-            relationships.append({
-                'id': str(rel.id),
-                'source_id': str(rel.source_id),
-                'target_id': str(rel.target_id),
-                'kind': rel.kind if hasattr(rel, 'kind') else None,
-            })
+        relationships = [
+            RelationshipSerializer.to_dict(rel) for rel in graph.relationships.values()
+        ]
 
         return {
             'id': str(getattr(graph, 'id', uuid.uuid4())),
@@ -485,18 +538,9 @@ class SFMGraphSerializer:
                 except Exception as e:
                     logger.warning("Failed to deserialize node: %s", str(e))
 
-        # Deserialize relationships
-        from graph.sfm_graph import Relationship
-        relationships_data = data.get('relationships', [])
-        for rel_data in relationships_data:
+        for rel_data in data.get('relationships', []):
             try:
-                rel = Relationship(
-                    id=uuid.UUID(rel_data['id']),
-                    source_id=uuid.UUID(rel_data['source_id']),
-                    target_id=uuid.UUID(rel_data['target_id']),
-                    kind=rel_data.get('kind', '')
-                )
-                graph.add_relationship(rel)
+                graph.add_relationship(RelationshipSerializer.from_dict(rel_data))
             except Exception as e:
                 logger.warning("Failed to deserialize relationship: %s", str(e))
 
@@ -657,14 +701,9 @@ class SFMPersistenceManager:
 
             # Serialize relationships
             for rel in graph.relationships.values():
-                snapshot["relationships"].append({
-                    'id': str(rel.id),
-                    'source_id': str(rel.source_id),
-                    'target_id': str(rel.target_id),
-                    'kind': rel.kind if hasattr(rel, 'kind') else None,
-                    'weight': rel.weight if hasattr(rel, 'weight') else None,
-                    'meta': rel.meta if hasattr(rel, 'meta') else {}
-                })
+                rel_dict = RelationshipSerializer.to_dict(rel)
+                rel_dict.setdefault('meta', {})
+                snapshot["relationships"].append(rel_dict)
 
             # Write to file
             with open(path, 'w', encoding='utf-8') as f:
@@ -702,7 +741,7 @@ class SFMPersistenceManager:
                 raise SFMPersistenceError("Invalid snapshot format: missing required keys")
 
             # Import here to avoid circular dependency
-            from graph.sfm_graph import SFMGraph, Relationship
+            from graph.sfm_graph import SFMGraph
 
             # Create new graph
             graph = SFMGraph()
@@ -723,15 +762,7 @@ class SFMPersistenceManager:
             # Deserialize relationships
             for rel_data in snapshot['relationships']:
                 try:
-                    rel = Relationship(
-                        id=uuid.UUID(rel_data['id']),
-                        source_id=uuid.UUID(rel_data['source_id']),
-                        target_id=uuid.UUID(rel_data['target_id']),
-                        kind=rel_data.get('kind', ''),
-                        weight=rel_data.get('weight'),
-                        meta=rel_data.get('meta', {})
-                    )
-                    graph.add_relationship(rel)
+                    graph.add_relationship(RelationshipSerializer.from_dict(rel_data))
                 except Exception as e:
                     logger.warning("Failed to deserialize relationship: %s", str(e))
 

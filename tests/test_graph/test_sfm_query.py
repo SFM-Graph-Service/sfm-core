@@ -184,16 +184,21 @@ class TestNetworkXSFMQueryEngine(unittest.TestCase):
             self.assertIsInstance(node_id, uuid.UUID)
             self.assertIsInstance(score, float)
 
-        # Test other centrality types
+        # In the chain node1 -> node2 -> node3, node2 is the only broker and the hub
+        self.assertEqual(central_nodes[0][0], self.node2.id)
+
         closeness_nodes = self.engine.get_most_central_nodes(centrality_type="closeness", limit=2)
-        self.assertIsInstance(closeness_nodes, list)
+        self.assertEqual(len(closeness_nodes), 2)
+        self.assertEqual(closeness_nodes[0][0], self.node3.id)  # sink is closest to everything upstream
 
         degree_nodes = self.engine.get_most_central_nodes(centrality_type="degree", limit=2)
-        self.assertIsInstance(degree_nodes, list)
+        self.assertEqual(degree_nodes[0][0], self.node2.id)
+        self.assertGreater(degree_nodes[0][1], degree_nodes[1][1])
 
-        # Test with node type filter
+        # Type filter keeps only instances of the given class
         filtered_nodes = self.engine.get_most_central_nodes(node_type=Node, limit=2)
-        self.assertIsInstance(filtered_nodes, list)
+        self.assertEqual(len(filtered_nodes), 2)
+        self.assertEqual(self.engine.get_most_central_nodes(node_type=InstitutionalHolarchy), [])
 
     def test_get_node_neighbors(self):
         """Test getting node neighbors."""
@@ -228,7 +233,9 @@ class TestNetworkXSFMQueryEngine(unittest.TestCase):
     def test_identify_bottlenecks(self):
         """Test identifying bottleneck nodes."""
         bottlenecks = self.engine.identify_bottlenecks(FlowNature.MATERIAL)
-        self.assertIsInstance(bottlenecks, list)
+        # node2 carries every path between node1 and node3
+        self.assertEqual(bottlenecks, [self.node2.id])
+        self.assertEqual(NetworkXSFMQueryEngine(SFMGraph()).identify_bottlenecks(FlowNature.MATERIAL), [])
 
     def test_get_network_density(self):
         """Test network density calculation."""
@@ -240,7 +247,10 @@ class TestNetworkXSFMQueryEngine(unittest.TestCase):
     def test_identify_communities(self):
         """Test community detection."""
         communities = self.engine.identify_communities()
-        self.assertIsInstance(communities, dict)
+        # A connected 3-node chain is a single community containing every node
+        self.assertEqual(len(communities), 1)
+        self.assertEqual(set(next(iter(communities.values()))), {self.node1.id, self.node2.id, self.node3.id})
+        self.assertEqual(NetworkXSFMQueryEngine(SFMGraph()).identify_communities(), {})
 
     def test_comprehensive_node_analysis(self):
         """Test comprehensive node analysis."""

@@ -39,11 +39,11 @@ sfm-core provides comprehensive data export for use with external visualization 
 ### NetworkX Graph Formats
 - **GEXF** (Graph Exchange XML Format)
   - Use with: Gephi, web-based graph visualization
-  - Export: `service.export_to_gexf("graph.gexf")`
+  - Export: `service.export_snapshot("graph.gexf", export_format="gexf")` or `GET /api/v1/export/graph?format=gexf`
   
 - **GraphML** (Graph Markup Language)
   - Use with: yEd, Cytoscape, Gephi
-  - Export: `service.export_to_graphml("graph.graphml")`
+  - Export: `service.export_snapshot("graph.graphml", export_format="graphml")` or `GET /api/v1/export/graph?format=graphml`
 
 ### Spreadsheet Format
 - **Excel** (.xlsx)

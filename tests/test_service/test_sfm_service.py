@@ -270,7 +270,8 @@ class TestPhase2QueryMethods(unittest.TestCase):
 
         result = self.service.get_circular_causation(created.id)
 
-        self.assertIsInstance(result, list)
+        # Engine not initialized: the documented contract is an empty list, not None or an error
+        self.assertEqual(result, [])
 
     def test_get_holarchy_nonexistent_institution(self):
         """Test holarchy with nonexistent institution."""
@@ -299,7 +300,11 @@ class TestPhase2QueryMethods(unittest.TestCase):
         """Test conflict detection."""
         result = self.service.get_conflicts()
 
-        self.assertIsInstance(result, list)
+        # Engine not initialized: the documented contract is an empty list
+        self.assertEqual(result, [])
+
+        self.service.initialize_query_engine()
+        self.assertEqual(self.service.get_conflicts(), [])
 
 
 class TestDataClearing(unittest.TestCase):

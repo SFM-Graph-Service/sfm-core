@@ -2203,52 +2203,16 @@ class SFMService:
     @staticmethod
     def _relationship_to_dict(rel: Relationship) -> Dict[str, Any]:
         """Serialize a relationship for snapshot or delta persistence, including uncertainty fields."""
-        data: Dict[str, Any] = {
-            'id': str(rel.id),
-            'source_id': str(rel.source_id),
-            'target_id': str(rel.target_id),
-            'kind': rel.kind,
-            'weight': rel.weight,
-        }
-        if rel.meta:
-            data['meta'] = dict(rel.meta)
-        if rel.confidence is not None:
-            data['confidence'] = rel.confidence
-        if rel.confidence_interval is not None:
-            data['confidence_interval'] = list(rel.confidence_interval)
-        if rel.uncertainty_type:
-            data['uncertainty_type'] = rel.uncertainty_type
-        if rel.data_sources:
-            data['data_sources'] = list(rel.data_sources)
-        if rel.source_agreement:
-            data['source_agreement'] = rel.source_agreement
-        if rel.valid_from is not None:
-            data['valid_from'] = rel.valid_from.isoformat()
-        if rel.valid_to is not None:
-            data['valid_to'] = rel.valid_to.isoformat()
-        return data
+        from graph.sfm_persistence import RelationshipSerializer
+
+        return RelationshipSerializer.to_dict(rel)
 
     @staticmethod
     def _relationship_from_dict(rel_data: Dict[str, Any]) -> Relationship:
         """Inverse of _relationship_to_dict; tolerates the older five-field shape."""
-        from datetime import datetime
+        from graph.sfm_persistence import RelationshipSerializer
 
-        ci = rel_data.get('confidence_interval')
-        return Relationship(
-            id=uuid.UUID(rel_data['id']),
-            source_id=uuid.UUID(rel_data['source_id']),
-            target_id=uuid.UUID(rel_data['target_id']),
-            kind=rel_data.get('kind') or '',
-            weight=rel_data.get('weight'),
-            meta=dict(rel_data.get('meta') or {}),
-            confidence=rel_data.get('confidence'),
-            confidence_interval=(ci[0], ci[1]) if ci else None,
-            uncertainty_type=rel_data.get('uncertainty_type'),
-            data_sources=list(rel_data.get('data_sources') or []),
-            source_agreement=rel_data.get('source_agreement'),
-            valid_from=datetime.fromisoformat(rel_data['valid_from']) if rel_data.get('valid_from') else None,
-            valid_to=datetime.fromisoformat(rel_data['valid_to']) if rel_data.get('valid_to') else None,
-        )
+        return cast(Relationship, RelationshipSerializer.from_dict(rel_data))
 
     @staticmethod
     def _resolve_incremental_paths(
