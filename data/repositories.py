@@ -158,7 +158,7 @@ class NetworkXSFMRepository(SFMRepository):
         self.change_tracker = ChangeTracker()
 
     def count_nodes(self) -> int:
-        return self.graph.number_of_nodes()
+        return int(self.graph.number_of_nodes())
 
     def create_node(self, node: Node) -> Node:
         """Create a new node in the repository. Supports all Beta node types."""

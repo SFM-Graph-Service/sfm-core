@@ -3361,9 +3361,9 @@ class SFMService:
         if "centrality" in requested:
             centrality: Dict[str, Any] = {}
             for kind in ("betweenness", "degree", "eigenvector"):
-                base_scores = base_engine.get_all_centrality(kind)
-                alt_scores = alt_engine.get_all_centrality(kind)
-                movers = []
+                base_scores: Dict[uuid.UUID, float] = base_engine.get_all_centrality(kind)
+                alt_scores: Dict[uuid.UUID, float] = alt_engine.get_all_centrality(kind)
+                movers: List[Dict[str, Any]] = []
                 for node_id in set(base_scores) | set(alt_scores):
                     b = base_scores.get(node_id, 0.0)
                     a = alt_scores.get(node_id, 0.0)
@@ -3387,13 +3387,16 @@ class SFMService:
                     for n, c in ranked[:top_n] if c > 0
                 ]
 
-            movers = []
+            loop_movers: List[Dict[str, Any]] = []
             for node_id in set(base_part) | set(alt_part):
-                b = base_part.get(node_id, 0)
-                a = alt_part.get(node_id, 0)
-                if a != b:
-                    movers.append({"id": str(node_id), "label": label_of(node_id), "base": b, "alternative": a, "delta": a - b})
-            movers.sort(key=lambda m: abs(m["delta"]), reverse=True)
+                base_count = base_part.get(node_id, 0)
+                alt_count = alt_part.get(node_id, 0)
+                if alt_count != base_count:
+                    loop_movers.append({
+                        "id": str(node_id), "label": label_of(node_id),
+                        "base": base_count, "alternative": alt_count, "delta": alt_count - base_count,
+                    })
+            loop_movers.sort(key=lambda m: abs(m["delta"]), reverse=True)
 
             result["loops"] = {
                 "simple_cycles": triple(base_engine.count_simple_cycles(), alt_engine.count_simple_cycles()),
@@ -3402,7 +3405,7 @@ class SFMService:
                     sum(1 for c in alt_part.values() if c > 0),
                 ),
                 "leverage_points": {"base": leverage(base_part), "alternative": leverage(alt_part)},
-                "participation_movers": movers[:top_n],
+                "participation_movers": loop_movers[:top_n],
             }
 
         if "conflicts" in requested:
@@ -3437,12 +3440,12 @@ class SFMService:
                     "total_strength": sum(c["strength"] for c in cycles),
                 }
 
-            b = summarise(base_engine)
-            a = summarise(alt_engine)
+            base_summary = summarise(base_engine)
+            alt_summary = summarise(alt_engine)
             result["circular_causation"] = {
                 "source_id": str(source_id),
                 "source_label": label_of(source_id),
-                **{k: triple(b[k], a[k]) for k in b},
+                **{k: triple(base_summary[k], alt_summary[k]) for k in base_summary},
             }
 
         return result

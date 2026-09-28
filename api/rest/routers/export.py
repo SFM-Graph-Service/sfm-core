@@ -174,7 +174,7 @@ async def export_graph(
 
 @router.get("/matrices", response_model=MatrixListResponse, summary="List delivery matrices available for export")
 async def list_matrices(service: SFMService = Depends(get_sfm_service)) -> MatrixListResponse:
-    matrices = service.list_nodes(SFMDeliveryMatrix)
+    matrices = [m for m in service.list_nodes(SFMDeliveryMatrix) if isinstance(m, SFMDeliveryMatrix)]
     return MatrixListResponse(matrices=[
         MatrixSummary(
             id=m.id,
