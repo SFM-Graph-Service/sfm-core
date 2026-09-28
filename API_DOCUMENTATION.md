@@ -12,6 +12,7 @@ Production-ready REST API for the Social Fabric Matrix (SFM) Core framework, pro
 - [Relationship CRUD Operations](#relationship-crud-operations)
 - [Query Analysis (Phase 2)](#query-analysis-phase-2)
 - [Evaluation (Phase 3)](#evaluation-phase-3)
+- [Import & Export](#import--export)
 - [Error Handling](#error-handling)
 - [OpenAPI Documentation](#openapi-documentation)
 
@@ -884,6 +885,43 @@ Each returns:
   "entity_id": "uuid-string",
   "evaluation_type": "evaluation_name"
 }
+```
+
+## Import & Export
+
+### Import
+
+- `GET /api/v1/import/formats` — list import adapters and whether each is available
+- `POST /api/v1/import/csv` — multipart upload of `.csv` / `.tsv` / `.xlsx` / `.xls`; form fields `node_type`, `mapping_template` (`basic_node`, `csv_institution`, `oecd_indicator`, `worldbank_indicator`), `dry_run`, `continue_on_error`, `batch_size`. An unknown `mapping_template` returns `400` listing the valid names.
+- `POST /api/v1/import/oecd` — form fields `dataset_id`, `filters` (JSON string), `dry_run`, `batch_size`
+- `POST /api/v1/import/worldbank` — form fields `country`, `indicator`, `start_year`, `end_year`, `dry_run`, `batch_size`
+
+All import endpoints return an `ImportResult`:
+```json
+{
+  "nodes_created": 147,
+  "nodes_failed": 3,
+  "relationships_created": 0,
+  "relationships_failed": 0,
+  "errors": [{"row": 15, "field": "type", "message": "...", "suggestion": "..."}],
+  "warnings": [],
+  "elapsed_time": 0.52
+}
+```
+If the import would exceed the configured `GRAPH_SIZE_LIMIT`, the remaining rows are recorded as failures with a `GRAPH_SIZE_EXCEEDED` message rather than being silently dropped.
+
+### Export
+
+Every export endpoint streams a file download (`Content-Disposition: attachment`).
+
+- `GET /api/v1/export/formats` — list export formats with their scope (`graph` or `matrix`)
+- `GET /api/v1/export/graph?format=json|graphml|gexf` — whole repository. `json` is the default. `graphml` and `gexf` return `400` on an empty graph.
+- `GET /api/v1/export/matrices` — list delivery matrices with component and cell counts
+- `GET /api/v1/export/matrix/{matrix_id}?format=xlsx|xmile` — one delivery matrix. `xlsx` (default) produces Hayden's three-sheet workbook; `include_cell_descriptions=false` and `include_delivery_details=false` drop the optional sheets. `xmile` produces an OASIS XMILE 1.0 system-dynamics model. Returns `404` if the id is not a delivery matrix.
+
+```bash
+curl -o graph.gexf "http://localhost:8000/api/v1/export/graph?format=gexf"
+curl -o finance.xlsx "http://localhost:8000/api/v1/export/matrix/<matrix-uuid>?format=xlsx"
 ```
 
 ## Error Handling

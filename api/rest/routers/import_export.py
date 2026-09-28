@@ -1,11 +1,12 @@
 """
-Import/Export router for bulk data operations.
+Import router for bulk data operations.
 
 Provides endpoints for:
 - Uploading and importing CSV/Excel files
 - Importing from external APIs (OECD, World Bank)
 - Listing supported import formats
-- Export endpoints (future)
+
+Export endpoints live in api.rest.routers.export.
 """
 
 from typing import Optional, List
@@ -13,10 +14,11 @@ from pathlib import Path
 import logging
 import tempfile
 
-from fastapi import APIRouter, UploadFile, File, Form, HTTPException, status
+from fastapi import APIRouter, Depends, UploadFile, File, Form, HTTPException, status
 from pydantic import BaseModel, Field
 
 from api.rest.dependencies import get_sfm_service
+from api.sfm_service import SFMService
 from data.importers import (
     CSVImportAdapter,
     OECDAdapter,
@@ -180,7 +182,8 @@ async def import_csv(
     ),
     dry_run: bool = Form(default=False, description="Validate without persisting data"),
     continue_on_error: bool = Form(default=True, description="Continue processing after errors"),
-    batch_size: int = Form(default=1000, description="Number of nodes per batch")
+    batch_size: int = Form(default=1000, description="Number of nodes per batch"),
+    service: SFMService = Depends(get_sfm_service),
 ):
     """
     Import nodes from CSV or Excel file.
@@ -238,7 +241,6 @@ async def import_csv(
 
         # Create adapter and import
         adapter = CSVImportAdapter(mapping, config)
-        service = get_sfm_service()
         result = service.import_bulk(temp_path, adapter=adapter, config=config)
 
         # Convert result to response model
@@ -281,7 +283,8 @@ async def import_oecd(
     dataset_id: str = Form(..., description="OECD dataset ID (e.g., GREEN_GROWTH, QNA)"),
     filters: Optional[str] = Form(None, description="JSON string of filters (e.g., {\"LOCATION\": \"USA\"})"),
     dry_run: bool = Form(default=False, description="Validate without persisting data"),
-    batch_size: int = Form(default=1000, description="Number of nodes per batch")
+    batch_size: int = Form(default=1000, description="Number of nodes per batch"),
+    service: SFMService = Depends(get_sfm_service),
 ):
     """
     Import data from OECD.Stat API.
@@ -326,7 +329,6 @@ async def import_oecd(
         )
 
         # Import via service
-        service = get_sfm_service()
         source = f"oecd:{dataset_id}"
         result = service.import_bulk(source, adapter=adapter, config=config)
 
@@ -368,7 +370,8 @@ async def import_worldbank(
     start_year: Optional[int] = Form(None, description="Start year for data range"),
     end_year: Optional[int] = Form(None, description="End year for data range"),
     dry_run: bool = Form(default=False, description="Validate without persisting data"),
-    batch_size: int = Form(default=1000, description="Number of nodes per batch")
+    batch_size: int = Form(default=1000, description="Number of nodes per batch"),
+    service: SFMService = Depends(get_sfm_service),
 ):
     """
     Import data from World Bank API.
@@ -404,7 +407,6 @@ async def import_worldbank(
         )
 
         # Import via service
-        service = get_sfm_service()
         source = f"worldbank:{country}:{indicator}"
         result = service.import_bulk(source, adapter=adapter, config=config)
 

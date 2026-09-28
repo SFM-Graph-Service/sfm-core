@@ -285,11 +285,11 @@ uvicorn api.rest.app:app --host 0.0.0.0 --port 8000
 curl http://localhost:8000/docs  # Swagger UI
 ```
 
-**Export Formats:**
-- **Excel**: Matrix view + cell descriptions + delivery details
-- **System Dynamics**: XMILE format for Stella/Vensim
-- **NetworkX**: GEXF, GraphML for external visualization tools (Gephi, yEd)
-- **JSON**: Full graph state with metadata
+**Export Formats** (Python API and `GET /api/v1/export/...`):
+- **Excel**: Matrix view + cell descriptions + delivery details — `/export/matrix/{id}?format=xlsx`
+- **System Dynamics**: XMILE format for Stella/Vensim — `/export/matrix/{id}?format=xmile`
+- **NetworkX**: GEXF, GraphML for external visualization tools (Gephi, yEd) — `/export/graph?format=gexf|graphml`
+- **JSON**: Full graph state with metadata — `/export/graph?format=json`
 
 > **Note**: sfm-core is a backend library focused on institutional analysis and graph operations. For interactive visualization and frontend applications, see [sfm-visualization](https://github.com/SFM-Graph-Service/sfm-visualization) - a modern React/Next.js frontend with network graphs, matrix heatmaps, and temporal animations.
 
