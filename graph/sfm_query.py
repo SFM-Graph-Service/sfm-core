@@ -405,7 +405,7 @@ class NetworkXSFMQueryEngine(SFMQueryEngine):  # pylint: disable=too-many-public
         elif centrality_type == "degree":
             scores = nx.degree_centrality(self.nx_graph)
         elif centrality_type == "eigenvector":
-            simple = nx.DiGraph(self.nx_graph)
+            simple: nx.DiGraph = nx.DiGraph(self.nx_graph)
             try:
                 scores = nx.eigenvector_centrality(simple, max_iter=1000, weight="weight")
             except (nx.PowerIterationFailedConvergence, nx.NetworkXException):
@@ -896,7 +896,7 @@ class NetworkXSFMQueryEngine(SFMQueryEngine):  # pylint: disable=too-many-public
         """
         if self._loop_participation is None:
             counts: Dict[uuid.UUID, int] = {n: 0 for n in self.nx_graph.nodes}
-            simple = nx.DiGraph(self.nx_graph)
+            simple: nx.DiGraph = nx.DiGraph(self.nx_graph)
             for cycle in nx.simple_cycles(simple, length_bound=max_cycle_length):
                 for node_id in cycle:
                     counts[node_id] += 1
@@ -906,7 +906,7 @@ class NetworkXSFMQueryEngine(SFMQueryEngine):  # pylint: disable=too-many-public
     def count_simple_cycles(self, max_cycle_length: int = 8) -> int:
         """Number of simple cycles up to max_cycle_length, on the simple-digraph projection."""
         if self._simple_cycle_count is None:
-            simple = nx.DiGraph(self.nx_graph)
+            simple: nx.DiGraph = nx.DiGraph(self.nx_graph)
             self._simple_cycle_count = sum(
                 1 for _ in nx.simple_cycles(simple, length_bound=max_cycle_length)
             )
