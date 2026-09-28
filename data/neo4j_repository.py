@@ -423,6 +423,15 @@ class Neo4jSFMRepository(SFMRepository):
         result = tx.run(query, id=str(node_id)).single()
         return result['deleted'] > 0 if result else False
 
+    def count_nodes(self) -> int:
+        with self._driver.session() as session:
+            return cast(int, session.execute_read(self._count_nodes_tx))
+
+    @staticmethod
+    def _count_nodes_tx(tx: ManagedTransaction) -> int:
+        result = tx.run("MATCH (n) WHERE NOT n:_Neo4jInternal RETURN count(n) AS c").single()
+        return int(result["c"]) if result else 0
+
     def list_nodes(self, node_type: Optional[Type[Node]] = None) -> List[Node]:
         """
         List all nodes, optionally filtered by type.

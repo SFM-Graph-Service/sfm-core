@@ -234,6 +234,7 @@ class NetworkXSFMQueryEngine(SFMQueryEngine):  # pylint: disable=too-many-public
     def __init__(self, graph: SFMGraph):
         super().__init__(graph)
         self.nx_graph: nx.MultiDiGraph = self._build_networkx_graph()
+        self._centrality_cache: Dict[str, Dict[uuid.UUID, float]] = {}
 
     def _build_networkx_graph(self) -> nx.MultiDiGraph:
         """Convert SFMGraph to NetworkX graph for analysis."""
@@ -286,20 +287,45 @@ class NetworkXSFMQueryEngine(SFMQueryEngine):  # pylint: disable=too-many-public
 
         return nx_graph
 
+    SUPPORTED_CENTRALITY_TYPES = ("betweenness", "closeness", "degree", "eigenvector")
+
+    def get_all_centrality(self, centrality_type: str = "betweenness") -> Dict[uuid.UUID, float]:
+        """
+        Return the centrality score for every node, computed once per engine instance.
+
+        Unknown centrality_type falls back to betweenness. Eigenvector centrality
+        is computed on a simple DiGraph projection (MultiDiGraph is unsupported by
+        NetworkX) and returns all zeros if the power iteration fails to converge.
+        """
+        if centrality_type not in self.SUPPORTED_CENTRALITY_TYPES:
+            centrality_type = "betweenness"
+
+        cached = self._centrality_cache.get(centrality_type)
+        if cached is not None:
+            return cached
+
+        if centrality_type == "closeness":
+            scores = nx.closeness_centrality(self.nx_graph)
+        elif centrality_type == "degree":
+            scores = nx.degree_centrality(self.nx_graph)
+        elif centrality_type == "eigenvector":
+            simple = nx.DiGraph(self.nx_graph)
+            try:
+                scores = nx.eigenvector_centrality(simple, max_iter=1000, weight="weight")
+            except (nx.PowerIterationFailedConvergence, nx.NetworkXException):
+                scores = {n: 0.0 for n in simple.nodes}
+        else:
+            scores = nx.betweenness_centrality(self.nx_graph)
+
+        result = {node_id: float(score) for node_id, score in scores.items()}
+        self._centrality_cache[centrality_type] = result
+        return result
+
     def get_node_centrality(
         self, node_id: uuid.UUID, centrality_type: str = "betweenness"
     ) -> float:
         """Calculate centrality measures for a node."""
-        if centrality_type == "betweenness":
-            centrality = nx.betweenness_centrality(self.nx_graph)
-        elif centrality_type == "closeness":
-            centrality = nx.closeness_centrality(self.nx_graph)
-        elif centrality_type == "degree":
-            centrality = nx.degree_centrality(self.nx_graph)
-        else:
-            centrality = nx.betweenness_centrality(self.nx_graph)
-
-        return float(centrality.get(node_id, 0.0))
+        return self.get_all_centrality(centrality_type).get(node_id, 0.0)
 
     def get_most_central_nodes(
         self,
@@ -308,14 +334,7 @@ class NetworkXSFMQueryEngine(SFMQueryEngine):  # pylint: disable=too-many-public
         limit: int = 10,
     ) -> List[Tuple[uuid.UUID, float]]:
         """Get the most central nodes by type."""
-        if centrality_type == "betweenness":
-            all_centralities = nx.betweenness_centrality(self.nx_graph)
-        elif centrality_type == "closeness":
-            all_centralities = nx.closeness_centrality(self.nx_graph)
-        elif centrality_type == "degree":
-            all_centralities = nx.degree_centrality(self.nx_graph)
-        else:
-            all_centralities = nx.betweenness_centrality(self.nx_graph)
+        all_centralities = self.get_all_centrality(centrality_type)
 
         # Filter by node type if specified
         if node_type:
@@ -925,10 +944,31 @@ class NetworkXSFMQueryEngine(SFMQueryEngine):  # pylint: disable=too-many-public
         return None
 
     def _find_all_paths_to_node(self, target_id: uuid.UUID, max_depth: int = 5) -> List[List[uuid.UUID]]:
-        """Find all paths leading to target node."""
-        # Simplified implementation - would use BFS/DFS in practice
-        # Returns list of paths, where each path is list of relationship IDs
-        return []  # Placeholder
+        """
+        Find all simple upstream paths ending at target node.
+
+        Returns a list of paths; each path is an ordered list of relationship IDs
+        from the furthest upstream edge to the edge entering target_id. Only edges
+        backed by a Relationship (not delivery-cell edges) are followed, since the
+        sensitivity calculation varies Relationship.weight.
+        """
+        if target_id not in self.nx_graph:
+            return []
+
+        paths: List[List[uuid.UUID]] = []
+
+        def walk(node: uuid.UUID, path: List[uuid.UUID], visited: set, depth: int) -> None:
+            if depth >= max_depth:
+                return
+            for pred, _, key in self.nx_graph.in_edges(node, keys=True):
+                if key not in self.graph.relationships or pred in visited:
+                    continue
+                new_path = [key] + path
+                paths.append(new_path)
+                walk(pred, new_path, visited | {pred}, depth + 1)
+
+        walk(target_id, [], {target_id}, 0)
+        return paths
 
     def _calculate_path_effect(self, path: List[uuid.UUID]) -> float:
         """Calculate cumulative effect along a path."""

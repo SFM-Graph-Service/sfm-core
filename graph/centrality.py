@@ -35,7 +35,8 @@ def compute_centrality_metrics(
 
     Builds a directed graph from the delivery matrix where each non-empty
     cell becomes a weighted edge (weight = number of deliveries). Computes
-    betweenness, degree, and closeness centrality for all component nodes.
+    betweenness, degree, closeness, and eigenvector centrality for all
+    component nodes.
 
     Args:
         matrix: SFM delivery matrix containing cells and deliveries.
@@ -49,6 +50,7 @@ def compute_centrality_metrics(
                 'betweenness': {'Director Smith': 0.45, ...},
                 'degree':      {'Director Smith': 0.60, ...},
                 'closeness':   {'Director Smith': 0.55, ...},
+                'eigenvector': {'Director Smith': 0.40, ...},
             }
     """
     G: nx.DiGraph = nx.DiGraph()
@@ -73,12 +75,17 @@ def compute_centrality_metrics(
             )
 
     if G.number_of_nodes() == 0:
-        return {"betweenness": {}, "degree": {}, "closeness": {}}
+        return {"betweenness": {}, "degree": {}, "closeness": {}, "eigenvector": {}}
 
     # Use distance for path-based centrality (inverted strength)
     betweenness_by_id = nx.betweenness_centrality(G, weight="distance")
     degree_by_id = nx.degree_centrality(G)
     closeness_by_id = nx.closeness_centrality(G, distance="distance")
+    # Eigenvector uses raw strength; power iteration can fail on some DAG-like shapes
+    try:
+        eigenvector_by_id = nx.eigenvector_centrality(G, max_iter=1000, weight="weight")
+    except (nx.PowerIterationFailedConvergence, nx.NetworkXException):
+        eigenvector_by_id = {node_id: 0.0 for node_id in G.nodes}
 
     def _label_map(scores_by_id: Dict[uuid.UUID, float]) -> Dict[str, float]:
         result: Dict[str, float] = {}
@@ -91,6 +98,7 @@ def compute_centrality_metrics(
         "betweenness": _label_map(betweenness_by_id),
         "degree": _label_map(degree_by_id),
         "closeness": _label_map(closeness_by_id),
+        "eigenvector": _label_map(eigenvector_by_id),
     }
 
 
@@ -118,6 +126,7 @@ def format_centrality_report(
         "betweenness": "Betweenness Centrality (broker/bridge role)",
         "degree": "Degree Centrality (hub connectivity)",
         "closeness": "Closeness Centrality (communication reach)",
+        "eigenvector": "Eigenvector Centrality (influence via influential neighbours)",
     }
 
     for metric_key, metric_label in metric_labels.items():

@@ -155,9 +155,24 @@ class TestNetworkXSFMQueryEngine(unittest.TestCase):
         degree = self.engine.get_node_centrality(self.node1.id, "degree")
         self.assertIsInstance(degree, float)
 
+        eigenvector = self.engine.get_node_centrality(self.node1.id, "eigenvector")
+        self.assertIsInstance(eigenvector, float)
+        self.assertGreaterEqual(eigenvector, 0.0)
+
         # Test default (unknown type falls back to betweenness)
         default = self.engine.get_node_centrality(self.node1.id, "unknown")
         self.assertIsInstance(default, float)
+        self.assertEqual(default, centrality)
+
+    def test_centrality_is_cached_per_engine(self):
+        """Repeated centrality lookups reuse the full-graph computation."""
+        first = self.engine.get_all_centrality("betweenness")
+        second = self.engine.get_all_centrality("betweenness")
+        self.assertIs(first, second)
+        self.assertEqual(set(first), {self.node1.id, self.node2.id, self.node3.id})
+        for kind in NetworkXSFMQueryEngine.SUPPORTED_CENTRALITY_TYPES:
+            self.assertEqual(len(self.engine.get_all_centrality(kind)), 3)
+            self.assertIn(kind, self.engine._centrality_cache)
 
     def test_get_most_central_nodes(self):
         """Test getting most central nodes."""
@@ -754,8 +769,31 @@ class TestUncertaintyAnalysis(unittest.TestCase):
         # Verify outcome node
         self.assertEqual(result["outcome_node"], "Node3")
 
-        # Verify rankings structure (even if empty, should be a list)
-        self.assertIsInstance(result["sensitivity_ranking"], list)
+        # Paths into node3: [rel2], [rel1, rel2], [rel3] -> 4 relationship entries
+        ranking = result["sensitivity_ranking"]
+        self.assertEqual(len(ranking), 4)
+        for entry in ranking:
+            for key in ("relationship", "source", "target", "base_weight", "effect_range", "sensitivity"):
+                self.assertIn(key, entry)
+        self.assertEqual(
+            [abs(e["sensitivity"]) for e in ranking],
+            sorted((abs(e["sensitivity"]) for e in ranking), reverse=True),
+        )
+        # Weights must be restored after the analysis
+        self.assertEqual(self.rel1.weight, 0.8)
+        self.assertEqual(self.rel2.weight, 0.6)
+
+    def test_find_all_paths_to_node(self):
+        """All simple upstream paths are enumerated as relationship-id lists."""
+        paths = self.engine._find_all_paths_to_node(self.node3.id, max_depth=5)
+        as_sets = {tuple(p) for p in paths}
+        self.assertEqual(as_sets, {
+            (self.rel2.id,),
+            (self.rel1.id, self.rel2.id),
+            (self.rel3.id,),
+        })
+        self.assertEqual(self.engine._find_all_paths_to_node(uuid.uuid4()), [])
+        self.assertEqual(self.engine._find_all_paths_to_node(self.node1.id), [])
 
     def test_relationship_uncertainty_fields(self):
         """Test that uncertainty fields are properly set on relationships."""

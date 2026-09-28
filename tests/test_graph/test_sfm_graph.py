@@ -488,6 +488,44 @@ class TestSFMGraph(unittest.TestCase):
         )
 
 
+    def test_remove_relationship(self):
+        """remove_relationship drops the edge and invalidates the cache."""
+        a = Node(label="A")
+        b = Node(label="B")
+        self.graph.add_node(a)
+        self.graph.add_node(b)
+        rel = Relationship(source_id=a.id, target_id=b.id, kind="x")
+        self.graph.add_relationship(rel)
+        self.assertEqual(len(self.graph.get_node_relationships(a.id)), 1)
+
+        self.assertTrue(self.graph.remove_relationship(rel.id))
+        self.assertNotIn(rel.id, self.graph.relationships)
+        self.assertEqual(self.graph.get_node_relationships(a.id), [])
+        self.assertFalse(self.graph.remove_relationship(rel.id))
+
+    def test_remove_node_cascades_to_incident_relationships(self):
+        """Removing a node must not leave dangling relationships or stale cache entries."""
+        a = Node(label="A")
+        b = Node(label="B")
+        c = Node(label="C")
+        for n in (a, b, c):
+            self.graph.add_node(n)
+        ab = Relationship(source_id=a.id, target_id=b.id, kind="x")
+        bc = Relationship(source_id=b.id, target_id=c.id, kind="x")
+        ac = Relationship(source_id=a.id, target_id=c.id, kind="x")
+        for r in (ab, bc, ac):
+            self.graph.add_relationship(r)
+
+        # Warm the cache for a neighbour so a stale entry would be observable
+        self.assertEqual(len(self.graph.get_node_relationships(a.id)), 2)
+
+        self.assertTrue(self.graph.remove_node_from_memory(b.id))
+        self.assertEqual(set(self.graph.relationships), {ac.id})
+        self.assertEqual([r.id for r in self.graph.get_node_relationships(a.id)], [ac.id])
+        self.assertEqual([r.id for r in self.graph.get_node_relationships(c.id)], [ac.id])
+        self.assertFalse(self.graph.remove_node_from_memory(b.id))
+
+
 class TestSFMGraphMetadata(unittest.TestCase):
     """Test suite for SFMGraph metadata and versioning."""
 

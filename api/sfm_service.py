@@ -23,6 +23,7 @@ from models.exceptions import (
     SFMValidationError,
     SFMNotFoundError,
     NodeCreationError,
+    GraphSizeExceededError,
 )
 from data.repositories import (
     SFMRepository,
@@ -97,26 +98,45 @@ class SFMService:
             neo4j_password=self.config.neo4j_password,
         )
 
-        # Query engine will be initialized in Phase 2 Step 2
         self._query_engine: Optional[Any] = None
         self._version_controller: Optional["SFMVersionController"] = None
 
+        # Monotonic counter bumped on every mutation; the query engine records the
+        # version it was built from so it can be rebuilt lazily when stale.
+        self._graph_version: int = 0
+        self._engine_version: int = -1
+
         logger.info("SFM Service initialized with storage type: %s", self.config.storage_type)
+
+    def _bump_graph_version(self) -> None:
+        self._graph_version += 1
+
+    def _ensure_capacity(self, additional: int = 1, operation: str = "create_node") -> None:
+        limit = self.config.graph_size_limit
+        if not limit or limit <= 0:
+            return
+        current = self._repository.count_nodes()
+        if current + additional > limit:
+            raise GraphSizeExceededError(
+                current_size=current,
+                additional=additional,
+                limit=limit,
+                operation=operation,
+            )
 
     def initialize_query_engine(self):
         """
-        Initialize the query engine from the current graph state.
+        Build (or rebuild) the query engine from the current graph state.
 
-        This must be called after nodes/relationships are added to enable
-        query methods like ceremonial analysis, conflict detection, etc.
+        Enables query methods like ceremonial analysis, conflict detection, etc.
+        After the first call the engine is rebuilt automatically whenever the
+        graph is mutated, so callers do not need to invoke this again.
         """
         from graph.sfm_query import NetworkXSFMQueryEngine
 
-        # Load the complete SFMGraph from the repository
         graph = self._repository.load_graph()
-
-        # Create the query engine
         self._query_engine = NetworkXSFMQueryEngine(graph)
+        self._engine_version = self._graph_version
         logger.info("Query engine initialized with %d nodes", len(list(graph)))
 
     @property
@@ -127,12 +147,18 @@ class SFMService:
     @property
     def query_engine(self) -> Any:
         """
-        Get the query engine.
-        Phase 2 Step 2 will create the actual query engine.
+        Get the query engine, or None if initialize_query_engine() has never been called.
+
+        Once initialized, a stale engine (graph mutated since last build) is
+        rebuilt transparently before being returned.
         """
         if self._query_engine is None:
-            # Placeholder - will be replaced in Phase 2 Step 2
             logger.warning("Query engine not yet initialized")
+            return None
+        if self._engine_version != self._graph_version:
+            logger.debug("Query engine stale (graph v%d, engine v%d); rebuilding",
+                         self._graph_version, self._engine_version)
+            self.initialize_query_engine()
         return self._query_engine
 
     def get_health(self) -> ServiceHealth:
@@ -161,7 +187,9 @@ class SFMService:
             SFMValidationError: If validation fails
         """
         try:
+            self._ensure_capacity(1)
             created_node = self._repository.create_node(node)
+            self._bump_graph_version()
             logger.info("Created node %s of type %s", created_node.id, type(created_node).__name__)
             return created_node
         except Exception as e:
@@ -193,7 +221,9 @@ class SFMService:
         Raises:
             SFMNotFoundError: If node doesn't exist
         """
-        return self._repository.update_node(node)
+        updated = self._repository.update_node(node)
+        self._bump_graph_version()
+        return updated
 
     def delete_node(self, node_id: uuid.UUID) -> bool:
         """
@@ -205,7 +235,10 @@ class SFMService:
         Returns:
             True if deleted, False if not found
         """
-        return self._repository.delete_node(node_id)
+        deleted = self._repository.delete_node(node_id)
+        if deleted:
+            self._bump_graph_version()
+        return deleted
 
     def list_nodes(self, node_type: Optional[Type[Node]] = None) -> List[Node]:
         """
@@ -236,6 +269,7 @@ class SFMService:
             SFMValidationError: If relationship validation fails
         """
         created = self._repository.create_relationship(relationship)
+        self._bump_graph_version()
         logger.info("Created relationship: %s -> %s (%s)", relationship.source_id, relationship.target_id, relationship.kind)
         return created
 
@@ -270,6 +304,8 @@ class SFMService:
             >>> print(f"Created {len(created)} relationships")
         """
         created = self._repository.create_relationships_bulk(relationships)
+        if created:
+            self._bump_graph_version()
         logger.info("Bulk created %d relationships", len(created))
         return created
 
@@ -299,6 +335,7 @@ class SFMService:
             SFMNotFoundError: If relationship doesn't exist
         """
         updated = self._repository.update_relationship(relationship)
+        self._bump_graph_version()
         logger.info("Updated relationship: %s", relationship.id)
         return updated
 
@@ -314,6 +351,7 @@ class SFMService:
         """
         success = self._repository.delete_relationship(relationship_id)
         if success:
+            self._bump_graph_version()
             logger.info("Deleted relationship: %s", relationship_id)
         return success
 
@@ -550,6 +588,7 @@ class SFMService:
             Dictionary with operation status
         """
         self._repository.clear()
+        self._bump_graph_version()
         logger.info("Cleared all data from repository")
         return {"status": "success", "message": "All data cleared"}
 
@@ -1386,12 +1425,19 @@ class SFMService:
                     # Flush batch when reaching batch size
                     if len(node_batch) >= config.batch_size:
                         if not config.dry_run:
+                            self._ensure_capacity(len(node_batch), operation="import_bulk")
                             self.repository.create_nodes_bulk(node_batch)
                         result.nodes_created += len(node_batch)
                         node_batch = []
 
                         if config.show_progress and row_num % config.progress_interval == 0:
                             logger.info("Imported %d nodes...", result.nodes_created)
+
+                except GraphSizeExceededError as e:
+                    result.nodes_failed += len(node_batch)
+                    result.add_error(row=row_num, field=None, message=str(e), suggested_fix=e.remediation)
+                    node_batch = []
+                    break
 
                 except Exception as e:
                     result.nodes_failed += 1
@@ -1407,12 +1453,20 @@ class SFMService:
 
             # Flush remaining nodes
             if node_batch and not config.dry_run:
-                self.repository.create_nodes_bulk(node_batch)
-                result.nodes_created += len(node_batch)
+                try:
+                    self._ensure_capacity(len(node_batch), operation="import_bulk")
+                    self.repository.create_nodes_bulk(node_batch)
+                    result.nodes_created += len(node_batch)
+                except GraphSizeExceededError as e:
+                    result.nodes_failed += len(node_batch)
+                    result.add_error(row=row_num, field=None, message=str(e), suggested_fix=e.remediation)
 
         except Exception as e:
             result.add_error(None, None, f"Import failed: {e}")
             logger.error("Bulk import failed: %s", e)
+
+        if result.nodes_created and not config.dry_run:
+            self._bump_graph_version()
 
         result.elapsed_time = time.time() - start_time
 
@@ -2782,6 +2836,8 @@ class SFMService:
                 self.repository.delete_node(node.id)
             except Exception as e:
                 logger.warning("Failed to delete node %s: %s", node.id, e)
+
+        self._bump_graph_version()
 
         # Reset query engine if it exists
         if self._query_engine is not None:

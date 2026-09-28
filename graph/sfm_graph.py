@@ -145,9 +145,8 @@ class SFMGraph:
             if node_id in (relationship.source_id, relationship.target_id):
                 relationships.append(relationship)
 
-        # Cache result with simple size management
+        # FIFO eviction: dict preserves insertion order, so the first key is the oldest entry
         if len(self._relationship_cache) >= self._relationship_cache_max_size:
-            # Simple eviction: remove one random item to make space
             oldest_key: uuid.UUID = next(iter(self._relationship_cache))
             del self._relationship_cache[oldest_key]
 
@@ -158,17 +157,28 @@ class SFMGraph:
         """Get all node IDs in the graph."""
         return set(self._node_index.keys())
 
+    def remove_relationship(self, relationship_id: uuid.UUID) -> bool:
+        """Remove a relationship. Returns False if it does not exist."""
+        if relationship_id not in self.relationships:
+            return False
+        del self.relationships[relationship_id]
+        self._clear_relationship_cache()
+        return True
+
     def remove_node_from_memory(self, node_id: uuid.UUID) -> bool:
-        """Remove a node from memory."""
+        """Remove a node and every relationship incident to it. Returns False if not found."""
         if node_id not in self._node_index:
             return False
 
-        try:
-            del self.nodes[node_id]
-            del self._node_index[node_id]
-            self._relationship_cache.pop(node_id, None)
-            logger.debug(f"Removed node {node_id} from memory")
-            return True
-        except Exception as e:
-            logger.error(f"Failed to remove node {node_id} from memory: {e}")
-            return False
+        incident = [
+            rel_id for rel_id, rel in self.relationships.items()
+            if node_id in (rel.source_id, rel.target_id)
+        ]
+        for rel_id in incident:
+            del self.relationships[rel_id]
+
+        del self.nodes[node_id]
+        del self._node_index[node_id]
+        self._clear_relationship_cache()
+        logger.debug("Removed node %s and %d incident relationships", node_id, len(incident))
+        return True

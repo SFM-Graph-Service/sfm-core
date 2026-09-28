@@ -232,6 +232,38 @@ class GraphOperationError(SFMError):
         )
 
 
+class GraphSizeExceededError(GraphOperationError):
+    """Exception raised when an operation would push the graph past its configured size limit."""
+
+    def __init__(
+        self,
+        current_size: int,
+        additional: int,
+        limit: int,
+        operation: str = "create_node",
+        context: Optional[ErrorContext] = None
+    ):
+        message = (
+            f"Graph size limit exceeded: {current_size} existing + {additional} new "
+            f"nodes would exceed the limit of {limit}"
+        )
+        super().__init__(
+            message=message,
+            operation=operation,
+            context=context,
+            remediation=(
+                "Increase SFMServiceConfig.graph_size_limit, or switch to the Neo4j "
+                "backend which is designed for large graphs"
+            )
+        )
+        self.error_code = ErrorCode.GRAPH_SIZE_EXCEEDED
+        self.details.update({
+            "current_size": current_size,
+            "additional": additional,
+            "limit": limit,
+        })
+
+
 class NodeCreationError(GraphOperationError):
     """Exception for node creation failures."""
 

@@ -419,5 +419,86 @@ class TestHolarchyWiring(unittest.TestCase):
         self.assertEqual(result["depth"], 0)
 
 
+class TestGraphSizeLimit(unittest.TestCase):
+    """graph_size_limit must actually be enforced."""
+
+    def test_create_node_raises_when_limit_reached(self):
+        from models.exceptions import GraphSizeExceededError, ErrorCode
+
+        service = SFMService(SFMServiceConfig(graph_size_limit=3))
+        for i in range(3):
+            service.create_node(Node(label=f"N{i}"))
+
+        with self.assertRaises(GraphSizeExceededError) as ctx:
+            service.create_node(Node(label="N3"))
+
+        self.assertEqual(ctx.exception.error_code, ErrorCode.GRAPH_SIZE_EXCEEDED)
+        self.assertEqual(ctx.exception.details["limit"], 3)
+        self.assertEqual(service.get_statistics().total_nodes, 3)
+
+    def test_limit_zero_or_none_disables_check(self):
+        service = SFMService(SFMServiceConfig(graph_size_limit=0))
+        for i in range(5):
+            service.create_node(Node(label=f"N{i}"))
+        self.assertEqual(service.get_statistics().total_nodes, 5)
+
+    def test_import_bulk_respects_limit(self):
+        import tempfile
+        from pathlib import Path
+        from data.importers import CSVImportAdapter, MappingTemplates, ImportConfig
+
+        service = SFMService(SFMServiceConfig(graph_size_limit=2))
+        with tempfile.NamedTemporaryFile("w", suffix=".csv", delete=False) as f:
+            f.write("name,description\n")
+            for i in range(5):
+                f.write(f"Node{i},desc\n")
+            path = f.name
+        try:
+            adapter = CSVImportAdapter(MappingTemplates.basic_node(), ImportConfig(batch_size=2))
+            result = service.import_bulk(path, adapter=adapter, config=ImportConfig(batch_size=2))
+        finally:
+            Path(path).unlink(missing_ok=True)
+
+        self.assertEqual(result.nodes_created, 2)
+        self.assertGreater(result.nodes_failed, 0)
+        self.assertTrue(any("size limit" in e.message for e in result.errors))
+        self.assertEqual(service.get_statistics().total_nodes, 2)
+
+
+class TestQueryEngineFreshness(unittest.TestCase):
+    """Once initialized, the query engine must reflect subsequent mutations."""
+
+    def setUp(self):
+        self.service = SFMService()
+        self.a = self.service.create_node(Node(label="A"))
+        self.b = self.service.create_node(Node(label="B"))
+        self.service.initialize_query_engine()
+
+    def test_engine_rebuilds_after_node_creation(self):
+        self.assertEqual(len(self.service.query_engine.graph), 2)
+        self.service.create_node(Node(label="C"))
+        self.assertEqual(len(self.service.query_engine.graph), 3)
+
+    def test_engine_rebuilds_after_relationship_and_delete(self):
+        rel = self.service.create_relationship(
+            Relationship(source_id=self.a.id, target_id=self.b.id, kind="influences")
+        )
+        self.assertEqual(len(self.service.query_engine.graph.relationships), 1)
+        self.service.delete_relationship(rel.id)
+        self.assertEqual(len(self.service.query_engine.graph.relationships), 0)
+        self.service.delete_node(self.b.id)
+        self.assertEqual(len(self.service.query_engine.graph), 1)
+
+    def test_engine_not_rebuilt_when_unchanged(self):
+        engine = self.service.query_engine
+        self.service.get_node(self.a.id)
+        self.assertIs(self.service.query_engine, engine)
+
+    def test_engine_stays_none_until_initialized(self):
+        service = SFMService()
+        service.create_node(Node(label="X"))
+        self.assertIsNone(service.query_engine)
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -188,7 +188,7 @@ for conflict in conflicts:
 ```
 
 **Network Centrality:**
-Compute betweenness, degree, closeness, and eigenvector centrality. Identify institutional bottlenecks and power brokers.
+Compute betweenness, degree, closeness, and eigenvector centrality. Identify institutional bottlenecks and power brokers. Results are cached per graph version, and the query engine rebuilds itself automatically after the graph is modified.
 
 ```python
 from graph.centrality import compute_centrality_metrics

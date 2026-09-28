@@ -4,8 +4,8 @@ Tests for import/export REST API endpoints.
 Covers:
 - GET /import/formats - List supported formats
 - POST /import/csv - Upload and import CSV/Excel files
-- POST /import/oecd - OECD API import (placeholder)
-- POST /import/worldbank - World Bank API import (placeholder)
+- POST /import/oecd - OECD API import
+- POST /import/worldbank - World Bank API import
 """
 
 import pytest
@@ -171,6 +171,20 @@ class TestCSVImportEndpoint:
 
         assert data["nodes_created"] == 50
         assert data["nodes_failed"] == 0
+
+    def test_import_csv_unknown_mapping_template_is_400(self):
+        """An unrecognised template must be rejected, not silently mapped as basic_node."""
+        csv_bytes = b"name,description\nNode1,First\n"
+        response = self.client.post(
+            "/api/v1/import/csv",
+            files={"file": ("test.csv", BytesIO(csv_bytes), "text/csv")},
+            data={"mapping_template": "not_a_template"}
+        )
+        assert response.status_code == 400
+        detail = response.json()["detail"]
+        assert "not_a_template" in detail
+        for name in ("basic_node", "csv_institution", "oecd_indicator", "worldbank_indicator"):
+            assert name in detail
 
     def test_import_csv_with_mapping_template(self):
         """Test CSV import with pre-built mapping template."""

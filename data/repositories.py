@@ -59,6 +59,10 @@ class SFMRepository(ABC):
         """List all nodes, optionally filtered by type."""
         pass
 
+    def count_nodes(self) -> int:
+        """Return the number of nodes. Subclasses should override with an O(1) or indexed count."""
+        return len(self.list_nodes())
+
     def create_nodes_bulk(self, nodes: List[Node]) -> List[Node]:
         """
         Create multiple nodes in bulk (optional optimization).
@@ -152,6 +156,9 @@ class NetworkXSFMRepository(SFMRepository):
         """Initialize the repository with an empty NetworkX graph."""
         self.graph: nx.MultiDiGraph[uuid.UUID] = nx.MultiDiGraph()
         self.change_tracker = ChangeTracker()
+
+    def count_nodes(self) -> int:
+        return self.graph.number_of_nodes()
 
     def create_node(self, node: Node) -> Node:
         """Create a new node in the repository. Supports all Beta node types."""

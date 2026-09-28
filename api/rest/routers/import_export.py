@@ -10,6 +10,7 @@ Provides endpoints for:
 
 from typing import Optional, List
 from pathlib import Path
+import logging
 import tempfile
 
 from fastapi import APIRouter, UploadFile, File, Form, HTTPException, status
@@ -23,9 +24,18 @@ from data.importers import (
     MappingTemplates,
     ImportConfig,
 )
+from models.exceptions import SFMError
 
 
+logger = logging.getLogger(__name__)
 router = APIRouter()
+
+MAPPING_TEMPLATES = {
+    "basic_node": MappingTemplates.basic_node,
+    "csv_institution": MappingTemplates.csv_institution,
+    "oecd_indicator": MappingTemplates.oecd_indicator,
+    "worldbank_indicator": MappingTemplates.worldbank_indicator,
+}
 
 
 # ==================== Response Schemas ====================
@@ -205,14 +215,15 @@ async def import_csv(
         temp_path = temp_file.name
 
     try:
-        # Select mapping template
-        if mapping_template == "csv_institution":
-            mapping = MappingTemplates.csv_institution()
-        elif mapping_template == "basic_node":
-            mapping = MappingTemplates.basic_node()
-        else:
-            # Default: basic node mapping
-            mapping = MappingTemplates.basic_node()
+        template_name = mapping_template or "basic_node"
+        template_factory = MAPPING_TEMPLATES.get(template_name)
+        if template_factory is None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Unknown mapping_template '{template_name}'. "
+                       f"Valid options: {', '.join(sorted(MAPPING_TEMPLATES))}"
+            )
+        mapping = template_factory()
 
         # Override node type if specified
         if node_type != "Node":
@@ -251,10 +262,13 @@ async def import_csv(
             elapsed_time=result.elapsed_time
         )
 
+    except (HTTPException, SFMError):
+        raise
     except Exception as e:
+        logger.exception("CSV import failed")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Import failed: {str(e)}"
+            detail="Import failed due to an internal error"
         ) from e
 
     finally:
@@ -337,10 +351,13 @@ async def import_oecd(
             elapsed_time=result.elapsed_time
         )
 
+    except (HTTPException, SFMError):
+        raise
     except Exception as e:
+        logger.exception("OECD import failed")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"OECD import failed: {str(e)}"
+            detail="OECD import failed due to an internal error"
         ) from e
 
 
@@ -412,8 +429,11 @@ async def import_worldbank(
             elapsed_time=result.elapsed_time
         )
 
+    except (HTTPException, SFMError):
+        raise
     except Exception as e:
+        logger.exception("World Bank import failed")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"World Bank import failed: {str(e)}"
+            detail="World Bank import failed due to an internal error"
         ) from e
