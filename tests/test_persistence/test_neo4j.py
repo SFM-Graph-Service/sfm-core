@@ -157,6 +157,52 @@ class TestNeo4jRepository(unittest.TestCase):
         self.assertEqual(properties['label'], "Test Node")
         self.assertEqual(properties['certainty'], 0.95)
 
+    def test_node_dict_attributes_are_json_encoded(self):
+        """Neo4j cannot store map properties; dict attributes must go in as JSON strings."""
+        node = BaseNode(label="With meta", meta={"tier": "state", "nested": {"a": [1, 2]}})
+        properties = self.Neo4jSFMRepository._node_to_properties(node)
+
+        self.assertIsInstance(properties['meta'], str)
+        self.assertEqual(properties['_json_fields'], ['meta'])
+        for value in properties.values():
+            self.assertNotIsInstance(value, dict)
+
+        restored = self.Neo4jSFMRepository._properties_to_node(properties, BaseNode)
+        self.assertEqual(restored.meta, {"tier": "state", "nested": {"a": [1, 2]}})
+
+    def test_relationship_properties_round_trip_uncertainty_fields(self):
+        """Every Relationship field must survive the property flattening."""
+        rel = Relationship(
+            source_id=uuid.uuid4(), target_id=uuid.uuid4(), kind="funds", weight=0.8,
+            meta={"note": "x", "nested": {"k": 1}}, confidence=0.9, confidence_interval=(0.7, 0.9),
+            uncertainty_type="epistemic", data_sources=["A", "B"], source_agreement="high",
+            valid_from=datetime(2026, 1, 1), valid_to=datetime(2026, 12, 31),
+        )
+        props = self.Neo4jSFMRepository._relationship_properties(rel)
+        for value in props.values():
+            self.assertNotIsInstance(value, dict, "map-valued property would be rejected by Neo4j")
+        self.assertEqual(props['confidence_interval'], [0.7, 0.9])
+        self.assertEqual(props['data_sources'], ["A", "B"])
+
+        restored = self.Neo4jSFMRepository._relationship_from_record(
+            props, str(rel.source_id), str(rel.target_id), "funds"
+        )
+        self.assertEqual(restored.meta, {"note": "x", "nested": {"k": 1}})
+        self.assertEqual(restored.confidence, 0.9)
+        self.assertEqual(restored.confidence_interval, (0.7, 0.9))
+        self.assertEqual(restored.uncertainty_type, "epistemic")
+        self.assertEqual(restored.data_sources, ["A", "B"])
+        self.assertEqual(restored.source_agreement, "high")
+        self.assertEqual(restored.valid_from, datetime(2026, 1, 1))
+        self.assertEqual(restored.valid_to, datetime(2026, 12, 31))
+
+        minimal = self.Neo4jSFMRepository._relationship_from_record(
+            {'id': str(uuid.uuid4()), 'kind': 'x'}, str(uuid.uuid4()), str(uuid.uuid4()), 'x'
+        )
+        self.assertIsNone(minimal.confidence)
+        self.assertEqual(minimal.data_sources, [])
+        self.assertEqual(minimal.meta, {})
+
     def test_properties_to_node(self):
         """Test properties conversion back to Node."""
         properties = {
@@ -687,8 +733,11 @@ class TestNeo4jRepository(unittest.TestCase):
 
         properties = self.Neo4jSFMRepository._node_to_properties(node)
 
+        # Neo4j property values must be primitives or arrays; maps are stored as JSON text
         self.assertIn('meta', properties)
-        self.assertIsInstance(properties['meta'], dict)
+        self.assertIsInstance(properties['meta'], str)
+        import json as _json
+        self.assertEqual(_json.loads(properties['meta']), {"key1": "value1", "key2": "value2"})
 
     def test_error_handling_neo4j_error(self):
         """Test error handling for Neo4j driver errors."""

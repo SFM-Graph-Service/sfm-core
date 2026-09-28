@@ -139,13 +139,27 @@ class Neo4jSFMRepository(SFMRepository):
             return value
 
     @staticmethod
+    def _to_json_property(value: Any) -> str:
+        """Encode a nested structure as a JSON string; Neo4j properties cannot hold maps."""
+        def normalise(v: Any) -> Any:
+            if isinstance(v, dict):
+                return {str(k): normalise(item) for k, item in v.items()}
+            if isinstance(v, (list, tuple)):
+                return [normalise(item) for item in v]
+            return v
+        return json.dumps(normalise(value), default=str)
+
+    @staticmethod
     def _node_to_properties(node: Node) -> Dict[str, Any]:
         """
         Convert a Node instance to Neo4j properties dictionary.
 
-        Serializes all node attributes, handling complex types.
+        Serializes all node attributes, handling complex types. Dict-valued
+        attributes are stored as JSON strings and their names recorded in
+        ``_json_fields`` so they can be decoded on read.
         """
-        properties = {}
+        properties: Dict[str, Any] = {}
+        json_fields: List[str] = []
 
         for attr_name, attr_value in node.__dict__.items():
             if attr_name.startswith('_'):
@@ -153,10 +167,15 @@ class Neo4jSFMRepository(SFMRepository):
                 continue
 
             serialized = Neo4jSFMRepository._serialize_value(attr_value)
+            if isinstance(serialized, dict):
+                serialized = Neo4jSFMRepository._to_json_property(serialized)
+                json_fields.append(attr_name)
             properties[attr_name] = serialized
 
         # Store the Python class name for deserialization
         properties['_python_class'] = type(node).__name__
+        if json_fields:
+            properties['_json_fields'] = json_fields
 
         return properties
 
@@ -169,8 +188,17 @@ class Neo4jSFMRepository(SFMRepository):
             properties: Dictionary of node properties from Neo4j
             node_class: The Python class to instantiate
         """
+        json_fields = properties.get('_json_fields') or []
+
         # Remove internal properties
         props = {k: v for k, v in properties.items() if not k.startswith('_')}
+
+        for field_name in json_fields:
+            if isinstance(props.get(field_name), str):
+                try:
+                    props[field_name] = json.loads(props[field_name])
+                except (json.JSONDecodeError, TypeError):
+                    pass
 
         # Deserialize specific fields
         if 'id' in props:
@@ -517,9 +545,8 @@ class Neo4jSFMRepository(SFMRepository):
                 ) from e
 
     @staticmethod
-    def _create_relationship_tx(tx: ManagedTransaction, rel: Relationship) -> Optional[Dict[str, Any]]:
-        """ManagedTransaction function to create a relationship."""
-        # Prepare properties
+    def _relationship_properties(rel: Relationship) -> Dict[str, Any]:
+        """Flatten a Relationship into Neo4j-storable properties, including uncertainty fields."""
         properties: Dict[str, Any] = {
             'id': str(rel.id),
             'kind': rel.kind,
@@ -527,7 +554,57 @@ class Neo4jSFMRepository(SFMRepository):
         if rel.weight is not None:
             properties['weight'] = rel.weight
         if rel.meta:
-            properties['meta'] = Neo4jSFMRepository._serialize_value(rel.meta)
+            properties['meta'] = Neo4jSFMRepository._to_json_property(
+                Neo4jSFMRepository._serialize_value(rel.meta)
+            )
+        if rel.confidence is not None:
+            properties['confidence'] = rel.confidence
+        if rel.confidence_interval is not None:
+            properties['confidence_interval'] = [float(rel.confidence_interval[0]), float(rel.confidence_interval[1])]
+        if rel.uncertainty_type:
+            properties['uncertainty_type'] = rel.uncertainty_type
+        if rel.data_sources:
+            properties['data_sources'] = list(rel.data_sources)
+        if rel.source_agreement:
+            properties['source_agreement'] = rel.source_agreement
+        if rel.valid_from is not None:
+            properties['valid_from'] = rel.valid_from.isoformat()
+        if rel.valid_to is not None:
+            properties['valid_to'] = rel.valid_to.isoformat()
+        return properties
+
+    @staticmethod
+    def _relationship_from_record(
+        rel_data: Dict[str, Any], source_id: str, target_id: str, rel_type: str
+    ) -> Relationship:
+        """Inverse of _relationship_properties."""
+        meta = rel_data.get('meta') or {}
+        if isinstance(meta, str):
+            try:
+                meta = json.loads(meta)
+            except (json.JSONDecodeError, TypeError):
+                meta = {}
+        ci = rel_data.get('confidence_interval')
+        return Relationship(
+            id=uuid.UUID(rel_data['id']),
+            source_id=uuid.UUID(source_id),
+            target_id=uuid.UUID(target_id),
+            kind=rel_data.get('kind', rel_type),
+            weight=rel_data.get('weight'),
+            meta=meta,
+            confidence=rel_data.get('confidence'),
+            confidence_interval=(ci[0], ci[1]) if ci else None,
+            uncertainty_type=rel_data.get('uncertainty_type'),
+            data_sources=list(rel_data.get('data_sources') or []),
+            source_agreement=rel_data.get('source_agreement'),
+            valid_from=datetime.fromisoformat(rel_data['valid_from']) if rel_data.get('valid_from') else None,
+            valid_to=datetime.fromisoformat(rel_data['valid_to']) if rel_data.get('valid_to') else None,
+        )
+
+    @staticmethod
+    def _create_relationship_tx(tx: ManagedTransaction, rel: Relationship) -> Optional[Dict[str, Any]]:
+        """ManagedTransaction function to create a relationship."""
+        properties = Neo4jSFMRepository._relationship_properties(rel)
 
         # Create relationship with dynamic type
         rel_type = rel.kind if rel.kind else "RELATED_TO"
@@ -571,15 +648,8 @@ class Neo4jSFMRepository(SFMRepository):
         if not result:
             return None
 
-        rel_data = dict(result['r'])
-
-        return Relationship(
-            id=uuid.UUID(rel_data['id']),
-            source_id=uuid.UUID(result['source_id']),
-            target_id=uuid.UUID(result['target_id']),
-            kind=rel_data.get('kind', result['rel_type']),
-            weight=rel_data.get('weight'),
-            meta=rel_data.get('meta', {})
+        return Neo4jSFMRepository._relationship_from_record(
+            dict(result['r']), result['source_id'], result['target_id'], result['rel_type']
         )
 
     def update_relationship(self, rel: Relationship) -> Relationship:
@@ -607,14 +677,7 @@ class Neo4jSFMRepository(SFMRepository):
     @staticmethod
     def _update_relationship_tx(tx: ManagedTransaction, rel: Relationship) -> Optional[Dict[str, Any]]:
         """ManagedTransaction function to update a relationship."""
-        properties: Dict[str, Any] = {
-            'id': str(rel.id),
-            'kind': rel.kind,
-        }
-        if rel.weight is not None:
-            properties['weight'] = rel.weight
-        if rel.meta:
-            properties['meta'] = Neo4jSFMRepository._serialize_value(rel.meta)
+        properties = Neo4jSFMRepository._relationship_properties(rel)
 
         query = """
         MATCH ()-[r {id: $id}]->()
@@ -679,19 +742,12 @@ class Neo4jSFMRepository(SFMRepository):
             """
             results = tx.run(query)
 
-        relationships = []
-        for record in results:
-            rel_data = dict(record['r'])
-            relationships.append(Relationship(
-                id=uuid.UUID(rel_data['id']),
-                source_id=uuid.UUID(record['source_id']),
-                target_id=uuid.UUID(record['target_id']),
-                kind=rel_data.get('kind', record['rel_type']),
-                weight=rel_data.get('weight'),
-                meta=rel_data.get('meta', {})
-            ))
-
-        return relationships
+        return [
+            Neo4jSFMRepository._relationship_from_record(
+                dict(record['r']), record['source_id'], record['target_id'], record['rel_type']
+            )
+            for record in results
+        ]
 
     def find_relationships(
         self,
@@ -746,19 +802,12 @@ class Neo4jSFMRepository(SFMRepository):
 
         results = tx.run(query, **params)
 
-        relationships = []
-        for record in results:
-            rel_data = dict(record['r'])
-            relationships.append(Relationship(
-                id=uuid.UUID(rel_data['id']),
-                source_id=uuid.UUID(record['source_id']),
-                target_id=uuid.UUID(record['target_id']),
-                kind=rel_data.get('kind', record['rel_type']),
-                weight=rel_data.get('weight'),
-                meta=rel_data.get('meta', {})
-            ))
-
-        return relationships
+        return [
+            Neo4jSFMRepository._relationship_from_record(
+                dict(record['r']), record['source_id'], record['target_id'], record['rel_type']
+            )
+            for record in results
+        ]
 
     def load_graph(self) -> SFMGraph:
         """

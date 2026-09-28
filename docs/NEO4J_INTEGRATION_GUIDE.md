@@ -586,6 +586,24 @@ for batch in chunks(nodes, 1000):
 CALL db.clearQueryCaches();
 ```
 
+## Backend Contract Tests
+
+`tests/test_backends/test_backend_contract.py` runs the same CRUD, round-trip and analysis assertions against every backend through `SFMService`. The NetworkX leg always runs; the Neo4j leg runs only when a live server is reachable:
+
+```bash
+# NetworkX only (Neo4j leg is skipped, not failed)
+pytest tests/test_backends
+
+# Against a live Neo4j
+export NEO4J_URI=bolt://localhost:7687 NEO4J_USERNAME=neo4j NEO4J_PASSWORD=password
+pytest -m neo4j            # serial: these tests clear the shared database
+pytest -m "not neo4j" -n auto
+```
+
+CI starts a `neo4j:5` service container and runs both legs on every push. Anything that passes on NetworkX but fails on Neo4j is backend drift; add the behaviour to the contract suite rather than to a backend-specific test.
+
+The contract suite guarantees, among other things, that every `Relationship` field (confidence, confidence interval, uncertainty type, data sources, source agreement, validity dates, meta) survives a round trip on both backends. Neo4j property values must be primitives or arrays, so `meta` and other dict-valued attributes are stored as JSON text and decoded on read; nested dataclass values (for example `SFMDeliveryCell.deliveries`) are not yet supported on the Neo4j backend.
+
 ## Next Steps
 
 1. **Try the examples**: Run `examples/neo4j_integration_demo.py`
